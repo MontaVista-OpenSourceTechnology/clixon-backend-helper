@@ -1,0 +1,33 @@
+module clixon-beh-config {
+    yang-version 1.1;
+    namespace "http://mvista.com/clixon-beh/config";
+    prefix behc;
+
+    organization
+        "MontaVista Software / Clixon Backend Helper";
+
+    contact
+	"Corey Minyard <cminyard@mvista.com>";
+
+    description
+        "Clixon backend helper configuration file
+	clixon-be-help - A clixon backin plugin helper
+	Copyright (C) 2024  Montavista Software, LLC <source@mvista.com>
+	SPDX-License-Identifier: LGPL-2.1-only
+	FIXME - add licence
+	";
+
+    revision 2024-06-05 {
+        description
+            "Initial version";
+    }
+
+    container clixon-beh-config {
+        leaf CLIXON_BEH_PLUGIN_DIR {
+	    type string;
+	    description
+	        "Location of where to find the back end helper .so and
+		 .py plugins";
+	}
+    }
+}
