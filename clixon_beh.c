@@ -7,7 +7,7 @@
 
 #include <dlfcn.h>
 
-#include "clixon_be_helper.h"
+#include "clixon_beh.h"
 
 static int
 clixon_beh_vasprintf(char **rstr, const char *fmt, va_list va)
