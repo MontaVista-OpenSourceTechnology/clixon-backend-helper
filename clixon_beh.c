@@ -773,8 +773,8 @@ clixon_plugin_init(clicon_handle h) {
 	clixon_err(OE_CFG, 0, "CLICON_BACKEND_DIR not set");
 	goto out_err;
     }
-    if (clixon_beh_asprintf(&mycfgfile, "%s/behelper.xml", cfgdir) < 0) {
-	clixon_err(OE_CFG, 0, "Out of memory allocation behelper.xml");
+    if (clixon_beh_asprintf(&mycfgfile, "%s/clixon_beh.xml", cfgdir) < 0) {
+	clixon_err(OE_CFG, 0, "Out of memory allocation clixon_beh.xml");
 	goto out_err;
     }
     if ((yspec = yspec_new()) == NULL)
