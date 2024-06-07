@@ -7,6 +7,7 @@
 
 #include <dlfcn.h>
 #include <stdbool.h>
+#include <Python.h>
 
 #include "clixon_beh.h"
 
@@ -50,11 +51,19 @@ struct clixon_beh_plugin {
     qelem_t link;
 
     struct clixon_beh *beh;
-    void *dlhandle;
     char *name;
     char *namespace;
     const struct clixon_beh_api *api;
     void *cb_data;
+
+    enum {
+	CLIXON_BEH_NO_PLUGIN = 0,
+	CLIXON_BEH_C_PLUGIN,
+	CLIXON_BEH_PYTHON_PLUGIN,
+    } plugin_type;
+
+    /* Either the dlopen handle or the python module. */
+    void *dlhandle;
 };
 
 struct clixon_beh *
@@ -114,6 +123,8 @@ static cvec *plugin_ns_present; /* Vector of the namespaces registered. */
      NEXTQ(struct clixon_beh_plugin *, (p)))
 #define clixon_beh_for_each_plugin(p) \
     for ((p) = plugins; (p) != NULL; p = clixon_beh_next_plugin(p))
+
+static bool python_initialized;
 
 int
 clixon_beh_add_plugin(struct clixon_beh *beh,
@@ -434,8 +445,6 @@ clixon_beh_begin(clicon_handle h, transaction_data td)
     transaction_arg_set(td, bt);
 
     clixon_beh_for_each_plugin(p) {
-	clixon_beh_log(p->beh, LOG_TYPE_ERR, "Test log 1: %p\n", p);
-	clixon_beh_log_plugin(p, LOG_TYPE_ERR, "Test log 2: %p\n", p->api->begin);
 	rv = clixon_beh_trans_call_one(p, p->api->begin, bt);
 	if (rv < 0)
 	    break;
@@ -601,8 +610,19 @@ exit_plugin(struct clixon_beh_plugin *p)
 	free(p->name);
     if (p->namespace)
 	free(p->namespace);
-    if (p->dlhandle)
+
+    switch (p->plugin_type) {
+    case CLIXON_BEH_NO_PLUGIN:
+	break;
+
+    case CLIXON_BEH_C_PLUGIN:
 	dlclose(p->dlhandle);
+	break;
+
+    case CLIXON_BEH_PYTHON_PLUGIN:
+	Py_DECREF(p->dlhandle);
+	break;
+    }
     free(p);
 }
 
@@ -614,8 +634,14 @@ clixon_beh_exit(clixon_handle h)
 	beh = plugins->beh;
     while (plugins)
 	exit_plugin(plugins);
+    if (python_initialized) {
+	Py_Finalize();
+	python_initialized = false;
+    }
     if (beh)
 	free(beh);
+    if (plugin_ns_present)
+	cvec_free(plugin_ns_present);
     return 0;
 }
 
@@ -703,7 +729,8 @@ static clixon_plugin_api api = {
 };
 
 static int
-plugin_load_one(struct clixon_beh *beh, char *plugin_file, int dlflags)
+clixon_beh_plugin_load_one_so(struct clixon_beh *beh, char *plugin_file,
+			      int dlflags)
 {
     int retval = -1, rv;
     void *handle = NULL;
@@ -748,6 +775,7 @@ plugin_load_one(struct clixon_beh *beh, char *plugin_file, int dlflags)
     retval = 1;
     /* Store the handle in the last plugin, it will get freed there. */
     new_tail->dlhandle = handle;
+    new_tail->plugin_type = CLIXON_BEH_C_PLUGIN;
     goto out_err;
 
  out_err:
@@ -764,6 +792,63 @@ plugin_load_one(struct clixon_beh *beh, char *plugin_file, int dlflags)
 }
 
 static int
+clixon_beh_plugin_load_one_py(struct clixon_beh *beh, const char *modname,
+			      const char *full_path)
+{
+    int retval = -1;
+    PyObject *module = NULL;
+    char *modstr, *s;
+    struct clixon_beh_plugin *tail = NULL, *new_tail = NULL;
+
+    /* Get the name without the '.py'. */
+    modstr = strdup(modname);
+    if (!modstr) {
+	clixon_err(OE_PLUGIN, errno, "Failed to allocate module name %s",
+		   full_path);
+	goto out_err;
+    }
+    s = strrchr(modstr, '.');
+    if (s)
+	*s = '\0';
+
+    tail = PREVQ(struct clixon_beh_plugin *, plugins);
+    module = PyImport_ImportModule(modstr);
+    new_tail = PREVQ(struct clixon_beh_plugin *, plugins);
+
+    if (!module) {
+	clixon_err(OE_PLUGIN, errno, "Failed to initialize %s",
+		   full_path);
+	goto out_err;
+    }
+
+    if (tail == new_tail) {
+	/* No new plugins were registered, warn and return. */
+	clixon_log(beh->h, LOG_DEBUG, "Warning: No plugins in %s",
+		   full_path);
+	retval = 0;
+	goto out_err;
+    }
+
+    retval = 1;
+    /* Store the handle in the last plugin, it will get freed there. */
+    new_tail->dlhandle = module;
+    new_tail->plugin_type = CLIXON_BEH_PYTHON_PLUGIN;
+    goto out_err;
+
+ out_err:
+    if (retval != 1) {
+	/* Delete the plugins we added. */
+        while (tail != new_tail) {
+	    exit_plugin(new_tail);
+            new_tail = PREVQ(struct clixon_beh_plugin *, plugins);
+        }
+        if (module)
+            Py_DECREF(module);
+    }
+    return retval;
+}
+
+static int
 clixon_beh_load_plugins(struct clixon_beh *beh,
 			const char *plugin_dir)
 {
@@ -772,9 +857,9 @@ clixon_beh_load_plugins(struct clixon_beh *beh,
     struct dirent *dp = NULL;
     int i;
     int dlflags;
-    char *plugin_file = NULL;
+    char *plugin_file = NULL, *suffix;
 
-    if ((ndp = clicon_file_dirent(plugin_dir, &dp, "\\.so$", S_IFREG)) < 0)
+    if ((ndp = clicon_file_dirent(plugin_dir, &dp, "\\.(so|py)$", S_IFREG)) < 0)
 	return -1;
     for (i = 0; i < ndp; i++) {
         if (clixon_beh_asprintf(&plugin_file,
@@ -783,19 +868,43 @@ clixon_beh_load_plugins(struct clixon_beh *beh,
 	    goto out_err;
 	}
         clixon_debug(CLIXON_DBG_INIT, "Loading plugin '%s'", plugin_file);
-        dlflags = RTLD_NOW;
-        if (clicon_option_bool(beh->h, "CLICON_PLUGIN_DLOPEN_GLOBAL"))
-            dlflags |= RTLD_GLOBAL;
-        else
-            dlflags |= RTLD_LOCAL;
-        if (plugin_load_one(beh, plugin_file, dlflags) < 0)
-            goto out_err;
+	suffix = strrchr(dp[i].d_name, '.');
+	if (!suffix)
+	    continue; /* Shouldn't be possible. */
+	if (strcmp(suffix, ".so") == 0) {
+	    dlflags = RTLD_NOW;
+	    if (clicon_option_bool(beh->h, "CLICON_PLUGIN_DLOPEN_GLOBAL"))
+		dlflags |= RTLD_GLOBAL;
+	    else
+		dlflags |= RTLD_LOCAL;
+	    if (clixon_beh_plugin_load_one_so(beh, plugin_file, dlflags) < 0)
+		goto out_err;
+	} else if (strcmp(suffix, ".py") == 0) {
+	    if (!python_initialized) {
+		char *pathcmd;
+
+		if (clixon_beh_asprintf(&pathcmd, "sys.path.append(\"%s\")",
+					plugin_dir) < 0) {
+		    clixon_err(OE_CFG, 0, "Out of memory getting python path");
+		    goto out_err;
+		}
+
+		Py_Initialize();
+		PyRun_SimpleString("import sys");
+		PyRun_SimpleString(pathcmd);
+		python_initialized = true;
+		free(pathcmd);
+	    }
+	    if (clixon_beh_plugin_load_one_py(beh, dp[i].d_name,
+					      plugin_file) < 0)
+		goto out_err;
+	}
 	free(plugin_file);
 	plugin_file = NULL;
     }
     if (!plugins) {
-	clixon_log(beh->h, LOG_DEBUG,
-		   "Warning: No plugins in clixon_be_helper");
+	clixon_beh_log(beh, LOG_DEBUG,
+		       "Warning: No plugins in %s", plugin_dir);
 	retval = 0;
     } else {
 	retval = 1;
