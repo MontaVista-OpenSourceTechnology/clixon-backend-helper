@@ -33,9 +33,9 @@ struct clixon_beh_trans;
 
 typedef int (*clixon_beh_daemon_cb)(struct clixon_beh_plugin *p);
 typedef int (*clixon_beh_exit_cb)(struct clixon_beh_plugin *p);
-typedef int (*clixon_beh_reset_cb)(struct clixon_beh_plugin *p, char *cb);
+typedef int (*clixon_beh_reset_cb)(struct clixon_beh_plugin *p, const char *cb);
 typedef int (*clixon_beh_lockdb_cb)(struct clixon_beh_plugin *p,
-				    char *db, int lock, int id);
+				    const char *db, int lock, int id);
 typedef int (*clixon_beh_transaction_cb)(struct clixon_beh_plugin *p,
 					 struct clixon_beh_trans *t);
 typedef int (*clixon_beh_statedata_cb)(struct clixon_beh_plugin *p,
@@ -85,5 +85,13 @@ typedef int (*clixon_beh_initfn)(struct clixon_beh *beh);
 #define CLIXON_BEH_PLUGIN_INIT clixon_beh_stringify(CLIXON_BEH_PLUGIN_INITFN)
 int CLIXON_BEH_PLUGIN_INITFN(struct clixon_beh *beh);
 
+struct clixon_beh *clixon_beh_plugin_get_beh(struct clixon_beh_plugin *p);
+struct clixon_handle *clixon_beh_get_handle(struct clixon_beh *beh);
+
+#define clixon_beh_log(beh, l, fmt, args...) \
+    clixon_log(clixon_beh_get_handle(beh), l, fmt, ##args)
+
+#define clixon_beh_log_plugin(p, l, fmt, args...) \
+    clixon_beh_log(clixon_beh_plugin_get_beh(p), l, fmt, ##args)
 
 #endif /* CLIXON_BE_HELPER_H */

@@ -49,6 +49,7 @@ clixon_beh_asprintf(char **rstr, const char *fmt, ...)
 struct clixon_beh_plugin {
     qelem_t link;
 
+    struct clixon_beh *beh;
     void *dlhandle;
     char *name;
     char *namespace;
@@ -56,9 +57,21 @@ struct clixon_beh_plugin {
     void *cb_data;
 };
 
+struct clixon_beh *
+clixon_beh_plugin_get_beh(struct clixon_beh_plugin *p)
+{
+    return p->beh;
+}
+
 struct clixon_beh {
     clixon_handle h;
 };
+
+struct clixon_handle *
+clixon_beh_get_handle(struct clixon_beh *beh)
+{
+    return beh->h;
+}
 
 struct clixon_beh_trans {
     cxobj *orig_xml;
@@ -96,8 +109,14 @@ clixon_beh_trans_new_xml(struct clixon_beh_trans *t)
 static struct clixon_beh_plugin *plugins; /* Registered plugins */
 static cvec *plugin_ns_present; /* Vector of the namespaces registered. */
 
+#define clixon_beh_next_plugin(p) \
+    (NEXTQ(struct clixon_beh_plugin *, (p)) == plugins ? NULL :	\
+     NEXTQ(struct clixon_beh_plugin *, (p)))
+#define clixon_beh_for_each_plugin(p) \
+    for ((p) = plugins; (p) != NULL; p = clixon_beh_next_plugin(p))
+
 int
-clixon_beh_add_plugin(struct clixon_beh *h,
+clixon_beh_add_plugin(struct clixon_beh *beh,
 		      const char *name, const char *namespace,
 		      const char *priv_program,
 		      const struct clixon_beh_api *api,
@@ -144,6 +163,7 @@ clixon_beh_add_plugin(struct clixon_beh *h,
         cv_uint32_set(cv, cv_uint32_get(cv) + 1);
     }
 
+    p->beh = beh;
     p->api = api;
     p->cb_data = cb_data;
     if (rp)
@@ -413,14 +433,12 @@ clixon_beh_begin(clicon_handle h, transaction_data td)
     }
     transaction_arg_set(td, bt);
 
-    p = plugins;
-    while (p) {
+    clixon_beh_for_each_plugin(p) {
+	clixon_beh_log(p->beh, LOG_TYPE_ERR, "Test log 1: %p\n", p);
+	clixon_beh_log_plugin(p, LOG_TYPE_ERR, "Test log 2: %p\n", p->api->begin);
 	rv = clixon_beh_trans_call_one(p, p->api->begin, bt);
 	if (rv < 0)
 	    break;
-	p = NEXTQ(struct clixon_beh_plugin *, p);
-	if (p == plugins)
-	    p = NULL;
     }
 
     return rv;
@@ -430,16 +448,13 @@ static int
 clixon_beh_end(clicon_handle h, transaction_data td)
 {
     int rv = 0;
-    struct clixon_beh_plugin *p = plugins;
+    struct clixon_beh_plugin *p;
     struct clixon_beh_trans *bt = transaction_arg(td);
 
-    while (p) {
+    clixon_beh_for_each_plugin(p) {
 	rv = clixon_beh_trans_call_one(p, p->api->end, bt);
 	if (rv < 0)
 	    break;
-	p = NEXTQ(struct clixon_beh_plugin *, p);
-	if (p == plugins)
-	    p = NULL;
     }
 
     clixon_beh_trans_free(bt);
@@ -450,16 +465,13 @@ static int
 clixon_beh_validate(clicon_handle h, transaction_data td)
 {
     int rv = 0;
-    struct clixon_beh_plugin *p = plugins;
+    struct clixon_beh_plugin *p;
     struct clixon_beh_trans *bt = transaction_arg(td);
 
-    while (p) {
+    clixon_beh_for_each_plugin(p) {
 	rv = clixon_beh_trans_call_one(p, p->api->validate, bt);
 	if (rv < 0)
 	    break;
-	p = NEXTQ(struct clixon_beh_plugin *, p);
-	if (p == plugins)
-	    p = NULL;
     }
 
     return rv;
@@ -469,16 +481,13 @@ static int
 clixon_beh_complete(clicon_handle h, transaction_data td)
 {
     int rv = 0;
-    struct clixon_beh_plugin *p = plugins;
+    struct clixon_beh_plugin *p;
     struct clixon_beh_trans *bt = transaction_arg(td);
 
-    while (p) {
+    clixon_beh_for_each_plugin(p) {
 	rv = clixon_beh_trans_call_one(p, p->api->complete, bt);
 	if (rv < 0)
 	    break;
-	p = NEXTQ(struct clixon_beh_plugin *, p);
-	if (p == plugins)
-	    p = NULL;
     }
 
     return rv;
@@ -488,16 +497,13 @@ static int
 clixon_beh_commit(clicon_handle h, transaction_data td)
 {
     int rv = 0;
-    struct clixon_beh_plugin *p = plugins;
+    struct clixon_beh_plugin *p;
     struct clixon_beh_trans *bt = transaction_arg(td);
 
-    while (p) {
+    clixon_beh_for_each_plugin(p) {
 	rv = clixon_beh_trans_call_one(p, p->api->commit, bt);
 	if (rv < 0)
 	    break;
-	p = NEXTQ(struct clixon_beh_plugin *, p);
-	if (p == plugins)
-	    p = NULL;
     }
 
     return rv;
@@ -507,16 +513,13 @@ static int
 clixon_beh_commit_done(clicon_handle h, transaction_data td)
 {
     int rv = 0;
-    struct clixon_beh_plugin *p = plugins;
+    struct clixon_beh_plugin *p;
     struct clixon_beh_trans *bt = transaction_arg(td);
 
-    while (p) {
+    clixon_beh_for_each_plugin(p) {
 	rv = clixon_beh_trans_call_one(p, p->api->commit_done, bt);
 	if (rv < 0)
 	    break;
-	p = NEXTQ(struct clixon_beh_plugin *, p);
-	if (p == plugins)
-	    p = NULL;
     }
 
     return rv;
@@ -526,16 +529,13 @@ static int
 clixon_beh_revert(clicon_handle h, transaction_data td)
 {
     int rv = 0;
-    struct clixon_beh_plugin *p = plugins;
+    struct clixon_beh_plugin *p;
     struct clixon_beh_trans *bt = transaction_arg(td);
 
-    while (p) {
+    clixon_beh_for_each_plugin(p) {
 	rv = clixon_beh_trans_call_one(p, p->api->revert, bt);
 	if (rv < 0)
 	    break;
-	p = NEXTQ(struct clixon_beh_plugin *, p);
-	if (p == plugins)
-	    p = NULL;
     }
 
     return rv;
@@ -545,19 +545,16 @@ static int
 clixon_beh_abort(clicon_handle h, transaction_data td)
 {
     int rv = 0;
-    struct clixon_beh_plugin *p = plugins;
+    struct clixon_beh_plugin *p;
     struct clixon_beh_trans *bt = transaction_arg(td);
 
     if (!bt)
 	return 0;
 
-    while (p) {
+    clixon_beh_for_each_plugin(p) {
 	rv = clixon_beh_trans_call_one(p, p->api->abort, bt);
 	if (rv < 0)
 	    break;
-	p = NEXTQ(struct clixon_beh_plugin *, p);
-	if (p == plugins)
-	    p = NULL;
     }
 
     clixon_beh_trans_free(bt);
@@ -582,15 +579,13 @@ clixon_beh_statedata(clixon_handle h, cvec *nsc, char *xpath, cxobj *xtop)
     int rv = 0;
     struct clixon_beh_plugin *p = plugins;
 
-    while (p) {
+    clixon_beh_for_each_plugin(p) {
 	rv = 0;
-	if (!p->namespace || clixon_beh_find_namespace(nsc, p->namespace))
+	if (p->api->statedata &&
+		(!p->namespace || clixon_beh_find_namespace(nsc, p->namespace)))
 	    rv = p->api->statedata(p, nsc, xpath, xtop);
 	if (rv < 0)
 	    break;
-	p = NEXTQ(struct clixon_beh_plugin *, p);
-	if (p == plugins)
-	    p = NULL;
     }
 
     return rv;
@@ -614,15 +609,88 @@ exit_plugin(struct clixon_beh_plugin *p)
 static int
 clixon_beh_exit(clixon_handle h)
 {
+    struct clixon_beh *beh = NULL;
+    if (plugins)
+	beh = plugins->beh;
     while (plugins)
 	exit_plugin(plugins);
+    if (beh)
+	free(beh);
     return 0;
+}
+
+static int
+clixon_beh_pre_daemon(clixon_handle h)
+{
+    int rv = 0;
+    struct clixon_beh_plugin *p;
+
+    clixon_beh_for_each_plugin(p) {
+	if (p->api->pre_daemon)
+	    rv = p->api->pre_daemon(p);
+	if (rv < 0)
+	    break;
+    }
+
+    return rv;
+}
+
+static int
+clixon_beh_daemon(clixon_handle h)
+{
+    int rv = 0;
+    struct clixon_beh_plugin *p;
+
+    clixon_beh_for_each_plugin(p) {
+	if (p->api->daemon)
+	    rv = p->api->daemon(p);
+	if (rv < 0)
+	    break;
+    }
+
+    return rv;
+}
+
+static int
+clixon_beh_reset(clixon_handle h, const char *db)
+{
+    int rv = 0;
+    struct clixon_beh_plugin *p;
+
+    clixon_beh_for_each_plugin(p) {
+	if (p->api->reset)
+	    rv = p->api->reset(p, db);
+	if (rv < 0)
+	    break;
+    }
+
+    return rv;
+}
+
+static int
+clixon_beh_lockdb(clixon_handle h, char *db, int lock, int id)
+{
+    int rv = 0;
+    struct clixon_beh_plugin *p;
+
+    clixon_beh_for_each_plugin(p) {
+	if (p->api->lockdb)
+	    rv = p->api->lockdb(p, db, lock, id);
+	if (rv < 0)
+	    break;
+    }
+
+    return rv;
 }
 
 static clixon_plugin_api api = {
     .ca_name = "clixon_beh backend",
     .ca_init = clixon_plugin_init,
     .ca_exit = clixon_beh_exit,
+    .ca_pre_daemon = clixon_beh_pre_daemon,
+    .ca_daemon = clixon_beh_daemon,
+    .ca_reset = clixon_beh_reset,
+    .ca_lockdb = clixon_beh_lockdb,
     .ca_statedata = clixon_beh_statedata,
     .ca_trans_begin = clixon_beh_begin,
     .ca_trans_end = clixon_beh_end,
@@ -725,10 +793,13 @@ clixon_beh_load_plugins(struct clixon_beh *beh,
 	free(plugin_file);
 	plugin_file = NULL;
     }
-    if (!plugins)
+    if (!plugins) {
 	clixon_log(beh->h, LOG_DEBUG,
 		   "Warning: No plugins in clixon_be_helper");
-    retval = 0;
+	retval = 0;
+    } else {
+	retval = 1;
+    }
  out_err:
     if (dp)
         free(dp);
@@ -798,9 +869,16 @@ clixon_plugin_init(clicon_handle h) {
     yang_stmt *yspec = NULL;
     cxobj *xconfig = NULL, *x;
     char *plugin_dir = NULL;
-    struct clixon_beh beh = { .h = h };
+    struct clixon_beh *beh = NULL;
 
     clixon_debug(CLIXON_DBG_DEFAULT, "clixbon_be_helper Entry\n");
+
+    beh = calloc(1, sizeof(*beh));
+    if (!beh) {
+	clixon_err(OE_CFG, 0, "Can't allocate beh");
+	goto out_err;
+    }
+    beh->h = h;
 
     plugin_ns_present = cvec_new(0);
     if (!plugin_ns_present) {
@@ -847,9 +925,10 @@ clixon_plugin_init(clicon_handle h) {
 	goto out_err;
     }
 
-    if (clixon_beh_load_plugins(&beh, plugin_dir) < 0)
+    if (clixon_beh_load_plugins(beh, plugin_dir) <= 0)
 	goto out_err;
 
+    beh = NULL;
     rapi = &api;
 
  out_err:
@@ -861,5 +940,7 @@ clixon_plugin_init(clicon_handle h) {
         ys_free(yspec);
     if (mycfgfile)
 	free(mycfgfile);
+    if (beh)
+	free(beh);
     return rapi;
 }
