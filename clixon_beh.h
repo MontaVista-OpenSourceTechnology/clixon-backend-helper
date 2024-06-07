@@ -88,7 +88,9 @@ int CLIXON_BEH_PLUGIN_INITFN(struct clixon_beh *beh);
 struct clixon_beh *clixon_beh_plugin_get_beh(struct clixon_beh_plugin *p);
 struct clixon_handle *clixon_beh_get_handle(struct clixon_beh *beh);
 
-#define clixon_beh_log(beh, l, fmt, args...) \
+struct clixon_beh *clixon_beh_get_global_beh(void);
+
+#define clixon_beh_log(beh, l, fmt, args...)			\
     clixon_log(clixon_beh_get_handle(beh), l, fmt, ##args)
 
 #define clixon_beh_log_plugin(p, l, fmt, args...) \
