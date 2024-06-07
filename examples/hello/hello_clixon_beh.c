@@ -217,7 +217,7 @@ hello_validate(struct clixon_beh_plugin *p, struct clixon_beh_trans *t) {
     struct hello_data *data = clixon_beh_trans_get_data(t);
     int rv;
     const char *place;
-    cxobj *x, *xt;
+    cxobj *xt;
 
     clixon_debug(CLIXON_DBG_DEFAULT, "Entry\n");
 #if DEBUG_XML_STRINGS
@@ -234,17 +234,16 @@ hello_validate(struct clixon_beh_plugin *p, struct clixon_beh_trans *t) {
      * pick up changes in the target tree.
      */
     xt = clixon_beh_trans_orig_xml(t);
-    x = NULL;
-    while ((x = xml_child_each(xt, x, CX_ELMNT)) != NULL) {
-        rv = find_hello_to(x, &place);
-        if (rv == -1)
-            return -1;
-        if (!rv)
-            continue;
-        if (xml_flag(x, XML_FLAG_DEL)) {
-            strncpy(data->to, place, sizeof(data->to) - 1);
-            data->op = HELLO_DEL;
-        }
+    if (xt) {
+	rv = find_hello_to(xt, &place);
+	if (rv == -1)
+	    return -1;
+	if (rv == 1) {
+	    if (xml_flag(xt, XML_FLAG_DEL)) {
+		strncpy(data->to, place, sizeof(data->to) - 1);
+		data->op = HELLO_DEL;
+	    }
+	}
     }
 
     /*
@@ -252,17 +251,16 @@ hello_validate(struct clixon_beh_plugin *p, struct clixon_beh_trans *t) {
      * changes, they are treated the same for this.
      */
     xt = clixon_beh_trans_new_xml(t);
-    x = NULL;
-    while ((x = xml_child_each(xt, x, CX_ELMNT)) != NULL) {
-        rv = find_hello_to(x, &place);
-        if (rv == -1)
-            return -1;
-        if (!rv)
-            continue;
-        if (xml_flag(x, XML_FLAG_ADD | XML_FLAG_CHANGE)) {
-            strncpy(data->to, place, sizeof(data->to) - 1);
-            data->op = HELLO_ADD;
-        }
+    if (xt) {
+	rv = find_hello_to(xt, &place);
+	if (rv == -1)
+	    return -1;
+	if (rv) {
+	    if (xml_flag(xt, XML_FLAG_ADD | XML_FLAG_CHANGE)) {
+		strncpy(data->to, place, sizeof(data->to) - 1);
+		data->op = HELLO_ADD;
+	    }
+	}
     }
 
     return 0;

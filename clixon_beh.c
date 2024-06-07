@@ -306,38 +306,38 @@ bt_find_changed_namespaces(struct clixon_beh_trans *obt)
     xnorig = xml_child_each(obt->orig_xml, NULL, CX_ELMNT);
     xnnew = xml_child_each(obt->new_xml, NULL, CX_ELMNT);
     while (xnorig || xnnew) {
-        if (xnnew && xml_flag(xnnew, XML_FLAG_DEL)) {
-            ns = xml_nsxml_fetch(xnnew);
-            if (ns) {
-		if (cvec_find_var(plugin_ns_present, ns)) {
-		    if ((bt = calloc(1, sizeof(*bt))) == NULL)
-			goto fail;
-		    bt->orig_xml = xnnew;
-#if 0
-		    if ((bt->dvec = malloc(sizeof(cxobj *))) == NULL)
-			goto fail;
-		    bt->dvec[0] = xnnew;
-		    bt->dlen = 1;
-#endif
-		}
-	    }
-	    xnnew = xml_child_each(obt->orig_xml, xnnew, CX_ELMNT);
-        } else if (xnorig && xml_flag(xnorig, XML_FLAG_ADD)) {
+        if (xnorig && xml_flag(xnorig, XML_FLAG_DEL)) {
             ns = xml_nsxml_fetch(xnorig);
             if (ns) {
 		if (cvec_find_var(plugin_ns_present, ns)) {
 		    if ((bt = calloc(1, sizeof(*bt))) == NULL)
 			goto fail;
-		    bt->new_xml = xnorig;
+		    bt->orig_xml = xnorig;
+#if 0
+		    if ((bt->dvec = malloc(sizeof(cxobj *))) == NULL)
+			goto fail;
+		    bt->dvec[0] = xnorig;
+		    bt->dlen = 1;
+#endif
+		}
+	    }
+	    xnorig = xml_child_each(obt->orig_xml, xnorig, CX_ELMNT);
+        } else if (xnnew && xml_flag(xnnew, XML_FLAG_ADD)) {
+            ns = xml_nsxml_fetch(xnnew);
+            if (ns) {
+		if (cvec_find_var(plugin_ns_present, ns)) {
+		    if ((bt = calloc(1, sizeof(*bt))) == NULL)
+			goto fail;
+		    bt->new_xml = xnnew;
 #if 0
 		    if ((bt->avec = malloc(sizeof(cxobj *))) == NULL)
 			goto fail;
-		    bt->avec[0] = xnorig;
+		    bt->avec[0] = xnnew;
 		    bt->alen = 1;
 #endif
 		}
 	    }
-	    xnorig = xml_child_each(obt->new_xml, xnorig, CX_ELMNT);
+	    xnnew = xml_child_each(obt->new_xml, xnnew, CX_ELMNT);
         } else {
             if ((xnorig && xml_flag(xnorig, XML_FLAG_CHANGE)) ||
                 (xnnew && xml_flag(xnnew, XML_FLAG_CHANGE))) {
@@ -356,8 +356,8 @@ bt_find_changed_namespaces(struct clixon_beh_trans *obt)
 		    if (cvec_find_var(plugin_ns_present, ns)) {
 			if ((bt = calloc(1, sizeof(*bt))) == NULL)
 			    goto fail;
-			bt->orig_xml = obt->orig_xml;
-			bt->new_xml = obt->new_xml;
+			bt->orig_xml = xnorig;
+			bt->new_xml = xnnew;
 #if 0
 			if (xml_diff(src,
 				     tgt,
@@ -815,7 +815,8 @@ clixon_beh_plugin_load_one_py(struct clixon_beh *beh, const char *modname,
     module = PyImport_ImportModule(modstr);
     new_tail = PREVQ(struct clixon_beh_plugin *, plugins);
 
-    if (!module) {
+    if (PyErr_Occurred()) {
+	PyErr_Print();
 	clixon_err(OE_PLUGIN, errno, "Failed to initialize %s",
 		   full_path);
 	goto out_err;
@@ -970,6 +971,12 @@ clixon_beh_parse_config_file(clixon_handle  h,
     return retval;
 }
 
+static struct clixon_beh *global_beh;
+struct clixon_beh *clixon_beh_get_global_beh(void)
+{
+    return global_beh;
+}
+
 clixon_plugin_api *
 clixon_plugin_init(clicon_handle h) {
     char *cfgdir, *mycfgfile = NULL;
@@ -1037,6 +1044,7 @@ clixon_plugin_init(clicon_handle h) {
     if (clixon_beh_load_plugins(beh, plugin_dir) <= 0)
 	goto out_err;
 
+    global_beh = beh;
     beh = NULL;
     rapi = &api;
 
