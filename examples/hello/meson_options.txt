@@ -1,0 +1,4 @@
+option('clicon_user', type : 'string', value : 'clicon',
+       description : 'The user that clixon_backend to drop to')
+option('clicon_group', type : 'string', value : 'clicon',
+       description : 'The group that clixon_backend to drop to')

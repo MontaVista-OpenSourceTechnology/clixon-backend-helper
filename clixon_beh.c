@@ -6,6 +6,7 @@
  */
 
 #include <dlfcn.h>
+#include <stdbool.h>
 
 #include "clixon_beh.h"
 
@@ -145,7 +146,9 @@ clixon_beh_add_plugin(struct clixon_beh *h,
 
     p->api = api;
     p->cb_data = cb_data;
-    *rp = p;
+    if (rp)
+	*rp = p;
+    ADDQ(p, plugins);
     p = NULL;
     retval = 0;
  out_err:
@@ -393,7 +396,7 @@ static int
 clixon_beh_begin(clicon_handle h, transaction_data td)
 {
     int rv = 0;
-    struct clixon_beh_plugin *p = plugins;
+    struct clixon_beh_plugin *p;
     struct clixon_beh_trans *bt;
 
     bt = calloc(1, sizeof(*bt));
@@ -410,11 +413,14 @@ clixon_beh_begin(clicon_handle h, transaction_data td)
     }
     transaction_arg_set(td, bt);
 
+    p = plugins;
     while (p) {
 	rv = clixon_beh_trans_call_one(p, p->api->begin, bt);
 	if (rv < 0)
 	    break;
 	p = NEXTQ(struct clixon_beh_plugin *, p);
+	if (p == plugins)
+	    p = NULL;
     }
 
     return rv;
@@ -432,6 +438,8 @@ clixon_beh_end(clicon_handle h, transaction_data td)
 	if (rv < 0)
 	    break;
 	p = NEXTQ(struct clixon_beh_plugin *, p);
+	if (p == plugins)
+	    p = NULL;
     }
 
     clixon_beh_trans_free(bt);
@@ -450,6 +458,8 @@ clixon_beh_validate(clicon_handle h, transaction_data td)
 	if (rv < 0)
 	    break;
 	p = NEXTQ(struct clixon_beh_plugin *, p);
+	if (p == plugins)
+	    p = NULL;
     }
 
     return rv;
@@ -467,6 +477,8 @@ clixon_beh_complete(clicon_handle h, transaction_data td)
 	if (rv < 0)
 	    break;
 	p = NEXTQ(struct clixon_beh_plugin *, p);
+	if (p == plugins)
+	    p = NULL;
     }
 
     return rv;
@@ -484,6 +496,8 @@ clixon_beh_commit(clicon_handle h, transaction_data td)
 	if (rv < 0)
 	    break;
 	p = NEXTQ(struct clixon_beh_plugin *, p);
+	if (p == plugins)
+	    p = NULL;
     }
 
     return rv;
@@ -501,6 +515,8 @@ clixon_beh_commit_done(clicon_handle h, transaction_data td)
 	if (rv < 0)
 	    break;
 	p = NEXTQ(struct clixon_beh_plugin *, p);
+	if (p == plugins)
+	    p = NULL;
     }
 
     return rv;
@@ -518,6 +534,8 @@ clixon_beh_revert(clicon_handle h, transaction_data td)
 	if (rv < 0)
 	    break;
 	p = NEXTQ(struct clixon_beh_plugin *, p);
+	if (p == plugins)
+	    p = NULL;
     }
 
     return rv;
@@ -538,10 +556,24 @@ clixon_beh_abort(clicon_handle h, transaction_data td)
 	if (rv < 0)
 	    break;
 	p = NEXTQ(struct clixon_beh_plugin *, p);
+	if (p == plugins)
+	    p = NULL;
     }
 
     clixon_beh_trans_free(bt);
     return rv;
+}
+
+static bool
+clixon_beh_find_namespace(cvec *nsc, char *ns)
+{
+    cg_var *cv = NULL;
+    while ((cv = cvec_each(nsc, cv)) != NULL) {
+	char *s = cv_string_get(cv);
+	if (s && strcmp(s, ns) == 0)
+	    return true;
+    }
+    return false;
 }
 
 static int
@@ -552,11 +584,13 @@ clixon_beh_statedata(clixon_handle h, cvec *nsc, char *xpath, cxobj *xtop)
 
     while (p) {
 	rv = 0;
-	if (!p->namespace || cvec_find_var(nsc, p->namespace))
+	if (!p->namespace || clixon_beh_find_namespace(nsc, p->namespace))
 	    rv = p->api->statedata(p, nsc, xpath, xtop);
 	if (rv < 0)
 	    break;
 	p = NEXTQ(struct clixon_beh_plugin *, p);
+	if (p == plugins)
+	    p = NULL;
     }
 
     return rv;
@@ -768,12 +802,18 @@ clixon_plugin_init(clicon_handle h) {
 
     clixon_debug(CLIXON_DBG_DEFAULT, "clixbon_be_helper Entry\n");
 
-    cfgdir = clicon_option_str(h, "CLICON_BACKEND_DIR");
-    if (!cfgdir) {
-	clixon_err(OE_CFG, 0, "CLICON_BACKEND_DIR not set");
+    plugin_ns_present = cvec_new(0);
+    if (!plugin_ns_present) {
+	clixon_err(OE_CFG, 0, "Can't allocate plugin_ns_present");
 	goto out_err;
     }
-    if (clixon_beh_asprintf(&mycfgfile, "%s/clixon_beh.xml", cfgdir) < 0) {
+
+    cfgdir = clicon_option_str(h, "CLICON_CONFIGDIR");
+    if (!cfgdir) {
+	clixon_err(OE_CFG, 0, "CLICON_CONFIGDIR not set");
+	goto out_err;
+    }
+    if (clixon_beh_asprintf(&mycfgfile, "%s/clixon_beh/clixon_beh.xml", cfgdir) < 0) {
 	clixon_err(OE_CFG, 0, "Out of memory allocation clixon_beh.xml");
 	goto out_err;
     }
@@ -813,6 +853,8 @@ clixon_plugin_init(clicon_handle h) {
     rapi = &api;
 
  out_err:
+    if (!rapi && plugin_ns_present)
+	cvec_free(plugin_ns_present);
     if (xconfig)
         xml_free(xconfig);
     if (yspec)

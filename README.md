@@ -10,3 +10,20 @@ A clixon backend that provides helpful functions for a backend.  These are:
   program to do this.  This defines a program to run whose stdin/stdout
   is available to the plugin.
 * python plugins.
+
+## Compile and run
+
+Build and install clixon first, or install it from your distro if
+available.  Then run:
+```
+    meson build
+    meson compile -C build
+    meson install -C build
+```
+
+This will install the .so in ${prefix}/
+
+## Examples
+
+Each directory in the examples directory is a stand-alone build
+
