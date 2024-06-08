@@ -25,7 +25,7 @@ swig_py_gen = custom_target(
     command: [swig, '-python', '-o', '@OUTPUT1@',
                 '-outdir', '.', '@INPUT@'],
     install: true,
-    install_dir: [pyinstall]
+    install_dir: [pyinstall, false]
 )
 
 shared_library('_clixon_beh', swig_py_gen[1],
