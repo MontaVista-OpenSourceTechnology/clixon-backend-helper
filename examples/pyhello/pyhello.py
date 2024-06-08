@@ -32,7 +32,7 @@ class ClixonHelloHandler:
 
     def begin(self, origxml, newxml):
         print("***begin**")
-        return (0, ClixonHelloOp());
+        return (0, ClixonHelloOp())
 
     def validate(self, data, origxml, newxml):
         print("***validate**")
@@ -98,5 +98,8 @@ class ClixonHelloHandler:
         return 0;
 
 handler = ClixonHelloHandler()
+# You must store the returned plugin someplace.  Otherwise it will be
+# deleted by the python GC, and that will delete the handler, and all
+# this will be for nought.
 handler.p = clixon_beh.add_plugin_strxml("pyhello",
                                          handler.namespace, None, handler)
