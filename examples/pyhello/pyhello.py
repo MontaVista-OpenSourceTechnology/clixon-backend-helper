@@ -30,12 +30,16 @@ class ClixonHelloHandler:
         print("***reset** " + cb)
         return 0
 
-    def begin(self, origxml, newxml):
+    def begin(self, t):
         print("***begin**")
-        return (0, ClixonHelloOp())
+        t.set_userdata(ClixonHelloOp())
+        return 0
 
-    def validate(self, data, origxml, newxml):
+    def validate(self, t):
         print("***validate**")
+        origxml = t.orig_str()
+        newxml = t.new_str()
+        data = t.get_userdata()
         print(str(origxml))
         print(str(newxml))
         val = None
@@ -79,8 +83,9 @@ class ClixonHelloHandler:
         data.val = val
         return 0
 
-    def commit(self, data, origxml, newxml):
+    def commit(self, t):
         print("***commit**")
+        data = t.get_userdata()
         if data.op is None:
             return 0
         if data.op == "add":

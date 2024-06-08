@@ -73,13 +73,18 @@ class ClixonHelloHandler:
     def __init__(self):
         self.namespace = "urn:example:pyhello_beh"
 
-    def begin(self, origxml, newxml):
-        return (0, ClixonHelloOp())
-
-    def validate(self, data, origxml, newxml):
+    def begin(self, t):
+        t.set_userdata(ClixonHelloOp())
         return 0
 
-    def commit(self, data, origxml, newxml):
+    def validate(self, t):
+	    data = t.get_userdata()
+        return 0
+
+    def commit(self, t):
+	    data = t.get_userdata()
+        origxml = t.orig_str()
+        newxml = t.new_str()
         return 0
 
     def statedata(self, nsc, xpath):
@@ -92,11 +97,22 @@ handler.p = clixon_beh.add_plugin_strxml("pyhello",
 Make sure the return value from `add_plugin_strxml()` doesn't get
 deleted, you need to store it someplace.
 
-The transaction data is passed to you as two strings, one holding the
-original XML and one holding the new XML.  You can use something like
-lxml to parse it.  The add, delete, and changed flags are passed in
-the `clixonflags` attribute for the elements that have changed, it will
-be one or more of "add", "del", and "chd" separated by commas.
+The transaction data is passed to you in an object.  It has userdata,
+which you can get and set as a python object, and you can get the
+original and new XML strings.  Note that these may return None if they
+don't exist.  The following methods exist on transactions:
+```
+   t.set_userdata(obj)
+   obj = t.get_userdata()
+   origxmlstr = t.orig_str()
+   newxmlstr = t.new_str()
+```
+
+You can use something like lxml to parse the strings.  All clixon XML
+flags are passed in the `clixonflags` attribute, separated by commas,
+with the strings as lower case ending of the `#define` for them.  For
+the elements that have changed, it will be one or more of "add",
+"del", and "change" flags.
 
 Now when a top-level namespace changed and matches what you have
 registered, the methods in the registered handler will be called.  If

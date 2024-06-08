@@ -328,163 +328,74 @@ pyclixon_xml_addattrs(cxobj *x, cxobj *xo)
     return rv;
 }
 
-struct clixon_beh_trans_data {
+static PyObject *
+clixon_beh_xml2str(cxobj *oxml)
+{
+    cxobj *xml = NULL;
+    cbuf *cb = NULL;
+    PyObject *rv = NULL;
+
+    xml = xml_dup(oxml);
+    if (!xml) {
+	clixon_err(OE_XML, 0, "Unable to duplicate xml");
+	goto out_err;
+    }
+    cb = cbuf_new();
+    if (!cb) {
+	clixon_err(OE_XML, 0, "Unable to allocate cbuf");
+	goto out_err;
+    }
+
+    if (pyclixon_xml_addattrs(xml, oxml) < 0)
+	goto out_err;
+    if (clixon_xml2cbuf(cb, xml, 0, 0, NULL, -1,  0) < 0)
+	goto out_err;
+    rv = PyUnicode_FromString(cbuf_get(cb));
+ out_err:
+    if (xml)
+	xml_free(xml);
+    if (cb)
+	cbuf_free(cb);
+    return rv;
+}
+
+struct transaction {
+    PyObject *myself;
     PyObject *userdata;
+    cxobj *orig_xml;
+    cxobj *new_xml;
     PyObject *orig_str;
     PyObject *new_str;
 };
 
-static void
-clixon_beh_free_trans_data(struct clixon_beh_trans_data *data)
-{
-    if (!data)
-	return;
-    if (data->userdata)
-	Py_DECREF(data->userdata);
-    if (data->orig_str)
-	Py_DECREF(data->orig_str);
-    if (data->new_str)
-	Py_DECREF(data->new_str);
-    free(data);
-}
-
 static int
 pyclixon_call_trans(struct clixon_beh_plugin *p, struct clixon_beh_trans *t,
-		    const char *method, bool begin)
+		    const char *method)
 {
     struct plugin *bp = clixon_beh_plugin_get_cb_data(p);
-    struct clixon_beh_trans_data *data = clixon_beh_trans_get_data(t);
+    struct transaction *data = clixon_beh_trans_get_data(t);
+    PyObject *args;
     int retval = -1;
 
     if (!data) {
-	cxobj *oxml = clixon_beh_trans_orig_xml(t);
-	cxobj *orig_xml = NULL;
-	cxobj *nxml = clixon_beh_trans_new_xml(t);
-	cxobj *new_xml = NULL;
-	cbuf *orig_cb = NULL, *new_cb = NULL;
-	bool good_data = false;
-
 	data = calloc(1, sizeof(*data));
 	if (!data) {
 	    clixon_err(OE_XML, 0, "Could not allocate transaction data");
 	    goto out_err;
 	}
-	data->userdata = Py_None;
-	Py_INCREF(Py_None);
-
-	if (oxml) {
-	    orig_xml = xml_dup(oxml);
-	    orig_cb = cbuf_new();
-	}
-	if (nxml) {
-	    new_xml = xml_dup(nxml);
-	    new_cb = cbuf_new();
-	}
-
-	if (oxml && !orig_xml) {
-	    clixon_err(OE_XML, 0, "Unable to duplicate orig_xml");
-	    goto out_bad_data;
-	}
-
-	if (nxml && !new_xml) {
-	    clixon_err(OE_XML, 0, "Unable to duplicate new_xml");
-	    goto out_bad_data;
-	}
-
-	if ((oxml && !orig_cb) || (nxml && !new_cb)) {
-	    clixon_err(OE_XML, 0, "Unable to allocate cbuf");
-	    goto out_bad_data;
-	}
-
-	/*
-	 * We pull the add/delete/changed flags out of the old XML and set
-	 * the attributes in the new XML tree.
-	 */
-	if (orig_xml) {
-	    if (pyclixon_xml_addattrs(orig_xml, oxml) < 0)
-		goto out_bad_data;
-	    if (clixon_xml2cbuf(orig_cb, orig_xml, 0, 0, NULL, -1,  0) < 0)
-		goto out_bad_data;
-	    data->orig_str = PyUnicode_FromString(cbuf_get(orig_cb));
-	} else {
-	    data->orig_str = Py_None;
-	    Py_INCREF(Py_None);
-	}
-	if (new_xml) {
-	    if (pyclixon_xml_addattrs(new_xml, nxml) < 0)
-		goto out_bad_data;
-	    if (clixon_xml2cbuf(new_cb, new_xml, 0, 0, NULL, -1,  0) < 0)
-		goto out_bad_data;
-	    data->new_str = PyUnicode_FromString(cbuf_get(new_cb));
-	} else {
-	    data->new_str = Py_None;
-	    Py_INCREF(Py_None);
-	}
-	good_data = true;
+	data->myself = SWIG_NewPointerObj(SWIG_as_voidptr(data),
+					  SWIGTYPE_p_transaction,
+					  SWIG_POINTER_OWN);
+	data->userdata = Py_NewRef(Py_None);
+	data->orig_xml = clixon_beh_trans_orig_xml(t);
+	data->new_xml = clixon_beh_trans_new_xml(t);
 	clixon_beh_trans_set_data(t, data);
-
-    out_bad_data:
-	if (orig_cb)
-	    cbuf_free(orig_cb);
-	if (new_cb)
-	    cbuf_free(new_cb);
-	if (orig_xml)
-	    xml_free(orig_xml);
-	if (new_xml)
-	    xml_free(new_xml);
-	if (!good_data) {
-	    clixon_beh_free_trans_data(data);
-	    goto out_err;
-	}
     }
 
-    if (!begin) {
-	PyObject *args = PyTuple_New(3);
-
-	Py_INCREF(data->userdata);
-	PyTuple_SET_ITEM(args, 0, data->userdata);
-	Py_INCREF(data->orig_str);
-	PyTuple_SET_ITEM(args, 1, data->orig_str);
-	Py_INCREF(data->new_str);
-	PyTuple_SET_ITEM(args, 2, data->new_str);
-	retval = pyclixon_call_rv_int(bp->handler, method, args, true);
-    } else {
-	PyObject *args = PyTuple_New(2);
-	PyObject *o = NULL;
-
-	Py_INCREF(data->orig_str);
-	PyTuple_SET_ITEM(args, 0, data->orig_str);
-	Py_INCREF(data->new_str);
-	PyTuple_SET_ITEM(args, 1, data->new_str);
-	retval = pyclixon_call_rv(bp->handler, method, args, true, &o);
-	if (retval < 0)
-	    goto out_err;
-	if (!o) {
-	    /* No begin method. */
-	    retval = 0;
-	    goto out_err;
-	}
-	if (!PyTuple_Check(o) || PyTuple_GET_SIZE(o) != 2 ||
-		!PyLong_Check(PyTuple_GET_ITEM(o, 0))) {
-	    PyObject *t = PyObject_GetAttrString(bp->handler, "__class__");
-	    PyObject *c = PyObject_GetAttrString(t, "__name__");
-	    const char *classt = PyUnicode_AsUTF8(c);
-
-	    clixon_err(OE_PLUGIN, 0, "pyclixon_beh:callback: method begin of "
-		       "class %s didn't return a tuple of size 2, first "
-		       "element as an int", classt);
-	    Py_DECREF(o);
-	    goto out_err;
-	}
-	if (PyLong_AsUnsignedLong(PyTuple_GET_ITEM(o, 0)) < 0) {
-	    Py_DECREF(o);
-	    goto out_err;
-	}
-	Py_DECREF(data->userdata);
-	data->userdata = PyTuple_GET_ITEM(o, 1);
-	Py_INCREF(data->userdata);
-	Py_DECREF(o);
-    }
+    args = PyTuple_New(1);
+    Py_INCREF(data->myself);
+    PyTuple_SET_ITEM(args, 0, data->myself);
+    retval = pyclixon_call_rv_int(bp->handler, method, args, true);
 
  out_err:
     return retval;
@@ -493,53 +404,57 @@ pyclixon_call_trans(struct clixon_beh_plugin *p, struct clixon_beh_trans *t,
 static int
 pyclixon_beh_begin(struct clixon_beh_plugin *p, struct clixon_beh_trans *t)
 {
-    return pyclixon_call_trans(p, t, "begin", true);
+    return pyclixon_call_trans(p, t, "begin");
 }
 
 static int
 pyclixon_beh_validate(struct clixon_beh_plugin *p, struct clixon_beh_trans *t)
 {
-    return pyclixon_call_trans(p, t, "validate", false);
+    return pyclixon_call_trans(p, t, "validate");
 }
 
 static int
 pyclixon_beh_complete(struct clixon_beh_plugin *p, struct clixon_beh_trans *t)
 {
-    return pyclixon_call_trans(p, t, "complete", false);
+    return pyclixon_call_trans(p, t, "complete");
 }
 
 static int
 pyclixon_beh_commit(struct clixon_beh_plugin *p, struct clixon_beh_trans *t)
 {
-    return pyclixon_call_trans(p, t, "commit", false);
+    return pyclixon_call_trans(p, t, "commit");
 }
 
 static int
 pyclixon_beh_commit_done(struct clixon_beh_plugin *p,
 			 struct clixon_beh_trans *t)
 {
-    return pyclixon_call_trans(p, t, "commit_done", false);
+    return pyclixon_call_trans(p, t, "commit_done");
 }
 
 static int
 pyclixon_beh_revert(struct clixon_beh_plugin *p, struct clixon_beh_trans *t)
 {
-    return pyclixon_call_trans(p, t, "revert", false);
+    return pyclixon_call_trans(p, t, "revert");
 }
 
 static int
 pyclixon_beh_end(struct clixon_beh_plugin *p, struct clixon_beh_trans *t)
 {
-    int rv = pyclixon_call_trans(p, t, "end", false);
-    clixon_beh_free_trans_data(clixon_beh_trans_get_data(t));
+    struct transaction *data = clixon_beh_trans_get_data(t);
+    int rv = pyclixon_call_trans(p, t, "end");
+
+    Py_DECREF(data->myself);
     return rv;
 }
 
 static int
 pyclixon_beh_abort(struct clixon_beh_plugin *p, struct clixon_beh_trans *t)
 {
-    int rv = pyclixon_call_trans(p, t, "abort", false);
-    clixon_beh_free_trans_data(clixon_beh_trans_get_data(t));
+    struct transaction *data = clixon_beh_trans_get_data(t);
+    int rv = pyclixon_call_trans(p, t, "abort");
+
+    Py_DECREF(data->myself);
     return rv;
 }
 
@@ -616,6 +531,56 @@ struct plugin *add_plugin_strxml(const char *name,
     ~plugin()
     {
 	clixon_beh_del_plugin(self->p);
+    }
+}
+
+%nodefaultctor plugin;
+struct transaction { };
+
+%extend transaction {
+    ~transaction()
+    {
+	if (self->userdata)
+	    Py_DECREF(self->userdata);
+	if (self->orig_str)
+	    Py_DECREF(self->orig_str);
+	if (self->new_str)
+	    Py_DECREF(self->new_str);
+    }
+
+    void set_userdata(PyObject *data)
+    {
+	Py_DECREF(self->userdata);
+	self->userdata = Py_NewRef(data);
+    }
+
+    PyObject *get_userdata()
+    {
+	return Py_NewRef(self->userdata);
+    }
+
+    PyObject *orig_str()
+    {
+	if (!self->orig_str) {
+	    if (!self->orig_xml)
+		Py_RETURN_NONE;
+	    self->orig_str = clixon_beh_xml2str(self->orig_xml);
+	    if (!self->orig_str)
+		self->orig_str = Py_NewRef(Py_None);
+	}
+	return Py_NewRef(self->orig_str);
+    }
+
+    PyObject *new_str()
+    {
+	if (!self->new_str) {
+	    if (!self->new_xml)
+		Py_RETURN_NONE;
+	    self->new_str = clixon_beh_xml2str(self->new_xml);
+	    if (!self->new_str)
+		self->new_str = Py_NewRef(Py_None);
+	}
+	return Py_NewRef(self->new_str);
     }
 }
 
