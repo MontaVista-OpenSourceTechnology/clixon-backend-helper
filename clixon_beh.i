@@ -249,29 +249,69 @@ pyclixon_xml_dup(cxobj *x0)
     return x1;
 }
 
+/* Bit positions of the XML flags */
+#define XML_FLAG_MARK_POS	0
+#define XML_FLAG_TRANSIENT_POS	1
+#define XML_FLAG_ADD_POS	2
+#define XML_FLAG_DEL_POS	3
+#define XML_FLAG_CHANGE_POS	4
+#define XML_FLAG_NONE_POS	5
+#define XML_FLAG_DEFAULT_POS	6
+#define XML_FLAG_TOP_POS	7
+#define XML_FLAG_BODYKEY_POS	8
+#define XML_FLAG_ANYDATA_POS	9
+#define XML_FLAG_CACHE_DIRTY_POS 10
+static char *xml_flag2str_array[16] = {
+    [XML_FLAG_MARK_POS] = "mark",
+    [XML_FLAG_TRANSIENT_POS] = "transient",
+    [XML_FLAG_ADD_POS] = "add",
+    [XML_FLAG_DEL_POS] = "del",
+    [XML_FLAG_CHANGE_POS] = "change",
+    [XML_FLAG_NONE_POS] = "none",
+    [XML_FLAG_DEFAULT_POS] = "default",
+    [XML_FLAG_TOP_POS] = "top",
+    [XML_FLAG_BODYKEY_POS] = "bodykey",
+    [XML_FLAG_ANYDATA_POS] = "anydata",
+    [XML_FLAG_CACHE_DIRTY_POS] = "cachedirty",
+};
+#define MAX_XML_ATTRSTR 100
+
+static size_t xml_flags2str(char *str, size_t len, uint16_t flags)
+{
+    size_t pos = 0, left, i;
+
+    if (flags == 0)
+	return false;
+    if (len > 0)
+	str[len] = '\0';
+    for (i = 0; i < 16 && flags; i++) {
+	if (!xml_flag2str_array[i])
+	    continue;
+	if (!((1 << i) & flags))
+	    continue;
+	if (pos < len)
+	    left = len - pos;
+	else
+	    left = 0;
+	if (pos == 0)
+	    pos += snprintf(str + pos, left, "%s", xml_flag2str_array[i]);
+	else
+	    pos += snprintf(str + pos, left, ",%s", xml_flag2str_array[i]);
+	flags &= ~(1 << i);
+    }
+    return pos;
+}
+
 static int
 pyclixon_xml_addattrs(cxobj *x, cxobj *xo)
 {
-    uint16_t flags = xml_flag(xo,
-			      XML_FLAG_ADD | XML_FLAG_DEL | XML_FLAG_CHANGE);
     int rv = 0;
     cxobj *c, *co;
+    char attrstr[MAX_XML_ATTRSTR];
+    size_t attrstr_len;
 
-    if (flags) {
-	char attrstr[50] = "";
-
-	if (flags & XML_FLAG_ADD)
-	    strcat(attrstr, "add");
-	if (flags & XML_FLAG_DEL) {
-	    if (attrstr[0])
-		strcat(attrstr, ",");
-	    strcat(attrstr, "del");
-	}
-	if (flags & XML_FLAG_CHANGE) {
-	    if (attrstr[0])
-		strcat(attrstr, ",");
-	    strcat(attrstr, "chd");
-	}
+    attrstr_len = xml_flags2str(attrstr, sizeof(attrstr), xml_flag(xo, 0xffff));
+    if (attrstr_len > 0) {
 	if (!xml_add_attr(x, "clixonflags", attrstr, NULL, NULL)) {
 	    clixon_err(OE_XML, 0, "Unable to add clixonflags attr");
 	    return -1;

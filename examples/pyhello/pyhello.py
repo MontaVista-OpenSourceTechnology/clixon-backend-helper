@@ -36,12 +36,16 @@ class ClixonHelloHandler:
 
     def validate(self, data, origxml, newxml):
         print("***validate**")
+        print(str(origxml))
+        print(str(newxml))
         val = None
         op = None
         if origxml is not None:
             xn = etree.fromstring(origxml)
             flags = xn.get("clixonflags")
-            if flags == "del":
+            if flags:
+                flags = flags.split(",");
+            if flags and "del" in flags:
                 op = "del"
                 x = etree.QName(xn.tag)
                 if x.localname == "hello" and x.namespace == self.namespace:
@@ -53,7 +57,9 @@ class ClixonHelloHandler:
         if newxml is not None:
             xn = etree.fromstring(newxml)
             flags = xn.get("clixonflags")
-            if flags == "add" or flags == "chd":
+            if flags:
+                flags = flags.split(",");
+            if flags and ("add" in flags or "change" in flags):
                 op = "add"
                 x = etree.QName(xn.tag)
                 if x.localname == "hello" and x.namespace == self.namespace:
@@ -63,7 +69,9 @@ class ClixonHelloHandler:
                         val = xn.text
 
         print("op = " + str(op) + "   val = " + str(val))
-        if val is None or op is None:
+        if op is None:
+            return 0
+        if val is None:
             return -1
         if val not in valid_places:
             return -1
