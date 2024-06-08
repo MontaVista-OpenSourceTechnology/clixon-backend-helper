@@ -1,0 +1,20 @@
+module clixon-pyhello-beh {
+    yang-version 1.1;
+    namespace "urn:example:pyhello_beh";
+    prefix he;
+    revision 2024-05-25 {
+	description
+	    "Clixon backend helper hello world example";
+    }
+    container hello {
+	leaf to {
+	    type enumeration {
+	        enum city;
+		enum state;
+		enum country;
+		enum world;
+	    }
+	    description "To whom are we saying hello?";
+	}
+    }
+}
