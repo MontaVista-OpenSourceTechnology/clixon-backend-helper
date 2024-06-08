@@ -546,6 +546,7 @@ struct transaction { };
 	    Py_DECREF(self->orig_str);
 	if (self->new_str)
 	    Py_DECREF(self->new_str);
+	free(self);
     }
 
     void set_userdata(PyObject *data)
