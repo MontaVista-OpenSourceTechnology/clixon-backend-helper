@@ -68,6 +68,7 @@ int clixon_beh_add_plugin(struct clixon_beh *h,
 			  const struct clixon_beh_api *api,
 			  void *cb_data,
 			  struct clixon_beh_plugin **p);
+void clixon_beh_del_plugin(struct clixon_beh_plugin *p);
 
 void *clixon_beh_plugin_get_cb_data(struct clixon_beh_plugin *p);
 int clixon_beh_priv_func_stdin(struct clixon_beh_plugin *p);

@@ -47,6 +47,18 @@ clixon_beh_asprintf(char **rstr, const char *fmt, ...)
     return rv;
 }
 
+struct clixon_beh_module {
+    int refcount;
+    /* Either the dlopen handle or the python module. */
+    void *dlhandle;
+    enum {
+	CLIXON_BEH_C_PLUGIN,
+	CLIXON_BEH_PYTHON_PLUGIN,
+    } plugin_type;
+};
+
+static struct clixon_beh_module *curr_module;
+
 struct clixon_beh_plugin {
     qelem_t link;
 
@@ -56,14 +68,7 @@ struct clixon_beh_plugin {
     const struct clixon_beh_api *api;
     void *cb_data;
 
-    enum {
-	CLIXON_BEH_NO_PLUGIN = 0,
-	CLIXON_BEH_C_PLUGIN,
-	CLIXON_BEH_PYTHON_PLUGIN,
-    } plugin_type;
-
-    /* Either the dlopen handle or the python module. */
-    void *dlhandle;
+    struct clixon_beh_module *module;
 };
 
 struct clixon_beh *
@@ -177,6 +182,10 @@ clixon_beh_add_plugin(struct clixon_beh *beh,
     p->beh = beh;
     p->api = api;
     p->cb_data = cb_data;
+    if (curr_module) {
+	p->module = curr_module;
+	curr_module->refcount++;
+    }
     if (rp)
 	*rp = p;
     ADDQ(p, plugins);
@@ -189,6 +198,37 @@ clixon_beh_add_plugin(struct clixon_beh *beh,
 	free(p);
     }
     return retval;
+}
+
+void
+clixon_beh_del_plugin(struct clixon_beh_plugin *p)
+{
+    DELQ(p, plugins, struct clixon_beh_plugin *);
+    if (p->api && p->api->exit)
+	p->api->exit(p);
+    if (p->name)
+	free(p->name);
+    if (p->namespace)
+	free(p->namespace);
+
+    if (p->module) {
+	p->module->refcount--;
+	if (p->module->refcount == 0) {
+	    switch (p->module->plugin_type) {
+	    case CLIXON_BEH_C_PLUGIN:
+		if (p->module->dlhandle)
+		    dlclose(p->module->dlhandle);
+		break;
+
+	    case CLIXON_BEH_PYTHON_PLUGIN:
+		if (p->module->dlhandle)
+		    Py_DECREF(p->module->dlhandle);
+		break;
+	    }
+	    free(p->module);
+	}
+    }
+    free(p);
 }
 
 void *
@@ -445,7 +485,8 @@ clixon_beh_begin(clicon_handle h, transaction_data td)
     transaction_arg_set(td, bt);
 
     clixon_beh_for_each_plugin(p) {
-	rv = clixon_beh_trans_call_one(p, p->api->begin, bt);
+	if (p->api)
+	    rv = clixon_beh_trans_call_one(p, p->api->begin, bt);
 	if (rv < 0)
 	    break;
     }
@@ -461,7 +502,8 @@ clixon_beh_end(clicon_handle h, transaction_data td)
     struct clixon_beh_trans *bt = transaction_arg(td);
 
     clixon_beh_for_each_plugin(p) {
-	rv = clixon_beh_trans_call_one(p, p->api->end, bt);
+	if (p->api)
+	    rv = clixon_beh_trans_call_one(p, p->api->end, bt);
 	if (rv < 0)
 	    break;
     }
@@ -478,7 +520,8 @@ clixon_beh_validate(clicon_handle h, transaction_data td)
     struct clixon_beh_trans *bt = transaction_arg(td);
 
     clixon_beh_for_each_plugin(p) {
-	rv = clixon_beh_trans_call_one(p, p->api->validate, bt);
+	if (p->api)
+	    rv = clixon_beh_trans_call_one(p, p->api->validate, bt);
 	if (rv < 0)
 	    break;
     }
@@ -494,7 +537,8 @@ clixon_beh_complete(clicon_handle h, transaction_data td)
     struct clixon_beh_trans *bt = transaction_arg(td);
 
     clixon_beh_for_each_plugin(p) {
-	rv = clixon_beh_trans_call_one(p, p->api->complete, bt);
+	if (p->api)
+	    rv = clixon_beh_trans_call_one(p, p->api->complete, bt);
 	if (rv < 0)
 	    break;
     }
@@ -510,7 +554,8 @@ clixon_beh_commit(clicon_handle h, transaction_data td)
     struct clixon_beh_trans *bt = transaction_arg(td);
 
     clixon_beh_for_each_plugin(p) {
-	rv = clixon_beh_trans_call_one(p, p->api->commit, bt);
+	if (p->api)
+	    rv = clixon_beh_trans_call_one(p, p->api->commit, bt);
 	if (rv < 0)
 	    break;
     }
@@ -526,7 +571,8 @@ clixon_beh_commit_done(clicon_handle h, transaction_data td)
     struct clixon_beh_trans *bt = transaction_arg(td);
 
     clixon_beh_for_each_plugin(p) {
-	rv = clixon_beh_trans_call_one(p, p->api->commit_done, bt);
+	if (p->api)
+	    rv = clixon_beh_trans_call_one(p, p->api->commit_done, bt);
 	if (rv < 0)
 	    break;
     }
@@ -542,7 +588,8 @@ clixon_beh_revert(clicon_handle h, transaction_data td)
     struct clixon_beh_trans *bt = transaction_arg(td);
 
     clixon_beh_for_each_plugin(p) {
-	rv = clixon_beh_trans_call_one(p, p->api->revert, bt);
+	if (p->api)
+	    rv = clixon_beh_trans_call_one(p, p->api->revert, bt);
 	if (rv < 0)
 	    break;
     }
@@ -561,7 +608,8 @@ clixon_beh_abort(clicon_handle h, transaction_data td)
 	return 0;
 
     clixon_beh_for_each_plugin(p) {
-	rv = clixon_beh_trans_call_one(p, p->api->abort, bt);
+	if (p->api)
+	    rv = clixon_beh_trans_call_one(p, p->api->abort, bt);
 	if (rv < 0)
 	    break;
     }
@@ -590,7 +638,7 @@ clixon_beh_statedata(clixon_handle h, cvec *nsc, char *xpath, cxobj *xtop)
 
     clixon_beh_for_each_plugin(p) {
 	rv = 0;
-	if (p->api->statedata &&
+	if (p->api && p->api->statedata &&
 		(!p->namespace || clixon_beh_find_namespace(nsc, p->namespace)))
 	    rv = p->api->statedata(p, nsc, xpath, xtop);
 	if (rv < 0)
@@ -600,44 +648,47 @@ clixon_beh_statedata(clixon_handle h, cvec *nsc, char *xpath, cxobj *xtop)
     return rv;
 }
 
-static void
-exit_plugin(struct clixon_beh_plugin *p)
-{
-    DELQ(p, plugins, struct clixon_beh_plugin *);
-    if (p->api && p->api->exit)
-	p->api->exit(p);
-    if (p->name)
-	free(p->name);
-    if (p->namespace)
-	free(p->namespace);
-
-    switch (p->plugin_type) {
-    case CLIXON_BEH_NO_PLUGIN:
-	break;
-
-    case CLIXON_BEH_C_PLUGIN:
-	dlclose(p->dlhandle);
-	break;
-
-    case CLIXON_BEH_PYTHON_PLUGIN:
-	Py_DECREF(p->dlhandle);
-	break;
-    }
-    free(p);
-}
-
 static int
 clixon_beh_exit(clixon_handle h)
 {
     struct clixon_beh *beh = NULL;
+    struct clixon_beh_plugin *p, *p2;
+    const struct clixon_beh_api *api;
+
     if (plugins)
 	beh = plugins->beh;
-    while (plugins)
-	exit_plugin(plugins);
+
+    /*
+     * Shutting down is tricky.  The first thing we do is call all the
+     * exit functions, allowing everything to clean up.  Python modules
+     * should break all circular loops to avoid leaking memory.
+     */
+    p = plugins;
+    while (p) {
+	p2 = clixon_beh_next_plugin(p);
+	api = p->api;
+	p->api = NULL;
+	if (api && api->exit)
+	    api->exit(p);
+	p = p2;
+    }
+
+    /*
+     * Now we finalize python.  Any leftover python plugins should get
+     * deleted unless there is a loop.
+     */
     if (python_initialized) {
 	Py_Finalize();
 	python_initialized = false;
     }
+
+    /*
+     * Now we go through all the plugins that are left and delete them
+     * completely.
+     */
+    while (plugins)
+	clixon_beh_del_plugin(plugins);
+
     if (beh)
 	free(beh);
     if (plugin_ns_present)
@@ -652,7 +703,7 @@ clixon_beh_pre_daemon(clixon_handle h)
     struct clixon_beh_plugin *p;
 
     clixon_beh_for_each_plugin(p) {
-	if (p->api->pre_daemon)
+	if (p->api && p->api->pre_daemon)
 	    rv = p->api->pre_daemon(p);
 	if (rv < 0)
 	    break;
@@ -668,7 +719,7 @@ clixon_beh_daemon(clixon_handle h)
     struct clixon_beh_plugin *p;
 
     clixon_beh_for_each_plugin(p) {
-	if (p->api->daemon)
+	if (p->api && p->api->daemon)
 	    rv = p->api->daemon(p);
 	if (rv < 0)
 	    break;
@@ -684,7 +735,7 @@ clixon_beh_reset(clixon_handle h, const char *db)
     struct clixon_beh_plugin *p;
 
     clixon_beh_for_each_plugin(p) {
-	if (p->api->reset)
+	if (p->api && p->api->reset)
 	    rv = p->api->reset(p, db);
 	if (rv < 0)
 	    break;
@@ -700,7 +751,7 @@ clixon_beh_lockdb(clixon_handle h, char *db, int lock, int id)
     struct clixon_beh_plugin *p;
 
     clixon_beh_for_each_plugin(p) {
-	if (p->api->lockdb)
+	if (p->api && p->api->lockdb)
 	    rv = p->api->lockdb(p, db, lock, id);
 	if (rv < 0)
 	    break;
@@ -735,7 +786,7 @@ clixon_beh_plugin_load_one_so(struct clixon_beh *beh, char *plugin_file,
     int retval = -1, rv;
     void *handle = NULL;
     clixon_beh_initfn initfn;
-    struct clixon_beh_plugin *tail = NULL, *new_tail = NULL;
+    struct clixon_beh_plugin *tail = NULL;
 
     dlerror();
     if ((handle = dlopen(plugin_file, dlflags)) == NULL) {
@@ -744,7 +795,6 @@ clixon_beh_plugin_load_one_so(struct clixon_beh *beh, char *plugin_file,
 		   error ? error : "Unknown error");
         goto out_err;
     }
-
     if ((initfn = dlsym(handle, CLIXON_BEH_PLUGIN_INIT)) == NULL){
         char *error = dlerror();
         clixon_err(OE_PLUGIN, errno,
@@ -754,9 +804,17 @@ clixon_beh_plugin_load_one_so(struct clixon_beh *beh, char *plugin_file,
         goto out_err;
     }
 
+    curr_module = calloc(1, sizeof(*curr_module));
+    if (!curr_module) {
+        clixon_err(OE_PLUGIN, 0, "Unable to allocate module");
+        goto out_err;
+    }
+    curr_module->plugin_type = CLIXON_BEH_C_PLUGIN;
+    curr_module->dlhandle = handle;
+    handle = NULL;
+
     tail = PREVQ(struct clixon_beh_plugin *, plugins);
     rv = initfn(beh);
-    new_tail = PREVQ(struct clixon_beh_plugin *, plugins);
 
     if (rv < 0) {
 	clixon_err(OE_PLUGIN, errno, "Failed to initialize %s",
@@ -764,7 +822,7 @@ clixon_beh_plugin_load_one_so(struct clixon_beh *beh, char *plugin_file,
 	goto out_err;
     }
 
-    if (tail == new_tail) {
+    if (curr_module->refcount == 0) {
 	/* No new plugins were registered, warn and return. */
 	clixon_log(beh->h, LOG_DEBUG, "Warning: No plugins in %s",
 		   plugin_file);
@@ -772,22 +830,25 @@ clixon_beh_plugin_load_one_so(struct clixon_beh *beh, char *plugin_file,
 	goto out_err;
     }
 
+    curr_module = NULL;
     retval = 1;
-    /* Store the handle in the last plugin, it will get freed there. */
-    new_tail->dlhandle = handle;
-    new_tail->plugin_type = CLIXON_BEH_C_PLUGIN;
-    goto out_err;
 
  out_err:
     if (retval != 1) {
 	/* Delete the plugins we added. */
-        while (tail != new_tail) {
-	    exit_plugin(new_tail);
-            new_tail = PREVQ(struct clixon_beh_plugin *, plugins);
-        }
-        if (handle)
-            dlclose(handle);
+        while (tail != PREVQ(struct clixon_beh_plugin *, plugins))
+	    clixon_beh_del_plugin(PREVQ(struct clixon_beh_plugin *, plugins));
     }
+    if (curr_module) {
+	if (curr_module->refcount == 0) {
+	    if (curr_module->dlhandle)
+		dlclose(curr_module->dlhandle);
+	    free(curr_module);
+	}
+	curr_module = NULL;
+    }
+    if (handle)
+	dlclose(handle);
     return retval;
 }
 
@@ -798,7 +859,7 @@ clixon_beh_plugin_load_one_py(struct clixon_beh *beh, const char *modname,
     int retval = -1;
     PyObject *module = NULL;
     char *modstr, *s;
-    struct clixon_beh_plugin *tail = NULL, *new_tail = NULL;
+    struct clixon_beh_plugin *tail = NULL;
 
     /* Get the name without the '.py'. */
     modstr = strdup(modname);
@@ -811,18 +872,25 @@ clixon_beh_plugin_load_one_py(struct clixon_beh *beh, const char *modname,
     if (s)
 	*s = '\0';
 
+    curr_module = calloc(1, sizeof(*curr_module));
+    if (!curr_module) {
+        clixon_err(OE_PLUGIN, 0, "Unable to allocate module");
+        goto out_err;
+    }
+    curr_module->plugin_type = CLIXON_BEH_PYTHON_PLUGIN;
+
     tail = PREVQ(struct clixon_beh_plugin *, plugins);
     module = PyImport_ImportModule(modstr);
-    new_tail = PREVQ(struct clixon_beh_plugin *, plugins);
 
     if (PyErr_Occurred()) {
+	/* FIXME - convert to clixon_err() */
 	PyErr_Print();
 	clixon_err(OE_PLUGIN, errno, "Failed to initialize %s",
 		   full_path);
 	goto out_err;
     }
 
-    if (tail == new_tail) {
+    if (curr_module->refcount == 0) {
 	/* No new plugins were registered, warn and return. */
 	clixon_log(beh->h, LOG_DEBUG, "Warning: No plugins in %s",
 		   full_path);
@@ -830,22 +898,27 @@ clixon_beh_plugin_load_one_py(struct clixon_beh *beh, const char *modname,
 	goto out_err;
     }
 
+    curr_module->dlhandle = module;
+    curr_module = NULL;
+    module = NULL;
     retval = 1;
-    /* Store the handle in the last plugin, it will get freed there. */
-    new_tail->dlhandle = module;
-    new_tail->plugin_type = CLIXON_BEH_PYTHON_PLUGIN;
-    goto out_err;
 
  out_err:
     if (retval != 1) {
 	/* Delete the plugins we added. */
-        while (tail != new_tail) {
-	    exit_plugin(new_tail);
-            new_tail = PREVQ(struct clixon_beh_plugin *, plugins);
-        }
-        if (module)
-            Py_DECREF(module);
+        while (tail != PREVQ(struct clixon_beh_plugin *, plugins))
+	    clixon_beh_del_plugin(PREVQ(struct clixon_beh_plugin *, plugins));
     }
+    if (curr_module) {
+	if (curr_module->refcount == 0) {
+	    if (curr_module->dlhandle)
+		Py_DECREF(curr_module->dlhandle);
+	    free(curr_module);
+	}
+	curr_module = NULL;
+    }
+    if (module)
+	Py_DECREF(module);
     return retval;
 }
 

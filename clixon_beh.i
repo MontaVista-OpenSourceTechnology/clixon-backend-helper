@@ -26,6 +26,7 @@ pyclixon_call_rv(PyObject *cb, const char *method, PyObject *args,
 	o = PyObject_CallObject(p, args);
 	Py_DECREF(p);
 	if (PyErr_Occurred()) {
+	    /* FIXME - convert to clixon_err() */
 	    PyErr_Print();
 	    if (o)
 		Py_DECREF(o);
@@ -128,7 +129,9 @@ pyclixon_beh_exit(struct clixon_beh_plugin *p)
 {
     struct plugin *bp = clixon_beh_plugin_get_cb_data(p);
 
-    return pyclixon_call_rv_int(bp->handler, "daemon", NULL, true);
+    pyclixon_call_rv_int(bp->handler, "exit", NULL, true);
+    Py_DECREF(bp->handler);
+    return 0;
 }
 
 static int
@@ -437,6 +440,6 @@ struct plugin *add_plugin_strxml(const char *name,
 %extend plugin {
     ~plugin()
     {
-	printf("Delete plugin\n");	
+	clixon_beh_del_plugin(self->p);
     }
 }
