@@ -64,7 +64,7 @@ pyclixon_call_rv_int(PyObject *cb, const char *method,
 	    PyObject *c = PyObject_GetAttrString(t, "__name__");
 	    const char *classt = PyUnicode_AsUTF8(c);
 
-	    fprintf(stderr, "clixon_beh:callback: "
+	    clixon_err(OE_PLUGIN, 0, "pyclixon_beh:callback: "
 		    "Class '%s' method '%s' did not return "
 		    "an integer\n", classt, method);
 	    rv = -1;
@@ -107,7 +107,52 @@ static int
 pyclixon_beh_statedata(struct clixon_beh_plugin *p,
 		       cvec *nsc, char *xpath, cxobj *xtop)
 {
-    /* FIXME */
+    struct plugin *bp = clixon_beh_plugin_get_cb_data(p);
+    PyObject *args = PyTuple_New(2);
+    PyObject *arg1 = PyTuple_New(cvec_len(nsc));
+    PyObject *o = NULL;
+    unsigned int i;
+    const char *xmlstr;
+
+    for (i = 0; i < cvec_len(nsc); i++)
+	PyTuple_SET_ITEM(arg1, i, PyUnicode_FromString(cvec_i_str(nsc, i)));
+    PyTuple_SET_ITEM(args, 0, arg1);
+    PyTuple_SET_ITEM(args, 1, PyUnicode_FromString(xpath));
+    if (pyclixon_call_rv(bp->handler, "statedata", args, true, &o) < 0)
+	return -1;
+    if (!o)
+	return -1;
+    if (!PyTuple_Check(o) || PyTuple_GET_SIZE(o) != 2 ||
+		!PyLong_Check(PyTuple_GET_ITEM(o, 0)) ||
+		!PyUnicode_Check(PyTuple_GET_ITEM(o, 1))) {
+	PyObject *t = PyObject_GetAttrString(bp->handler, "__class__");
+	PyObject *c = PyObject_GetAttrString(t, "__name__");
+	const char *classt = PyUnicode_AsUTF8(c);
+
+	clixon_err(OE_PLUGIN, 0, "pyclixon_beh:callback: method statedata of "
+		   "class %s didn't return a tuple of size 2, first element "
+		   "an int and second a string", classt);
+	Py_DECREF(o);
+	return -1;
+    }
+    if (PyLong_AsUnsignedLong(PyTuple_GET_ITEM(o, 0)) < 0) {
+	Py_DECREF(o);
+	return -1;
+    }
+    xmlstr = PyUnicode_AsUTF8AndSize(PyTuple_GET_ITEM(o, 1), NULL);
+    if (!xmlstr) {
+	clixon_err(OE_PLUGIN, 0, "pyclixon_beh:callback: Could convert string "
+		   "return of method statedata to a string.");
+	Py_DECREF(o);
+	return -1;
+    }
+    Py_DECREF(o);
+    if (clixon_xml_parse_string(xmlstr, YB_NONE, NULL, &xtop, NULL) < 0) {
+	clixon_err(OE_PLUGIN, 0, "pyclixon_beh:callback: Could not parse "
+		   "returned XML string.");
+	return -1;
+    }
+
     return 0;
 }
 
@@ -245,10 +290,10 @@ pyclixon_xml_addattrs(cxobj *x, cxobj *xo)
 
 static int
 pyclixon_call_trans(struct clixon_beh_plugin *p, struct clixon_beh_trans *t,
-		    const char *method)
+		    const char *method, bool begin)
 {
     struct plugin *bp = clixon_beh_plugin_get_cb_data(p);
-    PyObject *args = PyTuple_New(2), *orig_obj, *new_obj;
+    PyObject *orig_obj, *new_obj;
     cxobj *oxml = clixon_beh_trans_orig_xml(t);
     cxobj *orig_xml = NULL;
     cxobj *nxml = clixon_beh_trans_new_xml(t);
@@ -305,9 +350,53 @@ pyclixon_call_trans(struct clixon_beh_plugin *p, struct clixon_beh_trans *t,
 	Py_INCREF(Py_None);
     }
 
-    PyTuple_SET_ITEM(args, 0, orig_obj);
-    PyTuple_SET_ITEM(args, 1, new_obj);
-    retval = pyclixon_call_rv_int(bp->handler, method, args, true);
+    if (!begin) {
+	PyObject *args = PyTuple_New(3);
+	PyObject *data = clixon_beh_trans_get_data(t);
+
+	if (!data) {
+	    data = Py_None;
+	    Py_INCREF(data);
+	}
+	PyTuple_SET_ITEM(args, 0, data);
+	PyTuple_SET_ITEM(args, 1, orig_obj);
+	PyTuple_SET_ITEM(args, 2, new_obj);
+	retval = pyclixon_call_rv_int(bp->handler, method, args, true);
+    } else {
+	PyObject *args = PyTuple_New(2);
+	PyObject *o = NULL, *data;
+
+	PyTuple_SET_ITEM(args, 0, orig_obj);
+	PyTuple_SET_ITEM(args, 1, new_obj);
+	retval = pyclixon_call_rv(bp->handler, method, args, true, &o);
+	if (retval < 0)
+	    goto out_err;
+	if (!o) {
+	    /* No begin method. */
+	    retval = 0;
+	    goto out_err;
+	}
+	if (!PyTuple_Check(o) || PyTuple_GET_SIZE(o) != 2 ||
+		!PyLong_Check(PyTuple_GET_ITEM(o, 0))) {
+	    PyObject *t = PyObject_GetAttrString(bp->handler, "__class__");
+	    PyObject *c = PyObject_GetAttrString(t, "__name__");
+	    const char *classt = PyUnicode_AsUTF8(c);
+
+	    clixon_err(OE_PLUGIN, 0, "pyclixon_beh:callback: method begin of "
+		       "class %s didn't return a tuple of size 2, first "
+		       "element as an int", classt);
+	    Py_DECREF(o);
+	    goto out_err;
+	}
+	if (PyLong_AsUnsignedLong(PyTuple_GET_ITEM(o, 0)) < 0) {
+	    Py_DECREF(o);
+	    goto out_err;
+	}
+	data = PyTuple_GET_ITEM(o, 1);
+	Py_INCREF(data);
+	Py_DECREF(o);
+	clixon_beh_trans_set_data(t, data);
+    }
 
  out_err:
     if (orig_cb)
@@ -324,50 +413,58 @@ pyclixon_call_trans(struct clixon_beh_plugin *p, struct clixon_beh_trans *t,
 static int
 pyclixon_beh_begin(struct clixon_beh_plugin *p, struct clixon_beh_trans *t)
 {
-    return pyclixon_call_trans(p, t, "begin");
+    return pyclixon_call_trans(p, t, "begin", true);
 }
 
 static int
 pyclixon_beh_validate(struct clixon_beh_plugin *p, struct clixon_beh_trans *t)
 {
-    return pyclixon_call_trans(p, t, "validate");
+    return pyclixon_call_trans(p, t, "validate", false);
 }
 
 static int
 pyclixon_beh_complete(struct clixon_beh_plugin *p, struct clixon_beh_trans *t)
 {
-    return pyclixon_call_trans(p, t, "complete");
+    return pyclixon_call_trans(p, t, "complete", false);
 }
 
 static int
 pyclixon_beh_commit(struct clixon_beh_plugin *p, struct clixon_beh_trans *t)
 {
-    return pyclixon_call_trans(p, t, "commit");
+    return pyclixon_call_trans(p, t, "commit", false);
 }
 
 static int
 pyclixon_beh_commit_done(struct clixon_beh_plugin *p,
 			 struct clixon_beh_trans *t)
 {
-    return pyclixon_call_trans(p, t, "commit_done");
+    return pyclixon_call_trans(p, t, "commit_done", false);
 }
 
 static int
 pyclixon_beh_revert(struct clixon_beh_plugin *p, struct clixon_beh_trans *t)
 {
-    return pyclixon_call_trans(p, t, "revert");
+    return pyclixon_call_trans(p, t, "revert", false);
 }
 
 static int
 pyclixon_beh_end(struct clixon_beh_plugin *p, struct clixon_beh_trans *t)
 {
-    return pyclixon_call_trans(p, t, "end");
+    PyObject *data = clixon_beh_trans_get_data(t);
+    int rv = pyclixon_call_trans(p, t, "end", false);
+    if (data)
+	Py_DECREF(data);
+    return rv;
 }
 
 static int
 pyclixon_beh_abort(struct clixon_beh_plugin *p, struct clixon_beh_trans *t)
 {
-    return pyclixon_call_trans(p, t, "abort");
+    PyObject *data = clixon_beh_trans_get_data(t);
+    int rv = pyclixon_call_trans(p, t, "abort", false);
+    if (data)
+	Py_DECREF(data);
+    return rv;
 }
 
 static int
@@ -398,10 +495,12 @@ struct clixon_beh_api pyclixon_beh_api_strxml = {
     .datastore_upgrade = pyclixon_beh_datastore_upgrade,
 };
 
+void clixon_errt(int oe, int ev, char *str)
+{
+    clixon_err(oe, ev, "%s", str);
+}
 %}
 
-%nodefaultctor beh;
-struct clixon_beh;
 %nodefaultctor plugin;
 struct plugin { };
 
@@ -443,3 +542,27 @@ struct plugin *add_plugin_strxml(const char *name,
 	clixon_beh_del_plugin(self->p);
     }
 }
+
+%constant int OE_DB = OE_DB;
+%constant int OE_DAEMON = OE_DAEMON;
+%constant int OE_EVENTS = OE_EVENTS;
+%constant int OE_CFG = OE_CFG;
+%constant int OE_NETCONF = OE_NETCONF;
+%constant int OE_PROTO = OE_PROTO;
+%constant int OE_REGEX = OE_REGEX;
+%constant int OE_UNIX = OE_UNIX;
+%constant int OE_SYSLOG = OE_SYSLOG;
+%constant int OE_ROUTING = OE_ROUTING;
+%constant int OE_XML = OE_XML;
+%constant int OE_JSON = OE_JSON;
+%constant int OE_RESTCONF = OE_RESTCONF;
+%constant int OE_PLUGIN = OE_PLUGIN;
+%constant int OE_YANG  = OE_YANG ;
+%constant int OE_FATAL = OE_FATAL;
+%constant int OE_UNDEF = OE_UNDEF;
+%constant int OE_SSL = OE_SSL;
+%constant int OE_SNMP  = OE_SNMP ;
+%constant int OE_NGHTTP2 = OE_NGHTTP2;
+
+%rename(clixon_err) clixon_errt;
+void clixon_errt(int oe, int ev, char *str);
