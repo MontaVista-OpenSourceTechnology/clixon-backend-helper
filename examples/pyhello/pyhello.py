@@ -15,8 +15,11 @@ valid_places = {
 
 class ClixonHelloHandler:
     def __init__(self):
-        self.world = None;
+        self.world = None
         self.namespace = "urn:example:pyhello_beh"
+        # Set to "True" to use an xml string from the transaction, False
+        # to use an xmlobj object.
+        self.use_str = False
 
     def pre_daemon(self):
         print("***pre_daemon***")
@@ -35,7 +38,7 @@ class ClixonHelloHandler:
         t.set_userdata(ClixonHelloOp())
         return 0
 
-    def validate(self, t):
+    def validate_str(self, t):
         print("***validate**")
         origxml = t.orig_str()
         newxml = t.new_str()
@@ -82,6 +85,55 @@ class ClixonHelloHandler:
         data.op = op
         data.val = val
         return 0
+
+    def validate_xmlobj(self, t):
+        print("***validate**")
+        origxml = t.orig_xml()
+        newxml = t.new_xml()
+        data = t.get_userdata()
+        val = None
+        op = None
+        if origxml is not None:
+            namespace = origxml.get_attr(None, "xmlns")
+            flags = origxml.get_flags()
+            if flags:
+                flags = flags.split(",");
+            if flags and "del" in flags:
+                op = "del"
+                if origxml.get_name() == "hello" and namespace == self.namespace:
+                    x = origxml.child_i_type(0, clixon_beh.XMLOBJ_TYPE_ELEMENT)
+                    if x.get_name() == "to":
+                        val = x.get_body()
+
+        if newxml is not None:
+            namespace = newxml.get_attr(None, "xmlns")
+            flags = newxml.get_flags()
+            if flags:
+                flags = flags.split(",");
+            if flags and ("add" in flags or "change" in flags):
+                op = "add"
+                if newxml.get_name() == "hello" and namespace == self.namespace:
+                    x = newxml.child_i_type(0, clixon_beh.XMLOBJ_TYPE_ELEMENT)
+                    if x.get_name() == "to":
+                        val = x.get_body()
+
+        print("op = " + str(op) + "   val = " + str(val))
+        if op is None:
+            return 0
+        if val is None:
+            clixon_beh.clixon_err(clixon_beh.OE_XML, 0, "No value present");
+            return -1
+        if val not in valid_places:
+            return -1
+        data.op = op
+        data.val = val
+        return 0
+
+    def validate(self, t):
+        if self.use_str:
+            return self.validate_str(t)
+        else:
+            return self.validate_xmlobj(t)
 
     def commit(self, t):
         print("***commit**")

@@ -106,6 +106,8 @@ don't exist.  The following methods exist on transactions:
    obj = t.get_userdata()
    origxmlstr = t.orig_str()
    newxmlstr = t.new_str()
+   origxml = t.orig_xml()
+   newxml = t.new_xml()
 ```
 
 You can use something like lxml to parse the strings.  All clixon XML
@@ -113,6 +115,29 @@ flags are passed in the `clixonflags` attribute, separated by commas,
 with the strings as lower case ending of the `#define` for them.  For
 the elements that have changed, it will be one or more of "add",
 "del", and "change" flags.
+
+The transaction also has an xmlobj object, which is basically the same
+as the cxobj object in main clixon.  You can fetch those and process
+them using the object's methods, which are:
+```
+char *get_name()
+char *get_prefix()
+xmlobj *get_parent()
+char *get_flags()
+char *get_value()
+char *get_type_str()
+int get_type()
+int nr_children()
+int nr_children_type(int type)
+xmlobj *child_i(int i)
+xmlobj *child_i_type(int i, int type)
+xmlobj *find(char *name)
+xmlobj *find_type(char *prefix, char *name, int type)
+char *find_type_value(char *prefix, char *name, int type)
+char *get_body()
+char *get_attr(char *prefix, char *name)
+```
+These are a pretty close match to the `clixon_xml` functions.
 
 Now when a top-level namespace changed and matches what you have
 registered, the methods in the registered handler will be called.  If
@@ -127,3 +152,4 @@ completes.  That lets you keep data around for a transaction.
 
 The statedata method also returns a tuple, the first items is an
 integer error, the second is a string holding xml for the state data.
+If you return an error, the xml value may be empty.

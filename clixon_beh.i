@@ -9,6 +9,39 @@
 #include <cligen/cligen_buf.h>
 #include <clixon/clixon_xml_io.h>
 
+struct xmlobj {
+    unsigned int refcount;
+    struct xmlobj *orig_ref;
+    cxobj *xml;
+};
+
+static struct xmlobj *
+xmlobj_new(struct xmlobj *orig_ref, cxobj *xml)
+{
+    struct xmlobj *rv;
+
+    if (!xml)
+	return NULL;
+    rv = calloc(1, sizeof(*rv));
+    if (!orig_ref)
+	orig_ref = rv;
+    orig_ref->refcount++;
+    rv->orig_ref = orig_ref;
+    rv->xml = xml;
+    return rv;
+}
+
+static void
+free_xmlobj(struct xmlobj *x)
+{
+    x->orig_ref->refcount--;
+    if (x->orig_ref->refcount == 0) {
+	xml_free(x->orig_ref->xml);
+	    free(x->orig_ref);
+    }
+    free(x);
+}
+
 struct plugin {
     struct clixon_beh_plugin *p;
     PyObject *handler;
@@ -364,6 +397,8 @@ struct transaction {
     PyObject *userdata;
     cxobj *orig_xml;
     cxobj *new_xml;
+    struct xmlobj *orig_xmlobj;
+    struct xmlobj *new_xmlobj;
     PyObject *orig_str;
     PyObject *new_str;
 };
@@ -534,6 +569,109 @@ struct plugin *add_plugin_strxml(const char *name,
     }
 }
 
+%constant int XMLOBJ_TYPE_ELEMENT = CX_ELMNT;
+%constant int XMLOBJ_TYPE_ATTR = CX_ATTR;
+%constant int XMLOBJ_TYPE_BODY = CX_BODY;
+
+%nodefaultctor xmlobj;
+struct xmlobj { };
+
+%extend xmlobj {
+    ~xmlobj()
+    {
+	free_xmlobj(self);
+    }
+
+    char *get_name()
+    {
+	return xml_name(self->xml);
+    }
+
+    char *get_prefix()
+    {
+	return xml_prefix(self->xml);
+    }
+
+    struct xmlobj *get_parent()
+    {
+	return xmlobj_new(self->orig_ref, xml_parent(self->xml));
+    }
+
+    %newobject get_flags;
+    char *get_flags()
+    {
+	char attrstr[MAX_XML_ATTRSTR];
+	size_t attrstr_len;
+
+	attrstr_len = xml_flags2str(attrstr, sizeof(attrstr),
+				    xml_flag(self->xml, 0xffff));
+	if (attrstr_len == 0)
+	    return NULL;
+	return strdup(attrstr);
+    }
+
+    char *get_value()
+    {
+	return xml_value(self->xml);
+    }
+
+    char *get_type_str()
+    {
+	return xml_type2str(xml_type(self->xml));
+    }
+
+    int get_type()
+    {
+	return xml_type(self->xml);
+    }
+
+    int nr_children()
+    {
+	return xml_child_nr(self->xml);
+    }
+
+    int nr_children_type(int type)
+    {
+	return xml_child_nr_type(self->xml, type);
+    }
+
+    struct xmlobj *child_i(int i)
+    {
+	return xmlobj_new(self->orig_ref, xml_child_i(self->xml, i));
+    }
+
+    struct xmlobj *child_i_type(int i, int type)
+    {
+	return xmlobj_new(self->orig_ref, xml_child_i_type(self->xml, i, type));
+    }
+
+    struct xmlobj *find(char *name)
+    {
+	return xmlobj_new(self->orig_ref, xml_find(self->xml, name));
+    }
+
+    struct xmlobj *find_type(char *prefix, char *name, int type)
+    {
+	return xmlobj_new(self->orig_ref,
+			  xml_find_type(self->xml, prefix, name, type));
+    }
+
+    char *find_type_value(char *prefix, char *name, int type)
+    {
+	return xml_find_type_value(self->xml, prefix, name, type);
+    }
+
+    char *get_body()
+    {
+	return xml_body(self->xml);
+    }
+
+    char *get_attr(char *prefix, char *name)
+    {
+	return xml_find_type_value(self->xml, prefix, name, CX_ATTR);
+    }
+}
+
 %nodefaultctor plugin;
 struct transaction { };
 
@@ -546,6 +684,10 @@ struct transaction { };
 	    Py_DECREF(self->orig_str);
 	if (self->new_str)
 	    Py_DECREF(self->new_str);
+	if (self->orig_xmlobj)
+	    free_xmlobj(self->orig_xmlobj);
+	if (self->new_xmlobj)
+	    free_xmlobj(self->new_xmlobj);
 	free(self);
     }
 
@@ -582,6 +724,20 @@ struct transaction { };
 		self->new_str = Py_NewRef(Py_None);
 	}
 	return Py_NewRef(self->new_str);
+    }
+
+    struct xmlobj *orig_xml()
+    {
+	if (!self->orig_xmlobj)
+	    self->orig_xmlobj = xmlobj_new(NULL, self->orig_xml);
+	return xmlobj_new(self->orig_xmlobj, self->orig_xml);
+    }
+
+    struct xmlobj *new_xml()
+    {
+	if (!self->new_xmlobj)
+	    self->new_xmlobj = xmlobj_new(NULL, self->new_xml);
+	return xmlobj_new(self->new_xmlobj, self->new_xml);
     }
 }
 
