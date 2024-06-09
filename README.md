@@ -137,7 +137,14 @@ char *find_type_value(char *prefix, char *name, int type)
 char *get_body()
 char *get_attr(char *prefix, char *name)
 ```
-These are a pretty close match to the `clixon_xml` functions.
+These are a pretty close match to the `clixon_xml` functions.  The
+`xmlobj` object is, unfortunately, immutable.  The way it works
+internally in clixon means that if you changed something, you could
+delete or change something that a python object is pointing to, which
+could result in crashes.  In `C` it's expected that you know what you
+are doing, but that doesn't map very well into Python.  The only real
+limitation here is with statedata; it would be nice if that could
+return an `xmlobj`.
 
 Now when a top-level namespace changed and matches what you have
 registered, the methods in the registered handler will be called.  If
