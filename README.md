@@ -7,8 +7,7 @@ A clixon backend that provides helpful functions for a backend.  These are:
   it needs.
 * External program helpers.  Since clixon drops privileges after it starts,
   if you need to perform certain operation at privilege you need an external
-  program to do this.  This defines a program to run whose stdin/stdout
-  is available to the plugin.
+  program to do this.  (Not yet implmented.)
 * python plugins.
 
 ## Compile and run
@@ -47,15 +46,12 @@ proper.  The major differences are:
 * You get a plugin object when you add it.  This will be passed in to
   all your functions.  You can store a void * in it to keep data around.
   Make sure to free it in the end and abort functions!
-* You can pass in a program to execute, and then interact with that
-  program on it's stdin/stdout.  That program will be run at the startup
-  privilege of `clixon_backend` (generally root), so you can use that to
-  perform priveleged operations later in a safer manner than running
-  `clixon_backend` as root.
 * Currently the transaction only has the old and new trees, not the
   added, deleted, and changed trees.
 
 ### External Program Interface
+
+Not yet implemented.
 
 ## The Python Interface
 
@@ -92,7 +88,7 @@ class ClixonHelloHandler:
 
 handler = ClixonHelloHandler()
 handler.p = clixon_beh.add_plugin_strxml("pyhello",
-                                         handler.namespace, None, handler)
+                                         handler.namespace, handler)
 ```
 Make sure the return value from `add_plugin_strxml()` doesn't get
 deleted, you need to store it someplace.
