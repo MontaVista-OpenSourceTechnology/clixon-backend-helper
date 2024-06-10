@@ -121,7 +121,7 @@ class ClixonHelloHandler:
         if op is None:
             return 0
         if val is None:
-            clixon_beh.clixon_err(clixon_beh.OE_XML, 0, "No value present");
+            clixon_beh.err(clixon_beh.OE_XML, 0, "No value present");
             return -1
         if val not in valid_places:
             return -1
@@ -165,6 +165,6 @@ class ClixonHelloHandler:
 handler = ClixonHelloHandler()
 # You must store the returned plugin someplace.  Otherwise it will be
 # deleted by the python GC, and that will delete the handler, and all
-# this will be for nought.
+# this will be for naught.
 handler.p = clixon_beh.add_plugin_strxml("pyhello",
                                          handler.namespace, None, handler)

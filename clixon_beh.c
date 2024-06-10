@@ -1114,10 +1114,12 @@ clixon_plugin_init(clicon_handle h) {
 	goto out_err;
     }
 
-    if (clixon_beh_load_plugins(beh, plugin_dir) <= 0)
-	goto out_err;
-
     global_beh = beh;
+    if (clixon_beh_load_plugins(beh, plugin_dir) <= 0) {
+	global_beh = NULL;
+	goto out_err;
+    }
+
     beh = NULL;
     rapi = &api;
 

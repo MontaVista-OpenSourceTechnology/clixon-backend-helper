@@ -1,4 +1,9 @@
-
+/*
+ *  clixon-be-help - A clixon backin plugin helper
+ *  Copyright (C) 2024  Montavista Software, LLC <source@mvista.com>
+ *
+ *  SPDX-License-Identifier: LGPL-2.1-only
+ */
 
 %module clixon_beh
 
@@ -525,7 +530,17 @@ void clixon_errt(int oe, int ev, char *str)
 {
     clixon_err(oe, ev, "%s", str);
 }
+
+void clixon_logt(int logtype, char *str)
+{
+    struct clixon_beh *beh = clixon_beh_get_global_beh();
+    clixon_beh_log(beh, logtype, "%s", str);
+}
 %}
+
+%constant int LOG_TYPE_LOG = LOG_TYPE_LOG;
+%constant int LOG_TYPE_ERR = LOG_TYPE_ERR;
+%constant int LOG_TYPE_DEBUG = LOG_TYPE_DEBUG;
 
 %nodefaultctor plugin;
 struct plugin { };
@@ -566,6 +581,11 @@ struct plugin *add_plugin_strxml(const char *name,
     ~plugin()
     {
 	clixon_beh_del_plugin(self->p);
+    }
+
+    void log(int logtype, char *str)
+    {
+	clixon_beh_log_plugin(self->p, logtype, "%s", str);
     }
 }
 
@@ -762,5 +782,8 @@ struct transaction { };
 %constant int OE_SNMP  = OE_SNMP ;
 %constant int OE_NGHTTP2 = OE_NGHTTP2;
 
-%rename(clixon_err) clixon_errt;
+%rename(err) clixon_errt;
 void clixon_errt(int oe, int ev, char *str);
+
+%rename(log) clixon_logt;
+void clixon_logt(int logtype, char *str);
