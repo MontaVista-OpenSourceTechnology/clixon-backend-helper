@@ -1,6 +1,6 @@
 module clixon-hello-beh {
     yang-version 1.1;
-    namespace "urn:example:hello_beh";
+    namespace "http://clixon_beh/hello";
     prefix he;
     revision 2024-05-25 {
 	description

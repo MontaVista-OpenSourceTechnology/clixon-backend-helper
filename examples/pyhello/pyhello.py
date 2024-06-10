@@ -16,7 +16,7 @@ valid_places = {
 class ClixonHelloHandler:
     def __init__(self):
         self.world = None
-        self.namespace = "urn:example:pyhello_beh"
+        self.namespace = "http://clixon_beh/pyhello"
         # Set to "True" to use an xml string from the transaction, False
         # to use an xmlobj object.
         self.use_str = False
@@ -94,6 +94,8 @@ class ClixonHelloHandler:
         val = None
         op = None
         if origxml is not None:
+            # No real need to check the namespace, since we have registered
+            # with it, but, why not?
             namespace = origxml.get_attr_value(None, "xmlns")
             flags = origxml.get_flags()
             if flags:
@@ -147,6 +149,7 @@ class ClixonHelloHandler:
         return 0
 
     def statedata(self, nsc, xpath):
+        # FIXME - Really need to check the xpath to see exactly what to return.
         print("***statedata**: "+ str(nsc) + " " + xpath)
         if self.world is None:
             return(-1, "")

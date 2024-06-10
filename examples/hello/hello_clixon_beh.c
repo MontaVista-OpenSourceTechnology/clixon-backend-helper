@@ -13,7 +13,7 @@
  */
 #define WORLD_FILE "/tmp/world"
 
-#define HELLO_BEH_NAMESPACE "urn:example:hello_beh"
+#define HELLO_BEH_NAMESPACE "http://clixon_beh/hello"
 
 /*
  * Set this to 1 to print out the XML data received in validate.
