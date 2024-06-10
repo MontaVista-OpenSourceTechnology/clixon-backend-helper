@@ -2,9 +2,9 @@
   <autocli>
     <module-default>false</module-default>
      <rule>
-        <name>include hello yang</name>
+        <name>include pyhello yang</name>
         <operation>enable</operation>
-        <module-name>clixon-hello-beh*</module-name>
+        <module-name>clixon-pyhello-beh*</module-name>
      </rule>
   </autocli>
 </clixon-config>

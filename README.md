@@ -36,7 +36,7 @@ The C interface for clixon_beh is similar to the one for the clixon
 proper.  The major differences are:
 * The module init function is `clixon_beh_plugin_init()`.
 * You must call `clixon_beh_add_plugin()` to register a plugin.  You don't
-  return a pointer from the module init funciton.  You can register
+  return a pointer from the module init function.  You can register
   multiple plugins from the same module.
 * You can pass a namespace to `clixon_beh_add_plugin()`.  You will only
   get called when those namespaces change at the top level, and only
@@ -45,7 +45,10 @@ proper.  The major differences are:
   the main clixon API.
 * You get a plugin object when you add it.  This will be passed in to
   all your functions.  You can store a void * in it to keep data around.
-  Make sure to free it in the end and abort functions!
+* A transaction is passed around, and you can store a data item in it
+  with `clixon_beh_trans_set_data()` and retrieve it with
+  `clixon_beh_trans_get_data()`.  Make sure to free it in the end and
+  abort functions!
 * Currently the transaction only has the old and new trees, not the
   added, deleted, and changed trees.
 

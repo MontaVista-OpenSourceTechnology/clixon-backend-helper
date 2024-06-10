@@ -147,7 +147,7 @@ class ClixonHelloHandler:
         return 0
 
     def statedata(self, nsc, xpath):
-        print("***statedata**")
+        print("***statedata**: "+ str(nsc) + " " + xpath)
         if self.world is None:
             return(-1, "")
         s = ("<hello xmlns=\"" + self.namespace + "\"><to>" + self.world +
