@@ -375,6 +375,6 @@ int
 clixon_beh_plugin_init(struct clixon_beh *beh)
 {
     clixon_debug(CLIXON_DBG_DEFAULT, "Entry\n");
-    return clixon_beh_add_plugin(beh, "hello_beh", HELLO_BEH_NAMESPACE, NULL,
+    return clixon_beh_add_plugin(beh, "hello_beh", HELLO_BEH_NAMESPACE,
 				 &api, NULL, NULL);
 }

@@ -547,10 +547,9 @@ struct plugin { };
 
 %newobject add_plugin_strxml;
 %inline %{
-struct plugin *add_plugin_strxml(const char *name,
-				 const char *namespace,
-				 const char *priv_program,
-				 PyObject *handler)
+struct plugin *add_plugin(const char *name,
+			  const char *namespace,
+			  PyObject *handler)
 {
     int rv;
     struct plugin *bp;
@@ -565,7 +564,7 @@ struct plugin *add_plugin_strxml(const char *name,
     bp->handler = handler;
 
     Py_INCREF(handler);
-    rv = clixon_beh_add_plugin(beh, name, namespace, priv_program,
+    rv = clixon_beh_add_plugin(beh, name, namespace,
 			       &pyclixon_beh_api_strxml, bp, &bp->p);
     if (rv < 0) {
 	Py_DECREF(handler);

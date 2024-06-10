@@ -134,7 +134,6 @@ static bool python_initialized;
 int
 clixon_beh_add_plugin(struct clixon_beh *beh,
 		      const char *name, const char *namespace,
-		      const char *priv_program,
 		      const struct clixon_beh_api *api,
 		      void *cb_data,
 		      struct clixon_beh_plugin **rp)
@@ -235,18 +234,6 @@ void *
 clixon_beh_plugin_get_cb_data(struct clixon_beh_plugin *p)
 {
     return p->cb_data;
-}
-
-int
-clixon_beh_priv_func_stdin(struct clixon_beh_plugin *p)
-{
-    return -1;
-}
-
-int
-clixon_beh_priv_func_stdout(struct clixon_beh_plugin *p)
-{
-    return -1;
 }
 
 static char *

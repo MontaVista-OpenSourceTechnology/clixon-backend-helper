@@ -64,15 +64,12 @@ struct clixon_beh_api {
 
 int clixon_beh_add_plugin(struct clixon_beh *h,
 			  const char *name, const char *namespace,
-			  const char *priv_program,
 			  const struct clixon_beh_api *api,
 			  void *cb_data,
 			  struct clixon_beh_plugin **p);
 void clixon_beh_del_plugin(struct clixon_beh_plugin *p);
 
 void *clixon_beh_plugin_get_cb_data(struct clixon_beh_plugin *p);
-int clixon_beh_priv_func_stdin(struct clixon_beh_plugin *p);
-int clixon_beh_priv_func_stdout(struct clixon_beh_plugin *p);
 
 #define CLIXON_BEH_NAMESPACE "http://mvista.com/clixon-beh/config"
 

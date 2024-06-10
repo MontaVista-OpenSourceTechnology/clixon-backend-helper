@@ -166,5 +166,4 @@ handler = ClixonHelloHandler()
 # You must store the returned plugin someplace.  Otherwise it will be
 # deleted by the python GC, and that will delete the handler, and all
 # this will be for naught.
-handler.p = clixon_beh.add_plugin_strxml("pyhello",
-                                         handler.namespace, None, handler)
+handler.p = clixon_beh.add_plugin("pyhello", handler.namespace, handler)
