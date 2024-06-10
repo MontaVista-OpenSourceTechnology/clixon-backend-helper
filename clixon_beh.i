@@ -685,7 +685,7 @@ struct xmlobj { };
 	return xml_body(self->xml);
     }
 
-    char *get_attr(char *prefix, char *name)
+    char *get_attr_value(char *prefix, char *name)
     {
 	return xml_find_type_value(self->xml, prefix, name, CX_ATTR);
     }

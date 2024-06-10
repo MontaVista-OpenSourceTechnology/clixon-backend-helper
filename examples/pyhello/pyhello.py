@@ -94,7 +94,7 @@ class ClixonHelloHandler:
         val = None
         op = None
         if origxml is not None:
-            namespace = origxml.get_attr(None, "xmlns")
+            namespace = origxml.get_attr_value(None, "xmlns")
             flags = origxml.get_flags()
             if flags:
                 flags = flags.split(",");
@@ -106,7 +106,7 @@ class ClixonHelloHandler:
                         val = x.get_body()
 
         if newxml is not None:
-            namespace = newxml.get_attr(None, "xmlns")
+            namespace = newxml.get_attr_value(None, "xmlns")
             flags = newxml.get_flags()
             if flags:
                 flags = flags.split(",");
