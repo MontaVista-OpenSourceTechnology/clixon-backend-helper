@@ -220,7 +220,14 @@ clixon_beh_del_plugin(struct clixon_beh_plugin *p)
 		break;
 
 	    case CLIXON_BEH_PYTHON_PLUGIN:
-		if (p->module->dlhandle)
+		/*
+		 * We finalize python before we delete the plugins so
+		 * that automatic cleanup should clean everything up.
+		 * If we get here and python is not initialized, we
+		 * can't unload the module because it's going to be
+		 * gone, anyway.
+		 */
+		if (python_initialized && p->module->dlhandle)
 		    Py_DECREF(p->module->dlhandle);
 		break;
 	    }
