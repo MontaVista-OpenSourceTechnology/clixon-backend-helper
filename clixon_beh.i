@@ -760,6 +760,11 @@ struct transaction { };
     }
 }
 
+/* Clixon privilege handling. */
+int geteuid();
+int restore_priv();
+int drop_priv_temp(int euid);
+
 %constant int OE_DB = OE_DB;
 %constant int OE_DAEMON = OE_DAEMON;
 %constant int OE_EVENTS = OE_EVENTS;
