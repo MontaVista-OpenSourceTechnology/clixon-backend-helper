@@ -132,7 +132,7 @@ class OpBase:
         for i in range(0, xml.nr_children_type(clixon_beh.XMLOBJ_TYPE_ELEMENT)):
             c = xml.child_i(i)
             name = c.get_name()
-            if name in self.root.children:
+            if name in self.children:
                 self.children[name].validate_add(data, c)
         return
 
@@ -142,7 +142,7 @@ class OpBase:
         for i in range(0, xml.nr_children_type(clixon_beh.XMLOBJ_TYPE_ELEMENT)):
             c = xml.child_i(i)
             name = c.get_name()
-            if name in self.root.children:
+            if name in self.children:
                 self.children[name].validate_del(data, c)
         return
 
@@ -158,7 +158,7 @@ class OpBase:
             nxml = newxml.child_i(ni)
         else:
             nxml = None
-        while oxml and nxml:
+        while oxml or nxml:
             oxmlf = 0
             if oxml:
                 oxmlf = oxml.get_flags(clixon_beh.XMLOBJ_FLAG_FULL_MASK)
@@ -168,14 +168,14 @@ class OpBase:
             if oxmlf & clixon_beh.XMLOBJ_FLAG_DEL:
                 c = oxml.get_name()
                 if c in self.children:
-                    self.children[c].validate_del(data, c)
+                    self.children[c].validate_del(data, oxml)
                 oi += 1
                 oxml = origxml.child_i(oi)
                 pass
             elif nxmlf & clixon_beh.XMLOBJ_FLAG_ADD:
-                c = oxml.get_name()
+                c = nxml.get_name()
                 if c in self.children:
-                    self.children[c].validate_add(data, c)
+                    self.children[c].validate_add(data, nxml)
                 ni += 1
                 nxml = newxml.child_i(ni)
                 pass
@@ -254,8 +254,8 @@ class OpBase:
         (out, err) = p.communicate(timeout=1000)
         rc = p.wait()
         if rc != 0:
-            raise Exception(args[0] + " error: " + err)
-        return out.decode("utf-8").strip()
+            raise Exception(args[0] + " error: " + err.decode("utf-8"))
+        return out.decode("utf-8")
 
 class OpBaseConfigOnly(OpBase):
     """If a leaf element is config only, there's no need to do much, it's
@@ -304,6 +304,9 @@ class OpHandler:
 
     def validate(self, t):
         print("***validate**")
+        if False: # For debugging
+            print(str(t.orig_str()))
+            print(str(t.new_str()))
         data = t.get_userdata()
         self.xmlroot.validate(data, t.orig_xml(), t.new_xml())
         return 0
