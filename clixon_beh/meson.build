@@ -59,3 +59,6 @@ shared_library('_cclixon', swig_py_gen[1],
 install_data('__init__.py',
              install_dir: pyinstall)
 
+install_data('transaction_framework.py',
+             install_dir: pyinstall)
+
