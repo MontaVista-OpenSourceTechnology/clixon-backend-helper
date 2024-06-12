@@ -592,6 +592,19 @@ struct plugin *add_plugin(const char *name,
 %constant int XMLOBJ_TYPE_ATTR = CX_ATTR;
 %constant int XMLOBJ_TYPE_BODY = CX_BODY;
 
+%constant int XMLOBJ_FLAG_MARK = XML_FLAG_MARK;
+%constant int XMLOBJ_FLAG_TRANSIENT = XML_FLAG_TRANSIENT;
+%constant int XMLOBJ_FLAG_ADD = XML_FLAG_ADD;
+%constant int XMLOBJ_FLAG_DEL = XML_FLAG_DEL;
+%constant int XMLOBJ_FLAG_CHANGE = XML_FLAG_CHANGE;
+%constant int XMLOBJ_FLAG_NONE = XML_FLAG_NONE;
+%constant int XMLOBJ_FLAG_DEFAULT = XML_FLAG_DEFAULT;
+%constant int XMLOBJ_FLAG_TOP = XML_FLAG_TOP;
+%constant int XMLOBJ_FLAG_BODYKEY = XML_FLAG_BODYKEY;
+%constant int XMLOBJ_FLAG_ANYDATA = XML_FLAG_ANYDATA;
+%constant int XMLOBJ_FLAG_CACHE_DIRTY = XML_FLAG_CACHE_DIRTY;
+%constant int XMLOBJ_FLAG_FULL_MASK = 0xffff;
+
 %nodefaultctor xmlobj;
 struct xmlobj { };
 
@@ -616,8 +629,14 @@ struct xmlobj { };
 	return xmlobj_new(self->orig_ref, xml_parent(self->xml));
     }
 
-    %newobject get_flags;
-    char *get_flags()
+    int get_flags(int mask)
+    {
+	return xml_flag(self->xml, mask);
+    }
+
+    /* Returns a list of strings for the flags that are set. */
+    %newobject get_flags_strs;
+    char *get_flags_strs()
     {
 	char attrstr[MAX_XML_ATTRSTR];
 	size_t attrstr_len;
