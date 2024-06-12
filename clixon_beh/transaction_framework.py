@@ -29,6 +29,8 @@
 # ***** END LICENSE BLOCK *****
 #
 
+import subprocess
+
 """This is a package that helps with clixon backends.  It provides a
 frameowrk that allows users to provide just the low-level pieces they
 need and describe the framework of their XML processing with simple
@@ -205,10 +207,14 @@ class OpBase:
         """Subclasses must override this function for privileged operations."""
         return
 
-    def getxml(self, path):
+    def getxml(self, path, namespace=None):
         """Process a get operation before the path has ended.  We are just
         parsing down the path until we hit then end."""
-        xml = "<" + self.name + ">"
+        xml = "<" + self.name
+        if namespace is not None:
+            xml += " xmlns=\"" + namespace + "\">"
+        else:
+            xml += ">"
         if len(path) == 0:
             xml += self.getvalue()
         elif path[0] in self.children:
@@ -228,9 +234,9 @@ class OpBase:
         this and return the value."""
         xml = ""
         for name in self.children:
-            xml += "<" + self.name + ">"
-            xml += self.children[c].getvalue()
-            xml += "</" + self.name + ">"
+            s = self.children[name].getvalue()
+            if s and len(s) > 0:
+                xml += "<" + name + ">" + s + "</" + name + ">"
         return xml
 
     def program_output(self, args):
@@ -262,7 +268,7 @@ class OpBaseConfigOnly(OpBase):
     def validate(self, data, origxml, newxml):
         return
 
-    def getxml(self, path):
+    def getxml(self, path, namespace=None):
         return ""
     
 class OpHandler:
@@ -274,14 +280,14 @@ class OpHandler:
 
     """
 
-    def __init__(self, name, children):
+    def __init__(self, namespace, name, children):
         """name is the top-level name of the yang/xml data.  children is a
         map of elements that may be in the top level, see OpBase for
         details.
 
         """
         self.name = name
-        self.namespace = "urn:ietf:params:xml:ns:yang:ietf-system"
+        self.namespace = namespace
         self.xmlroot = OpBase(name, children)
 
     def begin(self, t):
@@ -310,14 +316,14 @@ class OpHandler:
     def statedata(self, nsc, xpath):
         print("***statedata**: "+ str(nsc) + " " + xpath)
         path = xpath.split("/")
-        if len(path) < 1:
+        if len(path) < 2:
             return(-1, "")
-        name = path[0].split(":")
+        name = path[1].split(":")
         if len(name) == 1:
             name = name[0]
         else:
             name = name[1]
         if name != self.name:
             return(-1, "")
-        return (0, self.xmlroot.getxml(path[1:]))
+        return (0, self.xmlroot.getxml(path[2:], namespace=self.namespace))
 

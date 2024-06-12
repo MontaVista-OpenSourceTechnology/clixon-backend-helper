@@ -2,7 +2,7 @@
 import clixon_beh
 import clixon_beh.transaction_framework as tf
 
-class IETFSystemHostname(tf.OpBase):
+class Hostname(tf.OpBase):
     def __init__(self, name):
         super().__init__(name)
 
@@ -37,7 +37,7 @@ class IETFSystemHostname(tf.OpBase):
     def getvalue(self):
         return self.program_output(["/bin/hostname"])
 
-class IETFHandler(tf.OpHandler):
+class Handler(tf.OpHandler):
     def exit(self):
         print("***exit**")
         self.p = None # Break circular dependency
@@ -47,8 +47,8 @@ class IETFHandler(tf.OpHandler):
 # level of ietf-system.
 children = {
     "contact": tf.OpBaseConfigOnly("contact"),
-    "hostname": IETFSystemHostname("hostname"),
+    "hostname": Hostname("hostname"),
     "location": tf.OpBaseConfigOnly("location"),
 }
-handler = tf.OpHandler("system", children)
+handler = Handler("urn:ietf:params:xml:ns:yang:ietf-system", "system", children)
 handler.p = clixon_beh.add_plugin("ietf-system", handler.namespace, handler)
