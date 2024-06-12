@@ -29,8 +29,39 @@
 # ***** END LICENSE BLOCK *****
 #
 
+"""This is a package that helps with clixon backends.  It provides a
+frameowrk that allows users to provide just the low-level pieces they
+need and describe the framework of their XML processing with simple
+maps.
+
+The idea is you describe your XML design with maps at each xml level
+that contain the xml element that may be at that level.  At the leaf
+level, or at any level where you need to stop and handle everything
+together, you write a class that descends from OpBase to handle that
+specific thing.
+
+You class will be have validate calls to handle validating your data.
+The validate calls should then add operations to the transaction data
+to describe what they should do at commit time.  At commit time, each
+operation's handler is then called to actually do the operation.  If a
+commit fails for some reason, the revert calls for the operations will
+be done in reverse order.
+
+"""
+
 class Op:
+    """This is an operation.  Generally you add this in the validate calls
+    when you discover things that need to be done.  and the handler's
+    commit function get's called in the commit and revert calls.
+
+    """
     def __init__(self, handler, opname, value):
+        """The handler's commit and revert methods will be called during the
+        commit and revert operations.  opname is a convenience name,
+        and value may be anything the user desires.
+
+        """
+
         self.handler = handler
         self.opname = opname
         self.value = value
@@ -38,17 +69,32 @@ class Op:
         self.oldvalue = None
 
     def commit(self):
+        """Commit the operation, basically apply it to the system.  If you
+        handle revert, you should store the data to revert in the
+        oldvalue member of this object.
+
+        """
         self.handler.commit(self)
 
     def revert(self):
+        """Revert the operation.  The "revert" member of this is set to True
+        here for convenience for the user.
+
+        """
         self.op.revert = True
         self.handler.revert(self)
 
 class Data:
+    """This is data about a transaction.  It holds the list of operations
+    and does the full commit/revert operations.
+
+    """
     def __init__(self):
         self.ops = []
 
     def add_op(self, handler, op, value):
+        """Add an operation to the operation queue.  These will be done
+        in the commit and revert phases."""
         self.ops.append(Op(handler, op, value))
 
     def commit(self):
@@ -60,7 +106,20 @@ class Data:
             op.revert()
 
 class OpBase:
+    """The base class for operation handler (what goes into an "Op" class
+    handler).  Any operation should descend from this class.  For
+    non-leaf objects, this can be used directly, too.  Leaf element
+    should always override the validate methods and getvalue method.
+    Non-leaf elements, if they process a bunch of data together, can
+    override this, too, and also probably need to override getxml.
+
+    """
     def __init__(self, name, children = {}):
+        """name should be the xml tag name for this operations.  children, if
+        set, should be a map of the xml elements that can occur in
+        this xml element, and their handlers.
+
+        """
         self.name = name
         self.children = children
 
@@ -172,7 +231,7 @@ class OpBase:
             xml += "<" + self.name + ">"
             xml += self.children[c].getvalue()
             xml += "</" + self.name + ">"
-        return xml;
+        return xml
 
     def program_output(self, args):
         """Call a program with the given arguments and return the stdout.
@@ -182,7 +241,7 @@ class OpBase:
         (out, err) = p.communicate(timeout=1000)
         rc = p.wait()
         if rc != 0:
-            raise Exception(args[0] + " error: " + err);
+            raise Exception(args[0] + " error: " + err)
         return out.decode("utf-8").strip()
 
 class OpBaseConfigOnly(OpBase):
@@ -207,28 +266,23 @@ class OpBaseConfigOnly(OpBase):
         return ""
     
 class OpHandler:
-    """Handler for Clixon backend."""
+    """Handler for Clixon backend.  This can be used directly.  Or a
+    handler can descend from this if they need to add the pre_daemon,
+    daemon, reset, etc. calls, which are not done in this code.  Note
+    that if you override one of the calls below in your code, you
+    should still call the method with super().method().
+
+    """
 
     def __init__(self, name, children):
-        """
-        name is the top-level name of the yang/xml data.
-        children is a map of elements that may be in the top level.
+        """name is the top-level name of the yang/xml data.  children is a
+        map of elements that may be in the top level, see OpBase for
+        details.
+
         """
         self.name = name
         self.namespace = "urn:ietf:params:xml:ns:yang:ietf-system"
         self.xmlroot = OpBase(name, children)
-
-    def pre_daemon(self):
-        print("***pre_daemon***")
-        return 0;
-
-    def daemon(self):
-        print("***daemon***")
-        return 0
-
-    def reset(self, cb):
-        print("***reset** " + cb)
-        return 0
 
     def begin(self, t):
         print("***begin**")
@@ -253,10 +307,6 @@ class OpHandler:
         data.revert()
         return 0
 
-    def abort(self, t):
-        print("***abort**")
-        return 0
-
     def statedata(self, nsc, xpath):
         print("***statedata**: "+ str(nsc) + " " + xpath)
         path = xpath.split("/")
@@ -270,9 +320,4 @@ class OpHandler:
         if name != self.name:
             return(-1, "")
         return (0, self.xmlroot.getxml(path[1:]))
-
-    def exit(self):
-        print("***exit**")
-        self.p = None # Break circular dependency
-        return 0;
 

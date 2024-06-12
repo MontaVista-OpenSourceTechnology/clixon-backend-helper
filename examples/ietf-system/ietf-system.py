@@ -37,6 +37,12 @@ class IETFSystemHostname(tf.OpBase):
     def getvalue(self):
         return self.program_output(["/bin/hostname"])
 
+class IETFHandler(tf.OpHandler):
+    def exit(self):
+        print("***exit**")
+        self.p = None # Break circular dependency
+        return 0;
+
 # This is the set of items that may appear under the "system"
 # level of ietf-system.
 children = {
