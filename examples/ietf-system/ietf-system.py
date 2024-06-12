@@ -13,27 +13,37 @@ class Hostname(tf.OpBase):
         raise Exception("Delete of hostname not allowed")
 
     def validate(self, data, origxml, newxml):
-        value = newxml.get_value()
+        value = newxml.get_body()
         if len(value) > 64: # Linux only allow 64 characters
             raise Exception("Host name too long, 64-character max.")
         data.add_op(self, None, value)
 
     def commit(self, op):
         op.oldvalue = self.getvalue()
-        self.do_priv(op, value)
+        self.do_priv(op)
 
     def revert(self, op):
         self.do_priv(op, value)
 
     def priv(self, op):
         if op.revert:
-            if self.oldvalue is None:
+            if op.oldvalue is None:
                 return # We didn't set it, nothing to do
-            pass
+            try:
+                self.setvalue(op.oldvalue)
+            except:
+                pass
         else:
-            pass
+            self.setvalue(op.value)
         return
 
+    def setvalue(self, value):
+        self.program_output(["/bin/hostname", value])
+        f = open("/etc/hostname", "w")
+        try:
+            f.write(value + "\n")
+        finally:
+            f.close()
     def getvalue(self):
         return self.program_output(["/bin/hostname"])
 

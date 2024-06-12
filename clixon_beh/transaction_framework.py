@@ -30,6 +30,7 @@
 #
 
 import subprocess
+import clixon_beh
 
 """This is a package that helps with clixon backends.  It provides a
 frameowrk that allows users to provide just the low-level pieces they
@@ -132,7 +133,7 @@ class OpBase:
             c = xml.child_i(i)
             name = c.get_name()
             if name in self.root.children:
-                self.root.children[name].validate_add(data, c)
+                self.children[name].validate_add(data, c)
         return
 
     def validate_del(self, data, xml):
@@ -142,7 +143,7 @@ class OpBase:
             c = xml.child_i(i)
             name = c.get_name()
             if name in self.root.children:
-                self.root.children[name].validate_del(data, c)
+                self.children[name].validate_del(data, c)
         return
 
     def validate(self, data, origxml, newxml):
@@ -158,26 +159,32 @@ class OpBase:
         else:
             nxml = None
         while oxml and nxml:
-            if oxml and "del" in oxml.get_flags_strs().split(","):
+            oxmlf = 0
+            if oxml:
+                oxmlf = oxml.get_flags(clixon_beh.XMLOBJ_FLAG_FULL_MASK)
+            nxmlf = 0
+            if nxml:
+                nxmlf = nxml.get_flags(clixon_beh.XMLOBJ_FLAG_FULL_MASK)
+            if oxmlf & clixon_beh.XMLOBJ_FLAG_DEL:
                 c = oxml.get_name()
                 if c in self.children:
-                    self.root.children[c].validate_del(data, c)
+                    self.children[c].validate_del(data, c)
                 oi += 1
                 oxml = origxml.child_i(oi)
                 pass
-            elif nxml and "add" in nxml.get_flags_strs().split(","):
+            elif nxmlf & clixon_beh.XMLOBJ_FLAG_ADD:
                 c = oxml.get_name()
                 if c in self.children:
-                    self.root.children[c].validate_add(data, c)
+                    self.children[c].validate_add(data, c)
                 ni += 1
                 nxml = newxml.child_i(ni)
                 pass
             else:
-                if (oxml and "change" in oxml.get_flags_strs().split(",") and
-                        nxml and "change" in nxml.get_flags_strs().split(",")):
+                if (oxmlf & clixon_beh.XMLOBJ_FLAG_CHANGE and
+                        nxmlf & clixon_beh.XMLOBJ_FLAG_CHANGE):
                     c = oxml.get_name()
                     if c in self.children:
-                        self.root.children[c].validate(data, oxml, nxml)
+                        self.children[c].validate(data, oxml, nxml)
                 if oxml:
                     oi += 1
                     oxml = origxml.child_i(oi)
@@ -195,7 +202,7 @@ class OpBase:
     def do_priv(self, op):
         """Perform an operation at the initial privilege level."""
         euid = clixon_beh.geteuid()
-        if restore_priv() < 0:
+        if clixon_beh.restore_priv() < 0:
             raise Exception(self.name + ": Can't restore privileges.")
         try:
             self.priv(op)
