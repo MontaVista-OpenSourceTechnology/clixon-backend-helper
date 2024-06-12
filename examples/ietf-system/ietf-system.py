@@ -68,14 +68,14 @@ class OpBase:
         else:
             nxml = None
         while oxml and nxml:
-            if oxml and "del" in oxml.get_flags().split(","):
+            if oxml and "del" in oxml.get_flags_strs().split(","):
                 c = oxml.get_name()
                 if c in self.children:
                     self.root.children[c].validate_del(data, c)
                 oi += 1
                 oxml = origxml.child_i(oi)
                 pass
-            elif nxml and "add" in nxml.get_flags().split(","):
+            elif nxml and "add" in nxml.get_flags_strs().split(","):
                 c = oxml.get_name()
                 if c in self.children:
                     self.root.children[c].validate_add(data, c)
@@ -83,8 +83,8 @@ class OpBase:
                 nxml = newxml.child_i(ni)
                 pass
             else:
-                if (oxml and "change" in oxml.get_flags().split(",") and
-                        nxml and "change" in nxml.get_flags().split(",")):
+                if (oxml and "change" in oxml.get_flags_strs().split(",") and
+                        nxml and "change" in nxml.get_flags_strs().split(",")):
                     c = oxml.get_name()
                     if c in self.children:
                         self.root.children[c].validate(data, oxml, nxml)
