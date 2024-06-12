@@ -29,27 +29,4 @@
 # ***** END LICENSE BLOCK *****
 #
 
-project('clixon-backend-helper', 'c')
-
-prefix = get_option('prefix')
-my_libexecdir = prefix + '/' + get_option('libexecdir')
-my_datadir = prefix + '/' + get_option('datadir')
-
-py3 = import('python').find_installation('python3')
-pyinc = py3.get_variable('INCLUDEPY')
-pylib = py3.get_variable('BLDLIBRARY')
-
-shared_library('clixon_beh', 'clixon_beh.c',
-               name_prefix: '',
-               override_options: 'b_lundef=false',
-	       include_directories: pyinc,
-	       link_args: pylib,
-	       install: true,
-	       install_dir: my_libexecdir + '/clixon_beh')
-
-install_data('clixon-beh-config@2024-06-05.yang',
-             install_dir: my_datadir + '/clixon')
-
-install_headers('clixon_beh.h')
-
-subdir('clixon_beh')
+from .cclixon import *

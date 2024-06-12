@@ -29,27 +29,33 @@
 # ***** END LICENSE BLOCK *****
 #
 
-project('clixon-backend-helper', 'c')
+if get_option('prefix') == '/usr'
+  pyinstall = py3.get_variable('DESTLIB') + '/clixon_beh'
+  pyinstall_so = py3.get_variable('DESTSHARED')
+else
+  pyver = py3.get_variable('py_version_short')
+  pyinstall = prefix + '/lib/python' + pyver + '/dist-packages/clixon_beh'
+  pyinstall_so = pyinstall
+endif
 
-prefix = get_option('prefix')
-my_libexecdir = prefix + '/' + get_option('libexecdir')
-my_datadir = prefix + '/' + get_option('datadir')
+swig = find_program('swig')
+swig_py_gen = custom_target(
+    'cclixon.py',
+    input: ['cclixon.i'],
+    output: ['cclixon.py', 'cclixon.c'],
+    command: [swig, '-python', '-o', '@OUTPUT1@',
+                '-outdir', '@OUTDIR@', '@INPUT@'],
+    install: true,
+    install_dir: [pyinstall, false]
+)
 
-py3 = import('python').find_installation('python3')
-pyinc = py3.get_variable('INCLUDEPY')
-pylib = py3.get_variable('BLDLIBRARY')
-
-shared_library('clixon_beh', 'clixon_beh.c',
+shared_library('_cclixon', swig_py_gen[1],
                name_prefix: '',
                override_options: 'b_lundef=false',
 	       include_directories: pyinc,
-	       link_args: pylib,
 	       install: true,
-	       install_dir: my_libexecdir + '/clixon_beh')
+	       install_dir: pyinstall_so)
 
-install_data('clixon-beh-config@2024-06-05.yang',
-             install_dir: my_datadir + '/clixon')
+install_data('__init__.py',
+             install_dir: pyinstall)
 
-install_headers('clixon_beh.h')
-
-subdir('clixon_beh')
