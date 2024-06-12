@@ -328,7 +328,7 @@ static cvec *
 bt_find_changed_namespaces(struct clixon_beh_trans *obt)
 {
     cvec  *nss;
-    cxobj *xnorig, *xnnew;
+    cxobj *xnorig = NULL, *xnnew = NULL;
     char  *ns;
     char  *ns2;
     struct clixon_beh_trans *bt = NULL;
@@ -337,8 +337,10 @@ bt_find_changed_namespaces(struct clixon_beh_trans *obt)
     if (!nss)
         return NULL;
 
-    xnorig = xml_child_each(obt->orig_xml, NULL, CX_ELMNT);
-    xnnew = xml_child_each(obt->new_xml, NULL, CX_ELMNT);
+    if (obt->orig_xml)
+	xnorig = xml_child_each(obt->orig_xml, NULL, CX_ELMNT);
+    if (obt->new_xml)
+	xnnew = xml_child_each(obt->new_xml, NULL, CX_ELMNT);
     while (xnorig || xnnew) {
         if (xnorig && xml_flag(xnorig, XML_FLAG_DEL)) {
             ns = xml_nsxml_fetch(xnorig);
