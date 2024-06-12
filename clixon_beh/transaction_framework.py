@@ -224,15 +224,16 @@ class OpBase:
             xml += ">"
         if len(path) == 0:
             xml += self.getvalue()
-        elif path[0] in self.children:
+        else:
             name = path[0].split(":")
             if len(name) == 1:
                 name = name[0]
             else:
                 name = name[1]
-            xml += self.children[path[0]].getxml(path[1:])
-        else:
-            raise Exception("Unknown name " + path[0] + " in " + self.name)
+            if name in self.children:
+                xml += self.children[name].getxml(path[1:])
+            else:
+                raise Exception("Unknown name " + name + " in " + self.name)
         xml += "</" + self.name + ">"
         return xml
 
@@ -287,15 +288,14 @@ class OpHandler:
 
     """
 
-    def __init__(self, namespace, name, children):
-        """name is the top-level name of the yang/xml data.  children is a
-        map of elements that may be in the top level, see OpBase for
-        details.
+    def __init__(self, name, namespace, children):
+        """children is a map of elements that may be in the top level, see
+        OpBase for details.
 
         """
         self.name = name
         self.namespace = namespace
-        self.xmlroot = OpBase(name, children)
+        self.xmlroot = OpBase("TopLevel", children)
 
     def begin(self, t):
         print("***begin**")
@@ -308,7 +308,19 @@ class OpHandler:
             print(str(t.orig_str()))
             print(str(t.new_str()))
         data = t.get_userdata()
-        self.xmlroot.validate(data, t.orig_xml(), t.new_xml())
+
+        # Handle the top-level name.  There can only be one, and it has to
+        # match one of the entries.
+        origxml = t.orig_xml()
+        newxml = t.new_xml()
+        if origxml:
+            name = origxml.get_name()
+        else:
+            name = newxml.get_name()
+        if name in self.xmlroot.children:
+            self.xmlroot.children[name].validate(data, origxml, newxml)
+        else:
+            raise Exception("Unknown name " + name + " in " + self.name)
         return 0
 
     def commit(self, t):
@@ -328,12 +340,18 @@ class OpHandler:
         path = xpath.split("/")
         if len(path) < 2:
             return(-1, "")
+
+        # Handle the top-level name.  There can only be one, and it has to
+        # match one of the entries.
         name = path[1].split(":")
         if len(name) == 1:
             name = name[0]
         else:
             name = name[1]
-        if name != self.name:
-            return(-1, "")
-        return (0, self.xmlroot.getxml(path[2:], namespace=self.namespace))
+        if name in self.xmlroot.children:
+            xml = self.xmlroot.children[name].getxml(path[2:],
+                                                     namespace = self.namespace)
+        else:
+            raise Exception("Unknown name " + name + " in " + self.name)
+        return (0, xml)
 

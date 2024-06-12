@@ -1,4 +1,5 @@
 
+import shlex
 import clixon_beh
 import clixon_beh.transaction_framework as tf
 
@@ -105,13 +106,9 @@ class TimeZone(tf.OpBase):
         self.program_output(["/bin/timedatectl", "set-timezone", "--", value])
 
     def getvalue(self):
+        if not self.is_name:
+            return ""
         return self.program_output(["/bin/cat", "/etc/timezone"]).strip()
-
-class Handler(tf.OpHandler):
-    def exit(self):
-        print("***exit**")
-        self.p = None # Break circular dependency
-        return 0;
 
 clock_children = {
     "timezone-name": TimeZone("timezone-name", is_name=True),
@@ -120,11 +117,105 @@ clock_children = {
 
 # This is the set of items that may appear under the "system"
 # level of ietf-system.
-children = {
+system_children = {
     "contact": tf.OpBaseConfigOnly("contact"),
     "hostname": Hostname("hostname"),
     "location": tf.OpBaseConfigOnly("location"),
     "clock": tf.OpBase("clock", clock_children),
 }
-handler = Handler("urn:ietf:params:xml:ns:yang:ietf-system", "system", children)
+
+class SystemStatePlatform(tf.OpBase):
+    def __init__(self, name):
+        super().__init__(name)
+
+    def validate_add(self, data, xml):
+        raise Exception("Cannot modify system state")
+
+    def validate_del(self, data, xml):
+        raise Exception("Cannot modify system state")
+
+    def validate(self, data, origxml, newxml):
+        raise Exception("Cannot modify system state")
+
+    def getvalue(self):
+        if self.name == "os-name":
+            opt = "-s"
+        elif self.name == "os-release":
+            opt = "-r"
+        elif self.name == "os-version":
+            opt = "-v"
+        elif self.name == "machine":
+            opt = "-m"
+        else:
+            raise Exception("Internal error getting uname")
+        return self.program_output(["/bin/uname", opt]).strip()
+
+class SystemStateClock(tf.OpBase):
+    def __init__(self, name):
+        super().__init__(name)
+
+    def validate_add(self, data, xml):
+        raise Exception("Cannot modify system state")
+
+    def validate_del(self, data, xml):
+        raise Exception("Cannot modify system state")
+
+    def validate(self, data, origxml, newxml):
+        raise Exception("Cannot modify system state")
+
+    def getvalue(self):
+        date = self.program_output(["/bin/date","--rfc-3339=seconds"]).strip()
+        date = date.split(" ")
+        if len(date) < 2:
+            raise Exception("Invalid date output: " + str(date))
+        if "+" in date[1]:
+            date[1] = date[1].replace("+", "Z+", 1)
+        else:
+            date[1] = date[1].replace("-", "Z-", 1)
+        date = date[0] + "T" + date[1]
+
+        if self.name == "boot-datetime":
+            bdate = shlex.split(self.program_output(["/bin/who","-b"]))
+            if len(bdate) < 4:
+                raise Exception("Invalid who -b output: " + str(bdate))
+            zone = date.split("Z")
+            if len(zone) < 2:
+                raise Exception("Invalid zone in date: " + date)
+            date = bdate[2] + "T" + bdate[3] + "Z" + zone[1]
+
+        return date
+
+system_state_platform_children = {
+    "os-name": SystemStatePlatform("os-name"),
+    "os-release": SystemStatePlatform("os-release"),
+    "os-version": SystemStatePlatform("os-version"),
+    "machine": SystemStatePlatform("machine")
+}
+
+system_state_clock_children = {
+    "current-datetime": SystemStateClock("current-datetime"),
+    "boot-datetime": SystemStateClock("boot-datetime")
+}
+
+system_state_children = {
+    "platform": tf.OpBase("platform", system_state_platform_children),
+    "clock": tf.OpBase("clock", system_state_clock_children)
+}
+
+class Handler(tf.OpHandler):
+    def exit(self):
+        print("***exit**")
+        self.p = None # Break circular dependency
+        return 0;
+
+    def statedata(self, nsc, xpath):
+        rv = super().statedata(nsc, xpath)
+        return rv
+
+children = {
+    "system": tf.OpBase("system", system_children),
+    "system-state": tf.OpBase("system-state", system_state_children),
+}
+handler = Handler("ietf-system", "urn:ietf:params:xml:ns:yang:ietf-system",
+                  children)
 handler.p = clixon_beh.add_plugin("ietf-system", handler.namespace, handler)
