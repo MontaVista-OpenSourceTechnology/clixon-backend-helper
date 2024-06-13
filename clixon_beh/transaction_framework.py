@@ -52,6 +52,18 @@ be done in reverse order.
 
 """
 
+def xmlescape(xmlstr):
+    """This is called automatically for leaf-level getvalue() calls, but
+    if you are handling your own XML generation, you will need to call this
+    on body text.
+    """
+    xmlstr = xmlstr.replace("&", "&amp;")
+    xmlstr = xmlstr.replace("<", "&lt;")
+    xmlstr = xmlstr.replace(">", "&gt;")
+    xmlstr = xmlstr.replace("\"", "&quot;")
+    xmlstr = xmlstr.replace("'", "&apos;")
+    return xmlstr
+
 class Op:
     """This is an operation.  Generally you add this in the validate calls
     when you discover things that need to be done.  and the handler's
@@ -223,7 +235,7 @@ class OpBase:
         else:
             xml += ">"
         if len(path) == 0:
-            xml += self.getvalue()
+            xml += xmlescape(self.getvalue())
         else:
             name = path[0].split(":")
             if len(name) == 1:
