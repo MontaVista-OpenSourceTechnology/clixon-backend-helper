@@ -29,7 +29,7 @@ show("Show a particular state of the system"){
     }
     configuration("Show configuration"), cli_show_config("candidate", "text", "/");{
 	    xml("Show configuration as XML"), cli_show_config("candidate", "xml", "/");{
-	        @datamodel, cli_show_auto("candidate", "xml");		   
+	        @datamodel, cli_show_auto("candidate", "xml");
 	    }
 	    cli("Show configuration as CLI commands"), cli_show_config("candidate", "cli", "/");{
 	        @datamodel, cli_show_auto("candidate", "cli");
@@ -41,8 +41,36 @@ show("Show a particular state of the system"){
 	        @datamodel, cli_show_auto("candidate", "text");
 	    }
 	    json("Show configuration as JSON"), cli_show_config("candidate", "json", "/");{
-	    	@datamodel, cli_show_auto("candidate", "json");
+	        @datamodel, cli_show_auto("candidate", "json");
 	    }
+    }
+    state("Show running state"), cli_show_config("running", "text", "/");{
+	    xml("Show configuration as XML"), cli_show_config("running", "xml", "/");{
+	        @datamodel, cli_show_auto("running", "xml");
+	    }
+	    cli("Show configuration as CLI commands"), cli_show_config("running", "cli", "/");{
+	        @datamodel, cli_show_auto("running", "cli");
+	    }
+	    netconf("Show configuration as netconf edit-config operation"), cli_show_config("running", "netconf", "/");{
+	        @datamodel, cli_show_auto("running", "netconf");
+	    }
+	    text("Show configuration as text"), cli_show_config("running","text","/");{
+	        @datamodel, cli_show_auto("running", "text");
+	    }
+	    json("Show configuration as JSON"), cli_show_config("running", "json", "/");{
+	        @datamodel, cli_show_auto("running", "json");
+	    }
+    }
+    yang("Show yang specs"), show_yang(); {
+        clixon-example("Show clixon-example yang spec"), show_yang("clixon-example");
+    }
+    memory("Show memory usage") {
+       cli("Show CLI memory usage"), cli_show_statistics("cli");{
+          detail("Show detailed CLI memory usage"), cli_show_statistics("cli", "detail");
+       }
+       backend("Show backend memory usage"), cli_show_statistics("backend");{
+          detail("Show detailed backend memory usage"), cli_show_statistics("backend", "detail");
+       }
     }
 }
 
