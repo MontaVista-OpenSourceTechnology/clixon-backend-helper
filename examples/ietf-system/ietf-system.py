@@ -4,7 +4,7 @@ import clixon_beh
 import clixon_beh.transaction_framework as tf
 
 # /system/hostname
-class Hostname(tf.OpBase):
+class Hostname(tf.OpBaseLeaf):
     def validate_add(self, data, xml):
         self.validate(data, None, xml)
 
@@ -48,7 +48,7 @@ class Hostname(tf.OpBase):
         return self.program_output(["/bin/hostname"]).strip()
 
 # /system/clock/timezone-*
-class TimeZone(tf.OpBase):
+class TimeZone(tf.OpBaseLeaf):
     def __init__(self, name, is_name=True):
         super().__init__(name)
         self.is_name = is_name
@@ -162,25 +162,25 @@ def dns_get_opdata(data):
     return data.userDNSOp.userData
 
 # /system/dns-resolver/search
-class DNSSearch(tf.OpBaseValidateOnly):
+class DNSSearch(tf.OpBaseValidateOnlyLeaf):
     def validate_add(self, data, xml):
         ddata = dns_get_opdata(data)
         ddata.add_search.append(xml.get_body())
 
 # /system/dns-resolver/server/name
-class DNSServerName(tf.OpBaseValidateOnly):
+class DNSServerName(tf.OpBaseValidateOnlyLeaf):
     def validate_add(self, data, xml):
         ddata = dns_get_opdata(data)
         ddata.curr_server.name = xml.get_body()
 
 # /system/dns-resolver/server/address
-class DNSServerAddress(tf.OpBaseValidateOnly):
+class DNSServerAddress(tf.OpBaseValidateOnlyLeaf):
     def validate_add(self, data, xml):
         ddata = dns_get_opdata(data)
         ddata.curr_server.address = xml.get_body()
 
 # /system/dns-resolver/server/port
-class DNSServerPort(tf.OpBaseValidateOnly):
+class DNSServerPort(tf.OpBaseValidateOnlyLeaf):
     def validate_add(self, data, xml):
         ddata = dns_get_opdata(data)
         ddata.curr_server.port = xml.get_body()
@@ -208,20 +208,25 @@ class DNSServer(tf.OpBaseValidateOnly):
         super().validate_add(data, xml)
 
 # /system/dns-resolver/options/timeout
-class DNSTimeout(tf.OpBaseValidateOnly):
+class DNSTimeout(tf.OpBaseValidateOnlyLeaf):
     def validate_add(self, data, xml):
         ddata = dns_get_opdata(data)
         ddata.timeout = xml.get_body()
 
 # /system/dns-resolver/options/attempts
-class DNSAttempts(tf.OpBaseValidateOnly):
+class DNSAttempts(tf.OpBaseValidateOnlyLeaf):
     def validate_add(self, data, xml):
         ddata = dns_get_opdata(data)
         ddata.attempts = xml.get_body()
 
 class DNSResolver(tf.OpBase):
     def __init__(self, name, children):
-        super().__init__(name, children = children, validate_all = True)
+        super().__init__(name, children = children, validate_all = True,
+                         xmlprocvalue = True)
+
+    def validate_del(self, data, xml):
+        # FIXME - maybe delete /etc/resolv.conf?  or fix the YANG?
+        raise Exception("Cannot delete main DNS data")
 
     def getvalue(self):
         """We fetch the resolv.conf file and process it here ourselves.  None

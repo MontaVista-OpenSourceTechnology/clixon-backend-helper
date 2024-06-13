@@ -50,12 +50,17 @@ operation's handler is then called to actually do the operation.  If a
 commit fails for some reason, the revert calls for the operations will
 be done in reverse order.
 
-"""
+The escaping of XML body data is important.  If your getvalue() call
+returns text for a body, you need to escape it properly for XML.  If
+you set xmlprocvalue to true on your Op, then it will do this for you
+automatically.  If that's not possible for some reason, then you will
+need to process your data with xmlescape."""
 
 def xmlescape(xmlstr):
-    """This is called automatically for leaf-level getvalue() calls, but
-    if you are handling your own XML generation, you will need to call this
-    on body text.
+    """This is called automatically for leaf-level getvalue() calls, onces
+    that have xmlprocvalue set to true, but if you are handling your
+    own XML generation, you will need to call this on body text.
+
     """
     xmlstr = xmlstr.replace("&", "&amp;")
     xmlstr = xmlstr.replace("<", "&lt;")
@@ -142,7 +147,8 @@ class OpBase:
     override this, too, and also probably need to override getxml.
 
     """
-    def __init__(self, name, children = {}, validate_all = False):
+    def __init__(self, name, children = {}, validate_all = False,
+                 xmlprocvalue = False):
         """name should be the xml tag name for this operations.  children, if
         set, should be a map of the xml elements that can occur in
         this xml element, and their handlers.  If validate_all is set,
@@ -154,6 +160,7 @@ class OpBase:
         self.name = name
         self.children = children
         self.validate_all = validate_all
+        self.xmlprocvalue = xmlprocvalue
 
     def validate_add(self, data, xml):
         """Validate add of an element list.  Leaf elements should override
@@ -253,7 +260,10 @@ class OpBase:
         else:
             xml += ">"
         if len(path) == 0:
-            xml += xmlescape(self.getvalue())
+            value = self.getvalue()
+            if self.xmlprocvalue:
+                value = xmlescape(value)
+            xml += value
         else:
             name = path[0].split(":")
             if len(name) == 1:
@@ -273,6 +283,8 @@ class OpBase:
         xml = ""
         for name in self.children:
             s = self.children[name].getvalue()
+            if self.children[name].xmlprocvalue:
+                s = xmlescape(s)
             if s and len(s) > 0:
                 xml += "<" + name + ">" + s + "</" + name + ">"
         return xml
@@ -288,7 +300,17 @@ class OpBase:
             raise Exception(args[0] + " error: " + err.decode("utf-8"))
         return out.decode("utf-8")
 
-class OpBaseConfigOnly(OpBase):
+class OpBaseLeaf(OpBase):
+    """An Op that is a leaf, set up for such.  Just sets the XML processing
+    flag for now.
+
+    """
+    def __init__(self, name, validate_all = False, xmlprocvalue = True):
+        super().__init__(name, validate_all = validate_all,
+                         xmlprocvalue = xmlprocvalue)
+
+
+class OpBaseConfigOnly(OpBaseLeaf):
     """If a leaf element is config only, there's no need to do much, it's
     stored in the main database only.
 
@@ -345,8 +367,10 @@ class OpBaseValidateOnly(OpBase):
     validate_add.  This can be overriden, of course.
 
     """
-    def __init__(self, name, children = {}, validate_all = True):
-        super().__init__(name, children, validate_all)
+    def __init__(self, name, children = {}, validate_all = True,
+                 xmlprocvalue = False):
+        super().__init__(name, children, validate_all = validate_all,
+                         xmlprocvalue = xmlprocvalue)
 
     def validate_del(self, data, xml):
         # We assume in this case that the user is doing a full rebuild of
@@ -370,14 +394,30 @@ class OpBaseValidateOnly(OpBase):
     def revert(self, data, xml):
         raise Exception("abort")
 
-class OpBaseValueOnly(OpBase):
+class OpBaseValidateOnlyLeaf(OpBaseValidateOnly):
+    """This is used for operations that just are only registered as
+    children and never added to a commit queue.  Thus they need no
+    commit or revert.  User should override validate and getvalue
+    calls.
+
+    This also assumes that the user will rebuild the whole thing they
+    are working on, so it ignores deletes and translates validate to
+    validate_add by default.  So the user only needs to provide
+    validate_add.  This can be overriden, of course.
+
+    """
+    def __init__(self, name, children = {}, validate_all = True):
+        super().__init__(name, children, validate_all = validate_all,
+                         xmlprocvalue = True)
+
+class OpBaseValueOnly(OpBaseLeaf):
     """This is used for operations that just are only registered as
     leaf system state values, no validate, no commit.  The user should
     override getvalue.
 
     """
-    def __init__(self, name, children = {}, validate_all = True):
-        super().__init__(name, children, validate_all)
+    def __init__(self, name, validate_all = True):
+        super().__init__(name, validate_all = validate_all, xmlprocvalue = True)
 
     def validate_add(self, data, xml):
         raise Exception("Cannot modify system state")
