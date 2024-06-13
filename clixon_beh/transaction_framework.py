@@ -69,6 +69,14 @@ class Op:
     when you discover things that need to be done.  and the handler's
     commit function get's called in the commit and revert calls.
 
+    The user can add their own items to this.  For instance, the user
+    could have a global object representing everything to be done for
+    a specific thing, create it and store it in the transaction data
+    under their own name.  Then when new data items come in that are
+    related, the user can look in the data, reuse the existing item if
+    present, or create one if not present.  User-added items should
+    begin with "user".
+
     """
     def __init__(self, handler, opname, value):
         """The handler's commit and revert methods will be called during the
@@ -101,7 +109,9 @@ class Op:
 
 class Data:
     """This is data about a transaction.  It holds the list of operations
-    and does the full commit/revert operations.
+    and does the full commit/revert operations.  The users can add
+    their own items to this, if so their names should begin with
+    "user".
 
     """
     def __init__(self):
@@ -109,8 +119,11 @@ class Data:
 
     def add_op(self, handler, op, value):
         """Add an operation to the operation queue.  These will be done
-        in the commit and revert phases."""
-        self.ops.append(Op(handler, op, value))
+        in the commit and revert phases.  Returns the Op object that
+        was created, the user can add to it if they like."""
+        opdata = Op(handler, op, value)
+        self.ops.append(opdata)
+        return opdata
 
     def commit(self):
         for op in self.ops:
@@ -129,14 +142,18 @@ class OpBase:
     override this, too, and also probably need to override getxml.
 
     """
-    def __init__(self, name, children = {}):
+    def __init__(self, name, children = {}, validate_all = False):
         """name should be the xml tag name for this operations.  children, if
         set, should be a map of the xml elements that can occur in
-        this xml element, and their handlers.
+        this xml element, and their handlers.  If validate_all is set,
+        then the clixon flags for add/del/change are ignored and all
+        children are handled.  Otherwise handlers are only called for
+        children whose XML has the clixon flags set.
 
         """
         self.name = name
         self.children = children
+        self.validate_all = validate_all
 
     def validate_add(self, data, xml):
         """Validate add of an element list.  Leaf elements should override
@@ -192,8 +209,9 @@ class OpBase:
                 nxml = newxml.child_i(ni)
                 pass
             else:
-                if (oxmlf & clixon_beh.XMLOBJ_FLAG_CHANGE and
-                        nxmlf & clixon_beh.XMLOBJ_FLAG_CHANGE):
+                if (self.validate_all or
+                       (oxmlf & clixon_beh.XMLOBJ_FLAG_CHANGE and
+                        nxmlf & clixon_beh.XMLOBJ_FLAG_CHANGE)):
                     c = oxml.get_name()
                     if c in self.children:
                         self.children[c].validate(data, oxml, nxml)
@@ -290,7 +308,98 @@ class OpBaseConfigOnly(OpBase):
 
     def getxml(self, path, namespace=None):
         return ""
-    
+
+    def getvalue(self):
+        return ""
+
+class OpBaseCommitOnly(OpBase):
+    """This is used for operations that just are added to the op queue and
+    not registered as a child.  Thus they need no validation or getvalue.
+    User should override commit and revert.
+
+    """
+    def __init__(self, name):
+        super().__init__(name)
+
+    def validate_add(self, data, xml):
+        raise Exception("abort")
+
+    def validate_del(self, data, xml):
+        raise Exception("abort")
+
+    def validate(self, data, origxml, newxml):
+        raise Exception("abort")
+
+    def getvalue(self):
+        raise Exception("abort")
+
+class OpBaseValidateOnly(OpBase):
+    """This is used for operations that just are only registered as
+    children and never added to a commit queue.  Thus they need no
+    commit or revert.  User should override validate and getvalue
+    calls.
+
+    This also assumes that the user will rebuild the whole thing they
+    are working on, so it ignores deletes and translates validate to
+    validate_add by default.  So the user only needs to provide
+    validate_add.  This can be overriden, of course.
+
+    """
+    def __init__(self, name, children = {}, validate_all = True):
+        super().__init__(name, children, validate_all)
+
+    def validate_del(self, data, xml):
+        # We assume in this case that the user is doing a full rebuild of
+        # the data, so deletes can just be ignored.  If not, the user
+        # should override this.
+        return
+
+    def validate(self, data, origxml, newxml):
+        # Again, assuming a full rebuild of the dasta, so a validate
+        # is the same as an add.  Override if not so.
+        self.validate_add(self, data, newxml)
+
+    def getvalue(self):
+        # We assume a higher-level handler builds the entire value, so
+        # this should never get hit.  Override if not so.
+        raise Exception("abort")
+
+    def commit(self, op):
+        raise Exception("abort")
+
+    def revert(self, data, xml):
+        raise Exception("abort")
+
+class OpBaseValueOnly(OpBase):
+    """This is used for operations that just are only registered as
+    leaf system state values, no validate, no commit.  The user should
+    override getvalue.
+
+    """
+    def __init__(self, name, children = {}, validate_all = True):
+        super().__init__(name, children, validate_all)
+
+    def validate_add(self, data, xml):
+        raise Exception("Cannot modify system state")
+
+    def validate_del(self, data, xml):
+        raise Exception("Cannot modify system state")
+
+    def validate(self, data, origxml, newxml):
+        raise Exception("Cannot modify system state")
+
+    def commit(self, op):
+        raise Exception("abort")
+
+    def revert(self, data, xml):
+        raise Exception("abort")
+
+    def getxml(self, path, namespace=None):
+        return ""
+
+    def getvalue(self):
+        return ""
+
 class OpHandler:
     """Handler for Clixon backend.  This can be used directly.  Or a
     handler can descend from this if they need to add the pre_daemon,
