@@ -114,7 +114,7 @@ class TimeZone(tf.ElemOpBaseLeaf):
         return self.program_output(["/bin/cat", "/etc/timezone"]).strip()
 
 # /system/clock
-clock_children = {
+system_clock_children = {
     "timezone-name": TimeZone("timezone-name", is_name=True),
     "timezone-utc-offset": TimeZone("timezone-utc-offset", is_name=False),
 }
@@ -192,17 +192,17 @@ class DNSServerPort(tf.ElemOpBaseValidateOnlyLeaf):
         ddata.curr_server.port = xml.get_body()
 
 # /system/dns-resolver/server/udp-and-tcp
-dns_server_ip_children = {
+system_dns_server_ip_children = {
     "address": DNSServerAddress("timeout"),
     "port": DNSServerPort("port"),
 }
 
 # /system/dns-resolver/server
-dns_server_children = {
+system_dns_server_children = {
     "name": DNSServerName("timeout"),
     "udp-and-tcp": tf.ElemOpBaseValidateOnly("upd-and-tcp",
-                                             children = dns_server_ip_children,
-                                             validate_all = True),
+                                    children = system_dns_server_ip_children,
+                                    validate_all = True),
     # FIXME - Add encrypted DNS support, and possibly DNSSEC.
 }
 
@@ -241,17 +241,17 @@ class DNSResolver(tf.ElemOpBase):
         return ""
 
 # /system/dns-resolver/options
-dns_options_children = {
+system_dns_options_children = {
     "timeout": DNSTimeout("timeout"),
     "attempts": DNSAttempts("attempts"),
 }
 
 # /system/dns-resolver
-dns_resolver_children = {
+system_dns_resolver_children = {
     "search": DNSSearch("search"),
-    "server": DNSServer("server", children = dns_server_children,
+    "server": DNSServer("server", children = system_dns_server_children,
                         validate_all = True),
-    "options": tf.ElemOpBase("options", dns_options_children,
+    "options": tf.ElemOpBase("options", children = system_dns_options_children,
                              validate_all = True),
 }
 
@@ -399,7 +399,7 @@ system_user_children = {
 }
 
 # /system/authentication
-authentication_children = {
+system_authentication_children = {
     "user-authentication-order": tf.ElemOpBaseConfigOnly("user-authentication-order"),
     "user": User("user", children = system_user_children, validate_all = True),
 }
@@ -409,10 +409,12 @@ system_children = {
     "contact": tf.ElemOpBaseConfigOnly("contact"),
     "hostname": Hostname("hostname"),
     "location": tf.ElemOpBaseConfigOnly("location"),
-    "clock": tf.ElemOpBase("clock", clock_children),
-    "dns-resolver": DNSResolver("dns-resolver", dns_resolver_children,
+    "clock": tf.ElemOpBase("clock", system_clock_children),
+    "dns-resolver": DNSResolver("dns-resolver",
+                                children = system_dns_resolver_children,
                                 validate_all = True, xmlprocvalue = True),
-    "authentication": tf.ElemOpBase("authentication", authentication_children),
+    "authentication": tf.ElemOpBase("authentication",
+                                    children = system_authentication_children),
 }
 
 # /system-state/platform/*
