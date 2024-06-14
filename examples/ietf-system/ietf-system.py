@@ -306,8 +306,8 @@ class UserName(tf.ElemOpBaseValidateOnlyLeaf):
 
     def validate(self, data, origxml, newxml):
         data.userCurrU.user_name = newxml.get_body()
-        if not data.user_exists(data.userCurrU.user_name):
-            raise Exception("User " + data.userCurrU.user_name + "not present")
+        if not data.userCurrU.user_exists(data.userCurrU.user_name):
+            raise Exception("User " + data.userCurrU.user_name + " not present")
 
 # /system/authentication/user/password
 class UserPassword(tf.ElemOpBaseValidateOnlyLeaf):
@@ -319,6 +319,7 @@ class UserPassword(tf.ElemOpBaseValidateOnlyLeaf):
         data.userCurrU.user_password_op = "del"
 
     def validate(self, data, origxml, newxml):
+        # Don't have to worry about the password on a delete.
         if newxml.get_flags(clixon_beh.XMLOBJ_FLAG_CHANGE):
             data.userCurrU.user_password_op = "change"
             data.userCurrU.user_password = xml.get_body()
@@ -387,9 +388,10 @@ class User(tf.ElemOpBaseValidateOnly):
 
     def validate(self, data, origxml, newxml):
         self.start(data, None)
-        super().validate(data, origxml, new)
+        super().validate(data, origxml, newxml)
 
     def getvalue(self):
+        # FIXME
         return ""
 
 # /system/authentication/user
