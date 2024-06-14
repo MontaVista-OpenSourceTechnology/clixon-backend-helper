@@ -304,8 +304,8 @@ class UserName(tf.ElemOpBaseValidateOnlyLeaf):
     def validate_del(self, data, xml):
         data.userCurrU.user_name = xml.get_body()
 
-    def validate(self, data, xml):
-        data.userCurrU.user_name = xml.get_body()
+    def validate(self, data, origxml, newxml):
+        data.userCurrU.user_name = newxml.get_body()
         if not data.user_exists(data.userCurrU.user_name):
             raise Exception("User " + data.userCurrU.user_name + "not present")
 
@@ -318,8 +318,8 @@ class UserPassword(tf.ElemOpBaseValidateOnlyLeaf):
     def validate_del(self, data, xml):
         data.userCurrU.user_password_op = "del"
 
-    def validate(self, data, xml):
-        if xml.get_flags(clixon_beh.XMLOBJ_FLAG_CHANGE):
+    def validate(self, data, origxml, newxml):
+        if newxml.get_flags(clixon_beh.XMLOBJ_FLAG_CHANGE):
             data.userCurrU.user_password_op = "change"
             data.userCurrU.user_password = xml.get_body()
 
@@ -333,8 +333,8 @@ class UserAuthkeyAlgo(tf.ElemOpBaseValidateOnlyLeaf):
     def validate_add(self, data, xml):
         data.userCurrU.user_curr_key.algorithm = xml.get_body()
 
-    def validate(self, data, xml):
-        if xml.get_flags(clixon_beh.XMLOBJ_FLAG_CHANGE):
+    def validate(self, data, origxml, newxml):
+        if newxml.get_flags(clixon_beh.XMLOBJ_FLAG_CHANGE):
             data.userCurrU.user_curr_key.algorithm = xml.get_body()
             data.userCurrU.user_curr_key.change_algorithm = True
 
@@ -343,8 +343,8 @@ class UserAuthkeyKeyData(tf.ElemOpBaseValidateOnlyLeaf):
     def validate_add(self, data, xml):
         data.userCurrU.user_curr_key.keydata = xml.get_body()
 
-    def validate(self, data, xml):
-        if xml.get_flags(clixon_beh.XMLOBJ_FLAG_CHANGE):
+    def validate(self, data, origxml, newxml):
+        if newxml.get_flags(clixon_beh.XMLOBJ_FLAG_CHANGE):
             data.userCurrU.user_curr_key.keydata = xml.get_body()
             data.userCurrU.user_curr_key.change_keydata = True
 
@@ -489,9 +489,9 @@ class NTPServer(tf.ElemOpBaseValidateOnly):
         self.start(data, "del")
         super().validate_del(data, xml)
 
-    def validate(self, data, xml):
-        self.start(data, None)
-        super().validate(data, xml)
+    def validate(self, data, origxml, newxml):
+        self.start(data, "change")
+        super().validate(data, origxml, newxml)
 
 # /system/ntp/server/udp
 system_ntp_server_udp_children = {
@@ -503,7 +503,8 @@ system_ntp_server_udp_children = {
 system_ntp_server_children = {
     "name": NTPServerName("name"),
     "udp": tf.ElemOpBaseValidateOnly("udp",
-                                     children = system_ntp_server_udp_children),
+                                     children = system_ntp_server_udp_children,
+                                     validate_all = True),
     "association-type": NTPServerAsocType("association-type"),
     "iburst": NTPServerIBurst("iburst"),
     "prefer": NTPServerPrefer("prefer"),
@@ -522,6 +523,10 @@ class NTP(tf.ElemOpBaseValidateOnly):
     def validate_del(self, data, xml):
         raise Exception("Cannot delete NTP data.")
 
+    def validate(self, data, origxml, newxml):
+        self.start(data)
+        super().validate(data, origxml, newxml)
+
     # FIXME - implement this
     def getvalue(self):
         return ""
@@ -529,7 +534,8 @@ class NTP(tf.ElemOpBaseValidateOnly):
 # /system/ntp
 system_ntp_children = {
     "enabled": NTPEnabled("enabled"),
-    "server": NTPServer("server", children = system_ntp_server_children)
+    "server": NTPServer("server", children = system_ntp_server_children,
+                        validate_all = True)
 }
 
 # /system
