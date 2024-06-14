@@ -221,9 +221,9 @@ class ElemOpBase:
                 pass
             else:
                 if (self.validate_all or
-                       (oxmlf & clixon_beh.XMLOBJ_FLAG_CHANGE and
-                        nxmlf & clixon_beh.XMLOBJ_FLAG_CHANGE)):
-                    c = oxml.get_name()
+                         nxmlf & clixon_beh.XMLOBJ_FLAG_CHANGE or
+                         oxmlf & clixon_beh.XMLOBJ_FLAG_CHANGE):
+                    c = nxml.get_name()
                     if c in self.children:
                         self.children[c].validate(data, oxml, nxml)
                 if oxml:
@@ -412,7 +412,7 @@ class ElemOpBaseValidateOnlyLeaf(ElemOpBaseValidateOnly):
     def validate(self, data, origxml, newxml):
         # Again, assuming a full rebuild of the data, so a validate
         # is the same as an add.  Override if not so.
-        self.validate_add(self, data, newxml)
+        self.validate_add(data, newxml)
 
 class ElemOpBaseValueOnly(ElemOpBaseLeaf):
     """This is used for operations that are only registered as
