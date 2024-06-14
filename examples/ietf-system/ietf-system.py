@@ -1,5 +1,6 @@
 
 import os
+import pwd
 import shlex
 import clixon_beh
 import clixon_beh.transaction_framework as tf
@@ -66,7 +67,7 @@ class TimeZone(tf.ElemOpBaseLeaf):
         if not self.is_name:
             raise Exception("Only name timezones are accepted")
         value = newxml.get_body()
-        if not os.path.exists("/usr/share/zoneinfo/" + value)
+        if not os.path.exists("/usr/share/zoneinfo/" + value):
             raise Exception(value + " not a valid timezone")
         data.add_op(self, None, value)
 
@@ -199,15 +200,14 @@ dns_server_ip_children = {
 # /system/dns-resolver/server
 dns_server_children = {
     "name": DNSServerName("timeout"),
-    "udp-and-tcp": tf.ElemOpBaseValidateOnly("upd-and-tcp", dns_server_ip_children),
+    "udp-and-tcp": tf.ElemOpBaseValidateOnly("upd-and-tcp",
+                                             children = dns_server_ip_children,
+                                             validate_all = True),
     # FIXME - Add encrypted DNS support, and possibly DNSSEC.
 }
 
 # /system/dns-resolver/server
 class DNSServer(tf.ElemOpBaseValidateOnly):
-    def __init__(self, name):
-        super().__init__(name, children = dns_server_children)
-
     def validate_add(self, data, xml):
         ddata = dns_get_opdata(data)
         ddata.curr_server = DNSServerData()
@@ -228,10 +228,6 @@ class DNSAttempts(tf.ElemOpBaseValidateOnlyLeaf):
 
 # /system/dns-resolver
 class DNSResolver(tf.ElemOpBase):
-    def __init__(self, name, children):
-        super().__init__(name, children = children, validate_all = True,
-                         xmlprocvalue = True)
-
     def validate_del(self, data, xml):
         # FIXME - maybe delete /etc/resolv.conf?  or fix the YANG?
         raise Exception("Cannot delete main DNS data")
@@ -253,8 +249,159 @@ dns_options_children = {
 # /system/dns-resolver
 dns_resolver_children = {
     "search": DNSSearch("search"),
-    "server": DNSServer("server"),
-    "options": tf.ElemOpBase("options", dns_options_children),
+    "server": DNSServer("server", children = dns_server_children,
+                        validate_all = True),
+    "options": tf.ElemOpBase("options", dns_options_children,
+                             validate_all = True),
+}
+
+class UserKey:
+    def __init(self):
+        self.op = None
+        self.name = None
+        self.change_algorithm = False
+        self.algorithm = None
+        self.change_keydata = False
+        self.keydata = None
+
+class UserData(tf.ElemOpBaseCommitOnly):
+    """This handles the user operation."""
+    def __init__(self, name):
+        super().__init__(name)
+        self.user_op = None
+        self.user_name = None
+        self.user_password_op = None
+        self.user_password = None
+        self.user_curr_key = None
+        self.user_keys = []
+
+    # FIXME - really implement this
+    def commit(self, op):
+        print("User " + str(self.user_op))
+        print("  name: " + str(self.user_name))
+        print("  password(" + str(self.user_password_op) + "): " +
+              str(self.user_password))
+        for i in self.user_keys:
+            print("  key(" + str(i.op) + "): " + str(i.name))
+            print("    algorithm: " + str(i.algorithm))
+            print("    keydata: " + str(i.keydata))
+
+    def revert(self, op):
+        return
+
+    def user_exists(self, name):
+        try:
+            pwd.getpwname(name)
+        except:
+            return False
+        return True
+
+# /system/authentication/user/name
+class UserName(tf.ElemOpBaseValidateOnlyLeaf):
+    def validate_add(self, data, xml):
+        data.curr_user.user_name = xml.get_body()
+
+    def validate_del(self, data, xml):
+        data.curr_user.user_name = xml.get_body()
+
+    def validate(self, data, xml):
+        data.curr_user.user_name = xml.get_body()
+        if not data.user_exists(data.curr_user.user_name):
+            raise Exception("User " + data.curr_user.user_name + "not present")
+
+# /system/authentication/user/password
+class UserPassword(tf.ElemOpBaseValidateOnlyLeaf):
+    def validate_add(self, data, xml):
+        data.curr_user.user_password_op = "add"
+        data.curr_user.user_password = xml.get_body()
+
+    def validate_del(self, data, xml):
+        data.curr_user.user_password_op = "del"
+
+    def validate(self, data, xml):
+        if xml.get_flags(clixon_beh.XMLOBJ_FLAG_CHANGE):
+            data.curr_user.user_password_op = "change"
+            data.curr_user.user_password = xml.get_body()
+
+# /system/authentication/user/authorized-key/name
+class UserAuthkeyName(tf.ElemOpBaseValidateOnlyLeaf):
+    def validate_add(self, data, xml):
+        data.curr_user.user_curr_key.name = xml.get_body()
+
+# /system/authentication/user/authorized-key/algorithm
+class UserAuthkeyAlgo(tf.ElemOpBaseValidateOnlyLeaf):
+    def validate_add(self, data, xml):
+        data.curr_user.user_curr_key.algorithm = xml.get_body()
+
+    def validate(self, data, xml):
+        if xml.get_flags(clixon_beh.XMLOBJ_FLAG_CHANGE):
+            data.curr_user.user_curr_key.algorithm = xml.get_body()
+            data.curr_user.user_curr_key.change_algorithm = True
+
+# /system/authentication/user/authorized-key/key-data
+class UserAuthkeyKeyData(tf.ElemOpBaseValidateOnlyLeaf):
+    def validate_add(self, data, xml):
+        data.curr_user.user_curr_key.keydata = xml.get_body()
+
+    def validate(self, data, xml):
+        if xml.get_flags(clixon_beh.XMLOBJ_FLAG_CHANGE):
+            data.curr_user.user_curr_key.keydata = xml.get_body()
+            data.curr_user.user_curr_key.change_keydata = True
+
+# /system/authentication/user/authorized-key
+class UserAuthkey(tf.ElemOpBaseValidateOnly):
+    """This handles the user authorized key."""
+    def validate_add(self, data, xml):
+        data.curr_user.user_curr_key = UserKey()
+        data.curr_user.user_keys.append(data.curr_user.user_curr_key)
+        data.curr_user.user_curr_key.op = "add"
+        super().validate_add(data, xml)
+
+    def validate_del(self, data, xml):
+        data.curr_user.user_curr_key = UserKey()
+        data.curr_user.user_keys.append(data.curr_user.user_curr_key)
+        data.curr_user.user_curr_key.op = "del"
+        data.curr_user.user_keys.append(data.curr_user.user_curr_key)
+
+# /system/authentication/user/authorized-key
+system_user_authkey_children = {
+    "name": UserAuthkeyName("name"),
+    "algorithm": UserAuthkeyAlgo("algorithm"),
+    "key-data": UserAuthkeyKeyData("key-data"),
+}
+
+# /system/authentication/user
+class User(tf.ElemOpBaseValidateOnly):
+    def start(self, data, op):
+        data.curr_user = UserData("user")
+        data.add_op(data.curr_user, "user", None)
+        data.curr_user.user_op = op
+
+    def validate_add(self, data, xml):
+        self.start(data, "add")
+        super().validate_add(data, xml)
+
+    def validate_del(self, data, xml):
+        self.start(data, "del")
+        super().validate_del(data, xml)
+
+    def validate(self, data, origxml, newxml):
+        self.start(data, None)
+        super().validate(data, origxml, new)
+
+# /system/authentication/user
+system_user_children = {
+    "name": UserName("name"),
+    "password": UserPassword("password"),
+    "authorized-key": UserAuthkey("authorized-key",
+                                  children = system_user_authkey_children,
+                                  validate_all = True),
+}
+
+# /system/authentication
+authentication_children = {
+    "user-authentication-order": tf.ElemOpBaseConfigOnly("user-authentication-order"),
+    "user": User("user", children = system_user_children, validate_all = True),
 }
 
 # /system
@@ -263,7 +410,9 @@ system_children = {
     "hostname": Hostname("hostname"),
     "location": tf.ElemOpBaseConfigOnly("location"),
     "clock": tf.ElemOpBase("clock", clock_children),
-    "dns-resolver": DNSResolver("dns-resolver", dns_resolver_children),
+    "dns-resolver": DNSResolver("dns-resolver", dns_resolver_children,
+                                validate_all = True, xmlprocvalue = True),
+    "authentication": tf.ElemOpBase("authentication", authentication_children),
 }
 
 # /system-state/platform/*
@@ -337,6 +486,7 @@ class Handler(tf.TopElemHandler):
             return rv
         data = t.get_userdata()
         data.userDNSOp = None # Replaced when DNS operations are done.
+        data.curr_user = None # Replaced by user operations
         return 0
 
     def statedata(self, nsc, xpath):

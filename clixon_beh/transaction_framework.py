@@ -382,11 +382,6 @@ class ElemOpBaseValidateOnly(ElemOpBase):
         # should override this.
         return
 
-    def validate(self, data, origxml, newxml):
-        # Again, assuming a full rebuild of the dasta, so a validate
-        # is the same as an add.  Override if not so.
-        self.validate_add(self, data, newxml)
-
     def getvalue(self):
         # We assume a higher-level handler builds the entire value, so
         # this should never get hit.  Override if not so.
@@ -413,6 +408,11 @@ class ElemOpBaseValidateOnlyLeaf(ElemOpBaseValidateOnly):
     def __init__(self, name, children = {}, validate_all = True):
         super().__init__(name, children, validate_all = validate_all,
                          xmlprocvalue = True)
+
+    def validate(self, data, origxml, newxml):
+        # Again, assuming a full rebuild of the data, so a validate
+        # is the same as an add.  Override if not so.
+        self.validate_add(self, data, newxml)
 
 class ElemOpBaseValueOnly(ElemOpBaseLeaf):
     """This is used for operations that are only registered as
