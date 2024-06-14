@@ -376,12 +376,6 @@ class ElemOpBaseValidateOnly(ElemOpBase):
         super().__init__(name, children, validate_all = validate_all,
                          xmlprocvalue = xmlprocvalue)
 
-    def validate_del(self, data, xml):
-        # We assume in this case that the user is doing a full rebuild of
-        # the data, so deletes can just be ignored.  If not, the user
-        # should override this.
-        return
-
     def getvalue(self):
         # We assume a higher-level handler builds the entire value, so
         # this should never get hit.  Override if not so.
@@ -408,6 +402,12 @@ class ElemOpBaseValidateOnlyLeaf(ElemOpBaseValidateOnly):
     def __init__(self, name, children = {}, validate_all = True):
         super().__init__(name, children, validate_all = validate_all,
                          xmlprocvalue = True)
+
+    def validate_del(self, data, xml):
+        # We assume in this case that the user is doing a full rebuild of
+        # the data, so deletes can just be ignored.  If not, the user
+        # should override this.
+        return
 
     def validate(self, data, origxml, newxml):
         # Again, assuming a full rebuild of the data, so a validate
