@@ -4,7 +4,7 @@ import clixon_beh
 import clixon_beh.transaction_framework as tf
 
 # /system/hostname
-class Hostname(tf.OpBaseLeaf):
+class Hostname(tf.ElemOpBaseLeaf):
     def validate_add(self, data, xml):
         self.validate(data, None, xml)
 
@@ -48,7 +48,7 @@ class Hostname(tf.OpBaseLeaf):
         return self.program_output(["/bin/hostname"]).strip()
 
 # /system/clock/timezone-*
-class TimeZone(tf.OpBaseLeaf):
+class TimeZone(tf.ElemOpBaseLeaf):
     def __init__(self, name, is_name=True):
         super().__init__(name)
         self.is_name = is_name
@@ -115,7 +115,7 @@ clock_children = {
     "timezone-utc-offset": TimeZone("timezone-utc-offset", is_name=False),
 }
 
-class DNSHandler(tf.OpBaseCommitOnly):
+class DNSHandler(tf.ElemOpBaseCommitOnly):
     """This handles the full commit operation for DNS updates.
     """
     # FIXME - really implement this
@@ -162,25 +162,25 @@ def dns_get_opdata(data):
     return data.userDNSOp.userData
 
 # /system/dns-resolver/search
-class DNSSearch(tf.OpBaseValidateOnlyLeaf):
+class DNSSearch(tf.ElemOpBaseValidateOnlyLeaf):
     def validate_add(self, data, xml):
         ddata = dns_get_opdata(data)
         ddata.add_search.append(xml.get_body())
 
 # /system/dns-resolver/server/name
-class DNSServerName(tf.OpBaseValidateOnlyLeaf):
+class DNSServerName(tf.ElemOpBaseValidateOnlyLeaf):
     def validate_add(self, data, xml):
         ddata = dns_get_opdata(data)
         ddata.curr_server.name = xml.get_body()
 
 # /system/dns-resolver/server/address
-class DNSServerAddress(tf.OpBaseValidateOnlyLeaf):
+class DNSServerAddress(tf.ElemOpBaseValidateOnlyLeaf):
     def validate_add(self, data, xml):
         ddata = dns_get_opdata(data)
         ddata.curr_server.address = xml.get_body()
 
 # /system/dns-resolver/server/port
-class DNSServerPort(tf.OpBaseValidateOnlyLeaf):
+class DNSServerPort(tf.ElemOpBaseValidateOnlyLeaf):
     def validate_add(self, data, xml):
         ddata = dns_get_opdata(data)
         ddata.curr_server.port = xml.get_body()
@@ -192,12 +192,12 @@ dns_server_ip_children = {
 
 dns_server_children = {
     "name": DNSServerName("timeout"),
-    "udp-and-tcp": tf.OpBaseValidateOnly("upd-and-tcp", dns_server_ip_children),
+    "udp-and-tcp": tf.ElemOpBaseValidateOnly("upd-and-tcp", dns_server_ip_children),
     # FIXME - Add encrypted DNS support, and possibly DNSSEC.
 }
 
 # /system/dns-resolver/server
-class DNSServer(tf.OpBaseValidateOnly):
+class DNSServer(tf.ElemOpBaseValidateOnly):
     def __init__(self, name):
         super().__init__(name, children = dns_server_children)
 
@@ -208,18 +208,18 @@ class DNSServer(tf.OpBaseValidateOnly):
         super().validate_add(data, xml)
 
 # /system/dns-resolver/options/timeout
-class DNSTimeout(tf.OpBaseValidateOnlyLeaf):
+class DNSTimeout(tf.ElemOpBaseValidateOnlyLeaf):
     def validate_add(self, data, xml):
         ddata = dns_get_opdata(data)
         ddata.timeout = xml.get_body()
 
 # /system/dns-resolver/options/attempts
-class DNSAttempts(tf.OpBaseValidateOnlyLeaf):
+class DNSAttempts(tf.ElemOpBaseValidateOnlyLeaf):
     def validate_add(self, data, xml):
         ddata = dns_get_opdata(data)
         ddata.attempts = xml.get_body()
 
-class DNSResolver(tf.OpBase):
+class DNSResolver(tf.ElemOpBase):
     def __init__(self, name, children):
         super().__init__(name, children = children, validate_all = True,
                          xmlprocvalue = True)
@@ -246,20 +246,20 @@ dns_options_children = {
 dns_resolver_children = {
     "search": DNSSearch("search"),
     "server": DNSServer("server"),
-    "options": tf.OpBase("options", dns_options_children),
+    "options": tf.ElemOpBase("options", dns_options_children),
 }
 
 # /system
 system_children = {
-    "contact": tf.OpBaseConfigOnly("contact"),
+    "contact": tf.ElemOpBaseConfigOnly("contact"),
     "hostname": Hostname("hostname"),
-    "location": tf.OpBaseConfigOnly("location"),
-    "clock": tf.OpBase("clock", clock_children),
+    "location": tf.ElemOpBaseConfigOnly("location"),
+    "clock": tf.ElemOpBase("clock", clock_children),
     "dns-resolver": DNSResolver("dns-resolver", dns_resolver_children),
 }
 
 # /system-state/platform/*
-class SystemStatePlatform(tf.OpBaseValueOnly):
+class SystemStatePlatform(tf.ElemOpBaseValueOnly):
     def getvalue(self):
         if self.name == "os-name":
             opt = "-s"
@@ -274,7 +274,7 @@ class SystemStatePlatform(tf.OpBaseValueOnly):
         return self.program_output(["/bin/uname", opt]).strip()
 
 # /system-state/clock/*
-class SystemStateClock(tf.OpBaseValueOnly):
+class SystemStateClock(tf.ElemOpBaseValueOnly):
     def getvalue(self):
         date = self.program_output(["/bin/date","--rfc-3339=seconds"]).strip()
         date = date.split(" ")
@@ -313,11 +313,11 @@ system_state_clock_children = {
 
 # /system-state
 system_state_children = {
-    "platform": tf.OpBase("platform", system_state_platform_children),
-    "clock": tf.OpBase("clock", system_state_clock_children)
+    "platform": tf.ElemOpBase("platform", system_state_platform_children),
+    "clock": tf.ElemOpBase("clock", system_state_clock_children)
 }
 
-class Handler(tf.OpHandler):
+class Handler(tf.TopElemHandler):
     def exit(self):
         print("***exit**")
         self.p = None # Break circular dependency
@@ -336,8 +336,8 @@ class Handler(tf.OpHandler):
         return rv
 
 children = {
-    "system": tf.OpBase("system", system_children),
-    "system-state": tf.OpBase("system-state", system_state_children),
+    "system": tf.ElemOpBase("system", system_children),
+    "system-state": tf.ElemOpBase("system-state", system_state_children),
 }
 handler = Handler("ietf-system", "urn:ietf:params:xml:ns:yang:ietf-system",
                   children)

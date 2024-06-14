@@ -40,8 +40,8 @@ maps.
 The idea is you describe your XML design with maps at each xml level
 that contain the xml element that may be at that level.  At the leaf
 level, or at any level where you need to stop and handle everything
-together, you write a class that descends from OpBase to handle that
-specific thing.
+together, you write a class that descends from ElemOpBase to handle
+that specific thing.
 
 You class will be have validate calls to handle validating your data.
 The validate calls should then add operations to the transaction data
@@ -138,13 +138,17 @@ class Data:
         for op in reversed(self.ops):
             op.revert()
 
-class OpBase:
+class ElemOpBase:
     """The base class for operation handler (what goes into an "Op" class
-    handler).  Any operation should descend from this class.  For
-    non-leaf objects, this can be used directly, too.  Leaf element
-    should always override the validate methods and getvalue method.
-    Non-leaf elements, if they process a bunch of data together, can
-    override this, too, and also probably need to override getxml.
+    handler) and an element handler (what gets called from the clixon
+    validate call for handling XML elments).  Any operation should
+    descend from this class; the commit and revert operations are used
+    for operation handling.  Element handling uses the validate,
+    getxml, and getvalue calls.  For non-leaf objects, this class can
+    be used directly, too.  Leaf element should always override the
+    validate methods and getvalue method.  Non-leaf elements, if they
+    process a bunch of data together, can override this, too, and also
+    probably need to override getxml.
 
     """
     def __init__(self, name, children = {}, validate_all = False,
@@ -300,7 +304,7 @@ class OpBase:
             raise Exception(args[0] + " error: " + err.decode("utf-8"))
         return out.decode("utf-8")
 
-class OpBaseLeaf(OpBase):
+class ElemOpBaseLeaf(ElemOpBase):
     """An Op that is a leaf, set up for such.  Just sets the XML processing
     flag for now.
 
@@ -310,7 +314,7 @@ class OpBaseLeaf(OpBase):
                          xmlprocvalue = xmlprocvalue)
 
 
-class OpBaseConfigOnly(OpBaseLeaf):
+class ElemOpBaseConfigOnly(ElemOpBaseLeaf):
     """If a leaf element is config only, there's no need to do much, it's
     stored in the main database only.
 
@@ -334,7 +338,7 @@ class OpBaseConfigOnly(OpBaseLeaf):
     def getvalue(self):
         return ""
 
-class OpBaseCommitOnly(OpBase):
+class ElemOpBaseCommitOnly(ElemOpBase):
     """This is used for operations that just are added to the op queue and
     not registered as a child.  Thus they need no validation or getvalue.
     User should override commit and revert.
@@ -355,8 +359,8 @@ class OpBaseCommitOnly(OpBase):
     def getvalue(self):
         raise Exception("abort")
 
-class OpBaseValidateOnly(OpBase):
-    """This is used for operations that just are only registered as
+class ElemOpBaseValidateOnly(ElemOpBase):
+    """This is used for operations that are only registered as
     children and never added to a commit queue.  Thus they need no
     commit or revert.  User should override validate and getvalue
     calls.
@@ -394,7 +398,7 @@ class OpBaseValidateOnly(OpBase):
     def revert(self, data, xml):
         raise Exception("abort")
 
-class OpBaseValidateOnlyLeaf(OpBaseValidateOnly):
+class ElemOpBaseValidateOnlyLeaf(ElemOpBaseValidateOnly):
     """This is used for operations that just are only registered as
     children and never added to a commit queue.  Thus they need no
     commit or revert.  User should override validate and getvalue
@@ -410,8 +414,8 @@ class OpBaseValidateOnlyLeaf(OpBaseValidateOnly):
         super().__init__(name, children, validate_all = validate_all,
                          xmlprocvalue = True)
 
-class OpBaseValueOnly(OpBaseLeaf):
-    """This is used for operations that just are only registered as
+class ElemOpBaseValueOnly(ElemOpBaseLeaf):
+    """This is used for operations that are only registered as
     leaf system state values, no validate, no commit.  The user should
     override getvalue.
 
@@ -440,7 +444,7 @@ class OpBaseValueOnly(OpBaseLeaf):
     def getvalue(self):
         return ""
 
-class OpHandler:
+class TopElemHandler:
     """Handler for Clixon backend.  This can be used directly.  Or a
     handler can descend from this if they need to add the pre_daemon,
     daemon, reset, etc. calls, which are not done in this code.  Note
@@ -451,12 +455,12 @@ class OpHandler:
 
     def __init__(self, name, namespace, children):
         """children is a map of elements that may be in the top level, see
-        OpBase for details.
+        ElemOpBase for details.
 
         """
         self.name = name
         self.namespace = namespace
-        self.xmlroot = OpBase("TopLevel", children)
+        self.xmlroot = ElemOpBase("TopLevel", children)
 
     def begin(self, t):
         print("***begin**")
