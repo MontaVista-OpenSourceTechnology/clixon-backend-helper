@@ -1,4 +1,5 @@
 
+import os
 import shlex
 import clixon_beh
 import clixon_beh.transaction_framework as tf
@@ -65,6 +66,8 @@ class TimeZone(tf.ElemOpBaseLeaf):
         if not self.is_name:
             raise Exception("Only name timezones are accepted")
         value = newxml.get_body()
+        if not os.path.exists("/usr/share/zoneinfo/" + value)
+            raise Exception(value + " not a valid timezone")
         data.add_op(self, None, value)
 
     def commit(self, op):
@@ -134,6 +137,7 @@ class DNSHandler(tf.ElemOpBaseCommitOnly):
         return
 
 class DNSServerData:
+    """Information about a single DNS server."""
     def __init__(self):
         self.name = None
         self.address = None
@@ -143,6 +147,7 @@ class DNSServerData:
         return f'({self.name}, {self.address}:{self.port})'
 
 class DNSData:
+    """All DNS data will be parsed into this structure."""
     def __init__(self):
         self.curr_server = None
         self.add_search = []
@@ -185,11 +190,13 @@ class DNSServerPort(tf.ElemOpBaseValidateOnlyLeaf):
         ddata = dns_get_opdata(data)
         ddata.curr_server.port = xml.get_body()
 
+# /system/dns-resolver/server/udp-and-tcp
 dns_server_ip_children = {
     "address": DNSServerAddress("timeout"),
     "port": DNSServerPort("port"),
 }
 
+# /system/dns-resolver/server
 dns_server_children = {
     "name": DNSServerName("timeout"),
     "udp-and-tcp": tf.ElemOpBaseValidateOnly("upd-and-tcp", dns_server_ip_children),
@@ -219,6 +226,7 @@ class DNSAttempts(tf.ElemOpBaseValidateOnlyLeaf):
         ddata = dns_get_opdata(data)
         ddata.attempts = xml.get_body()
 
+# /system/dns-resolver
 class DNSResolver(tf.ElemOpBase):
     def __init__(self, name, children):
         super().__init__(name, children = children, validate_all = True,
