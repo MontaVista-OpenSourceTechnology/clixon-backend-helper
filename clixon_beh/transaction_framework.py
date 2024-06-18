@@ -122,11 +122,11 @@ class Data:
     def __init__(self):
         self.ops = []
 
-    def add_op(self, handler, op, value):
+    def add_op(self, handler, opname, value):
         """Add an operation to the operation queue.  These will be done
         in the commit and revert phases.  Returns the Op object that
         was created, the user can add to it if they like."""
-        opdata = Op(handler, op, value)
+        opdata = Op(handler, opname, value)
         self.ops.append(opdata)
         return opdata
 
@@ -159,6 +159,11 @@ class ElemOpBase:
         then the clixon flags for add/del/change are ignored and all
         children are handled.  Otherwise handlers are only called for
         children whose XML has the clixon flags set.
+
+        If xmlprocvalue is true, calls to getvalue() will be run
+        through the xml escaping code.  Generally leaf classes would
+        do this, though any class that just returns raw strings should
+        set this, too.
 
         """
         self.name = name
@@ -293,15 +298,15 @@ class ElemOpBase:
                 xml += "<" + name + ">" + s + "</" + name + ">"
         return xml
 
-    def program_output(self, args):
+    def program_output(self, args, timeout=1000):
         """Call a program with the given arguments and return the stdout.
         If it errors, generate an exception with stderr output."""
         p = subprocess.Popen(args, stdout=subprocess.PIPE,
                              stderr=subprocess.PIPE)
-        (out, err) = p.communicate(timeout=1000)
+        (out, err) = p.communicate(timeout)
         rc = p.wait()
         if rc != 0:
-            raise Exception(args[0] + " error: " + err.decode("utf-8"))
+            raise Exception(args[0] + " error(" + str(rc) + "): " + err.decode("utf-8"))
         return out.decode("utf-8")
 
 class ElemOpBaseLeaf(ElemOpBase):
@@ -312,7 +317,6 @@ class ElemOpBaseLeaf(ElemOpBase):
     def __init__(self, name, validate_all = False, xmlprocvalue = True):
         super().__init__(name, validate_all = validate_all,
                          xmlprocvalue = xmlprocvalue)
-
 
 class ElemOpBaseConfigOnly(ElemOpBaseLeaf):
     """If a leaf element is config only, there's no need to do much, it's
@@ -384,7 +388,7 @@ class ElemOpBaseValidateOnly(ElemOpBase):
     def commit(self, op):
         raise Exception("abort")
 
-    def revert(self, data, xml):
+    def revert(self, xml):
         raise Exception("abort")
 
 class ElemOpBaseValidateOnlyLeaf(ElemOpBaseValidateOnly):
@@ -462,13 +466,23 @@ class TopElemHandler:
         self.namespace = namespace
         self.xmlroot = ElemOpBase("TopLevel", children)
 
+    # Not implemented, will just default to doing nothing:
+    # def pre_daemon(self):
+    # def daemon(self):
+    # def reset(self, cb):
+    # def lockdb(self, db, lock, id):
+    # def exit(self):
+    # def complete(self, t):
+    # def commit_done(self, t):
+    # def end(self, t):
+    # def abort(self, t):
+    # You should provide methods for these if you need them.
+
     def begin(self, t):
-        print("***begin**")
         t.set_userdata(Data())
         return 0
 
     def validate(self, t):
-        print("***validate**")
         if False: # For debugging
             print(str(t.orig_str()))
             print(str(t.new_str()))
@@ -489,19 +503,16 @@ class TopElemHandler:
         return 0
 
     def commit(self, t):
-        print("***commit**")
         data = t.get_userdata()
         data.commit()
         return 0
 
     def revert(self, t):
-        print("***revert**")
         data = t.get_userdata()
         data.revert()
         return 0
 
     def statedata(self, nsc, xpath):
-        print("***statedata**: "+ str(nsc) + " " + xpath)
         path = xpath.split("/")
         if len(path) < 2:
             return(-1, "")

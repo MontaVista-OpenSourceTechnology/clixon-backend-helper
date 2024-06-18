@@ -24,7 +24,7 @@ class Hostname(tf.ElemOpBaseLeaf):
         self.do_priv(op)
 
     def revert(self, op):
-        self.do_priv(op, value)
+        self.do_priv(op)
 
     def priv(self, op):
         if op.revert:
@@ -84,7 +84,7 @@ class TimeZone(tf.ElemOpBaseLeaf):
         self.do_priv(op)
 
     def revert(self, op):
-        self.do_priv(op, value)
+        self.do_priv(op)
 
     def priv(self, op):
         if op.revert:
