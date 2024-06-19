@@ -1,4 +1,4 @@
-# Clixon back end helper ietf-system impementation
+# Clixon back end helper linux-system impementation
 
   * [Content](#content)
   * [Compile and run](#compile)
@@ -10,7 +10,7 @@
 ## Content
 
 This directory contains a Linux implementation of the ietf-system,
-without RADIUS support.
+without RADIUS support, with extensions for Linux.
 
 Before you start,
 * Make [group setup](https://github.com/clicon/clixon/blob/master/doc/FAQ.md#do-i-need-to-setup-anything)
@@ -21,7 +21,7 @@ Before you start,
 ```
 Start backend in the background:
 ```
-    sudo clixon_backend -f /usr/local/etc/clixon/ietf-system.xml -s startup
+    sudo clixon_backend -f /usr/local/etc/clixon/linux-system.xml -s startup
 ```
 
 Start cli:
@@ -44,7 +44,7 @@ Start cli:
 
 You can use the config of restconf in the startup datastore as an alternative:
 ```
-    sudo clixon_backend -f /usr/local/etc/clixon/ietf-system.xml -s startup
+    sudo clixon_backend -f /usr/local/etc/clixon/linux-system.xml -s startup
 ```
 
 ### Installdirs

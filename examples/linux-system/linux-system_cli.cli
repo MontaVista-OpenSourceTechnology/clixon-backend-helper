@@ -1,5 +1,5 @@
-CLICON_MODE="ietf-system";
-CLICON_PROMPT="ietf-system> ";
+CLICON_MODE="linux-system";
+CLICON_PROMPT="linux-system> ";
 
 # Reference generated data model
 set @datamodel, cli_set();

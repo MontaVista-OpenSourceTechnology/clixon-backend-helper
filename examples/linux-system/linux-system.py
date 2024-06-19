@@ -398,6 +398,7 @@ class User(tf.ElemOpBaseValidateOnly):
 system_user_children = {
     "name": UserName("name"),
     "password": UserPassword("password"),
+    "password-shadow": UserPassword("password-shadow"),
     "authorized-key": UserAuthkey("authorized-key",
                                   children = system_user_authkey_children,
                                   validate_all = True),
@@ -638,6 +639,6 @@ children = {
     "system": tf.ElemOpBase("system", system_children),
     "system-state": tf.ElemOpBase("system-state", system_state_children),
 }
-handler = Handler("ietf-system", "urn:ietf:params:xml:ns:yang:ietf-system",
+handler = Handler("linux-system", "urn:ietf:params:xml:ns:yang:ietf-system",
                   children)
-handler.p = clixon_beh.add_plugin("ietf-system", handler.namespace, handler)
+handler.p = clixon_beh.add_plugin("linux-system", handler.namespace, handler)

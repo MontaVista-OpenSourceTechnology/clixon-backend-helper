@@ -1,6 +1,6 @@
-project('ietf-system-clixon-backend-helper', 'c')
+project('linux-system-clixon-backend-helper', 'c')
 
-appname = 'ietf-system'
+appname = 'linux-system'
 
 prefix = get_option('prefix')
 if get_option('prefix') == '/usr'
@@ -44,12 +44,13 @@ install_data(appname + '_cli.cli',
 install_data(['ietf-system@2014-08-06.yang',
 	      'iana-crypt-hash@2014-08-06.yang',
 	      'ietf-netconf-acm@2018-02-14.yang',
-	      'ietf-yang-types@2013-07-15.yang'],
+	      'ietf-yang-types@2013-07-15.yang',
+	      'linux-system@2024-06-19.yang'],
              install_dir: my_datadir + '/clixon/' + appname)
 
 install_data('startup_db',
              install_dir: my_localstatedir + '/' + appname)
 
-install_data('ietf-system.py',
+install_data('linux-system.py',
 	     install_dir: my_libexecdir + '/' + appname)
 
