@@ -119,6 +119,11 @@ system_clock_children = {
     "timezone-utc-offset": TimeZone("timezone-utc-offset", is_name=False),
 }
 
+# DNS is disabled in the linux-system yang file, but we leave this
+# here as an example for systems that implement the old-style DNS.
+# It's not actually complete at this point, it won't do anything, but
+# it would be easy to fix.
+
 class DNSHandler(tf.ElemOpBaseCommitOnly):
     """This handles the full commit operation for DNS updates.
     """
@@ -398,7 +403,6 @@ class User(tf.ElemOpBaseValidateOnly):
 system_user_children = {
     "name": UserName("name"),
     "password": UserPassword("password"),
-    "password-shadow": UserPassword("password-shadow"),
     "authorized-key": UserAuthkey("authorized-key",
                                   children = system_user_authkey_children,
                                   validate_all = True),

@@ -115,8 +115,8 @@ class Op:
 class Data:
     """This is data about a transaction.  It holds the list of operations
     and does the full commit/revert operations.  The users can add
-    their own items to this, if so their names should begin with
-    "user".
+    their own data members to this object, if so their names should
+    begin with "user".
 
     """
     def __init__(self):

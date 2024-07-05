@@ -24,6 +24,12 @@ module linux-system {
 	    "Initial revision.";
     }
 
+    feature old-dns {
+	description
+	    "Indicates that the device supports old-style, non-systemd
+             dns configuration.";
+    }
+
     typedef crypt-hash-shadow {
 	type string {
 	    pattern
@@ -42,11 +48,20 @@ module linux-system {
 	    "An extension of iana-crypt-hash to add newer hashing types.";
     }
 
-    augment "/ietf:system/ietf:authentication/ietf:user" {
-	leaf password-shadow {
+    deviation /ietf:system/ietf:authentication/ietf:user/ietf-password {
+	deviate replace {
 	    type crypt-hash-shadow;
-	    description
-		"Newer password type entries for shadow.";
 	}
+	description
+	    "This type is an extension of the IANA type that adds
+             newer hashes that Linux uses.  It is backwards
+             compatible with the old type";
+    }
+
+    deviation /ietf:system/ietf:dns-resolver {
+	deviate not-supported;
+	description
+	    "We don't support old DNS resolving, we use systemd's
+             resolver.  So we don't want anyone touching this stuff.";
     }
 }
