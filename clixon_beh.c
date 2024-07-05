@@ -488,7 +488,7 @@ clixon_beh_trans_call_one(struct clixon_beh_plugin *p,
 }
 
 static int
-clixon_beh_begin(clicon_handle h, transaction_data td)
+clixon_beh_begin(clixon_handle h, transaction_data td)
 {
     int rv = 0;
     struct clixon_beh_plugin *p;
@@ -519,7 +519,7 @@ clixon_beh_begin(clicon_handle h, transaction_data td)
 }
 
 static int
-clixon_beh_end(clicon_handle h, transaction_data td)
+clixon_beh_end(clixon_handle h, transaction_data td)
 {
     int rv = 0;
     struct clixon_beh_plugin *p;
@@ -537,7 +537,7 @@ clixon_beh_end(clicon_handle h, transaction_data td)
 }
 
 static int
-clixon_beh_validate(clicon_handle h, transaction_data td)
+clixon_beh_validate(clixon_handle h, transaction_data td)
 {
     int rv = 0;
     struct clixon_beh_plugin *p;
@@ -554,7 +554,7 @@ clixon_beh_validate(clicon_handle h, transaction_data td)
 }
 
 static int
-clixon_beh_complete(clicon_handle h, transaction_data td)
+clixon_beh_complete(clixon_handle h, transaction_data td)
 {
     int rv = 0;
     struct clixon_beh_plugin *p;
@@ -571,7 +571,7 @@ clixon_beh_complete(clicon_handle h, transaction_data td)
 }
 
 static int
-clixon_beh_commit(clicon_handle h, transaction_data td)
+clixon_beh_commit(clixon_handle h, transaction_data td)
 {
     int rv = 0;
     struct clixon_beh_plugin *p;
@@ -588,7 +588,7 @@ clixon_beh_commit(clicon_handle h, transaction_data td)
 }
 
 static int
-clixon_beh_commit_done(clicon_handle h, transaction_data td)
+clixon_beh_commit_done(clixon_handle h, transaction_data td)
 {
     int rv = 0;
     struct clixon_beh_plugin *p;
@@ -605,7 +605,7 @@ clixon_beh_commit_done(clicon_handle h, transaction_data td)
 }
 
 static int
-clixon_beh_revert(clicon_handle h, transaction_data td)
+clixon_beh_revert(clixon_handle h, transaction_data td)
 {
     int rv = 0;
     struct clixon_beh_plugin *p;
@@ -622,7 +622,7 @@ clixon_beh_revert(clicon_handle h, transaction_data td)
 }
 
 static int
-clixon_beh_abort(clicon_handle h, transaction_data td)
+clixon_beh_abort(clixon_handle h, transaction_data td)
 {
     int rv = 0;
     struct clixon_beh_plugin *p;
@@ -1075,7 +1075,7 @@ struct clixon_beh *clixon_beh_get_global_beh(void)
 }
 
 clixon_plugin_api *
-clixon_plugin_init(clicon_handle h) {
+clixon_plugin_init(clixon_handle h) {
     char *cfgdir, *mycfgfile = NULL;
     clixon_plugin_api *rapi = NULL;
     const char *yangspec = "clixon-beh-config";
