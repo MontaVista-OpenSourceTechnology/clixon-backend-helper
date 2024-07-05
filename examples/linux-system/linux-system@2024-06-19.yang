@@ -48,7 +48,7 @@ module linux-system {
 	    "An extension of iana-crypt-hash to add newer hashing types.";
     }
 
-    deviation /ietf:system/ietf:authentication/ietf:user/ietf-password {
+    deviation /ietf:system/ietf:authentication/ietf:user/ietf:password {
 	deviate replace {
 	    type crypt-hash-shadow;
 	}
