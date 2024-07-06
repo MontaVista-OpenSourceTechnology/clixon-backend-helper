@@ -36,8 +36,8 @@ my_libexecdir = prefix + '/' + get_option('libexecdir')
 my_datadir = prefix + '/' + get_option('datadir')
 
 py3 = import('python').find_installation('python3')
-pyinc = py3.get_variable('INCLUDEPY')
-pylib = py3.get_variable('BLDLIBRARY')
+pyinc = py3.get_variable('INCLUDEPY').split()
+pylib = py3.get_variable('BLDLIBRARY').split()
 
 shared_library('clixon_beh', 'clixon_beh.c',
                name_prefix: '',
