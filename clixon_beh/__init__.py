@@ -29,4 +29,14 @@
 # ***** END LICENSE BLOCK *****
 #
 
+# This is a cheap hack.  If you don't do this here, the import from cclixon.py
+# will raise an error on some systems, like:
+#   ImportError: cannot import name '_cclixon' from partially initialized
+#   module 'clixon_beh' (most likely due to a circular import)
+#   (/usr/lib64/python3.10/clixon_beh/__init__.py)
+# I haven't figured out why this happens.  It may be the version of python,
+# I have a system with python 3.10.12 where it works and another with
+# python 3.10.13 where it doesn't work.  This can't hurt, so just do it.
+import _cclixon
+
 from .cclixon import *
