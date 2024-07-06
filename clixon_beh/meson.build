@@ -38,6 +38,8 @@ else
   pyinstall_so = pyinstall
 endif
 
+incdir = include_directories('..')
+
 swig = find_program('swig')
 swig_py_gen = custom_target(
     'cclixon.py',
@@ -52,7 +54,7 @@ swig_py_gen = custom_target(
 shared_library('_cclixon', swig_py_gen[1],
                name_prefix: '',
                override_options: 'b_lundef=false',
-	       include_directories: pyinc,
+	       include_directories: [incdir, pyinc],
 	       install: true,
 	       install_dir: pyinstall_so)
 
