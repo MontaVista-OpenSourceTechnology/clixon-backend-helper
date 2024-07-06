@@ -37,6 +37,10 @@
 # I haven't figured out why this happens.  It may be the version of python,
 # I have a system with python 3.10.12 where it works and another with
 # python 3.10.13 where it doesn't work.  This can't hurt, so just do it.
-import _cclixon
+try:
+    from . import _cclixon
+except:
+    import _cclixon
+
 
 from .cclixon import *
