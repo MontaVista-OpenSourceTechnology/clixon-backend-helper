@@ -109,7 +109,7 @@ class Op:
         here for convenience for the user.
 
         """
-        self.op.revert = True
+        self.revert = True
         self.handler.revert(self)
 
 class Data:
@@ -133,6 +133,10 @@ class Data:
     def commit(self):
         for op in self.ops:
             op.commit()
+
+    def commit_done(self):
+        for op in self.ops:
+            op.commit_done()
 
     def revert(self):
         for op in reversed(self.ops):
@@ -240,6 +244,9 @@ class ElemOpBase:
         return
 
     def commit(self, op):
+        return
+
+    def commit_done(self, op):
         return
 
     def revert(self, op):
@@ -473,7 +480,6 @@ class TopElemHandler:
     # def lockdb(self, db, lock, id):
     # def exit(self):
     # def complete(self, t):
-    # def commit_done(self, t):
     # def end(self, t):
     # def abort(self, t):
     # You should provide methods for these if you need them.
@@ -505,6 +511,11 @@ class TopElemHandler:
     def commit(self, t):
         data = t.get_userdata()
         data.commit()
+        return 0
+
+    def commit_done(self, t):
+        data = t.get_userdata()
+        data.commit_done()
         return 0
 
     def revert(self, t):
