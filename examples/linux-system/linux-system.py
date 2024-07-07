@@ -119,27 +119,48 @@ system_clock_children = {
     "timezone-utc-offset": TimeZone("timezone-utc-offset", is_name=False),
 }
 
-# DNS is disabled in the linux-system yang file, but we leave this
-# here as an example for systems that implement the old-style DNS.
-# It's not actually complete at this point, it won't do anything, but
-# it would be easy to fix.
+# DNS can be disabled in the linux-system yang file, but this is here
+# for old-style DNS.  If you are using resolvconf, disable it in the
+# yang file and handle it in the IP address handling.
 
 class DNSHandler(tf.ElemOpBaseCommitOnly):
     """This handles the full commit operation for DNS updates.
     """
     # FIXME - really implement this
     def commit(self, op):
+        self.do_priv(op)
+
+    def commit_done(self, op):
+        self.do_priv(op)
+        return
+
+    def priv(self, op):
         ddata = op.userData
-        print("DNS")
-        print("  Search: " + str(ddata.add_search))
-        s = []
-        for i in ddata.add_server:
-            s.append(str(i))
-        print("  Servers: " + str(s))
-        print("  timeout: " + str(ddata.timeout))
-        print("  attempts: " + str(ddata.attempts))
+        if op.revert:
+            os.remove("/etc/resolve.conf.tmp")
+            pass
+        elif op.done:
+            os.replace("/etc/resolve.conf.tmp", "/etc/resolv.conf")
+        else:
+            # Create a file to hold the data.  We move the file over when
+            # done.
+            f = open("/etc/resolv.conf.tmp", "w")
+            try:
+                if len(ddata.add_search) > 0:
+                    f.write("search")
+                    for i in ddata.add_search:
+                        f.write(" " + str(i))
+                    f.write("\n")
+                for i in ddata.add_server:
+                    f.write("nameserver " + str(i) + "\n")
+                f.write("options timeout:" + ddata.timeout + " attempts:"
+                        + ddata.attempts + "\n")
+            finally:
+                f.close()
+        return
 
     def revert(self, op):
+        self.do_priv(op)
         return
 
 class DNSServerData:
