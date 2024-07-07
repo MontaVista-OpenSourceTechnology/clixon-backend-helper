@@ -94,6 +94,7 @@ class Op:
         self.opname = opname
         self.value = value
         self.revert = False
+        self.done = False
         self.oldvalue = None
 
     def commit(self):
@@ -103,6 +104,15 @@ class Op:
 
         """
         self.handler.commit(self)
+
+    def commit_done(self):
+        """Commit the operation, basically apply it to the system.  If you
+        handle revert, you should store the data to revert in the
+        oldvalue member of this object.
+
+        """
+        self.done = True
+        self.handler.commit_done(self)
 
     def revert(self):
         """Revert the operation.  The "revert" member of this is set to True
