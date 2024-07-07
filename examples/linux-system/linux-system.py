@@ -294,9 +294,9 @@ class UserData(tf.ElemOpBaseCommitOnly):
     def revert(self, op):
         return
 
-    def user_exists(self, name):
+    def user_exists(self):
         try:
-            pwd.getpwname(name)
+            pwd.getpwname(self.user_name)
         except:
             return False
         return True
@@ -311,7 +311,7 @@ class UserName(tf.ElemOpBaseValidateOnlyLeaf):
 
     def validate(self, data, origxml, newxml):
         data.userCurrU.user_name = newxml.get_body()
-        if not data.userCurrU.user_exists(data.userCurrU.user_name):
+        if not data.userCurrU.user_exists():
             raise Exception("User " + data.userCurrU.user_name + " not present")
 
 # /system/authentication/user/password
