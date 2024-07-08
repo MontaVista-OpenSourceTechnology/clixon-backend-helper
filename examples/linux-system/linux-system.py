@@ -725,7 +725,7 @@ handler = Handler("linux-system", "urn:ietf:params:xml:ns:yang:ietf-system",
 handler.p = clixon_beh.add_plugin("linux-system", handler.namespace, handler)
 
 class RestartHandler:
-    def rpc(self, x):
+    def rpc(self, x, username):
         s = '<rpc-reply xmlns="' + clixon_beh.NETCONF_BASE_NAMESPACE + '">'
         s += '</rpc-reply>'
         return (0, s)

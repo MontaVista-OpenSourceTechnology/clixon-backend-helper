@@ -566,7 +566,7 @@ pyclixon_rpc_callback(clixon_handle h,
 		      void         *regarg)
 {
     struct pyclixon_rpc_info *info = regarg;
-    PyObject *arg, *args = PyTuple_New(1);
+    PyObject *arg, *args = PyTuple_New(2);
     PyObject *o = NULL;
     const char *xmlstr;
     struct xmlobj *xml;
@@ -580,6 +580,8 @@ pyclixon_rpc_callback(clixon_handle h,
 			     SWIGTYPE_p_xmlobj,
 			     0);
     PyTuple_SET_ITEM(args, 0, arg);
+    arg = PyUnicode_FromString(xarg);
+    PyTuple_SET_ITEM(args, 1, arg);
     if (pyclixon_call_rv(info->handler, "rpc", args, false, &o) < 0)
 	return -1;
     if (!o)
