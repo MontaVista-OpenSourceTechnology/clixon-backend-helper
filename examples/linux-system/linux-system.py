@@ -279,7 +279,7 @@ class DNSResolver(tf.ElemOpBase):
             for l in f:
                 if l.startswith("search "):
                     for i in l.split()[1:]:
-                        s = s + "<search>" + i + "</search>"
+                        s = s + "<search>" + tf.xmlescape(i) + "</search>"
                 elif l.startswith("#name: "):
                     ts = l.split()
                     if len(ts) > 1:
@@ -288,9 +288,9 @@ class DNSResolver(tf.ElemOpBase):
                     ts = l.split()
                     if len(ts) > 1:
                         s = s + "<server>"
-                        s = s + "<name>" + srvstr + "</name>"
+                        s = s + "<name>" + tf.xmlescape(srvstr) + "</name>"
                         s = s + "<udp-and-tcp>"
-                        s = s + "<address>" + ts[1] + "</address>"
+                        s = s + "<address>" + tf.xmlescape(ts[1]) + "</address>"
                         s = s + "</udp-and-tcp>"
                         s = s + "</server>"
                 elif l.startswith("options"):
@@ -299,11 +299,13 @@ class DNSResolver(tf.ElemOpBase):
                         if i.startswith("timeout:"):
                             ts = i.split(":")
                             if len(ts) > 1:
-                                s = s + "<timeout>" + ts[1] + "</timeout>"
+                                to = tf.xmlescape(ts[1])
+                                s = s + "<timeout>" + to + "</timeout>"
                         elif i.startswith("attempts:"):
                             ts = i.split(":")
                             if len(ts) > 1:
-                                s = s + "<attempts>" + ts[1] + "</attempts>"
+                                at = tf.xmlescape(ts[1])
+                                s = s + "<attempts>" + at + "</attempts>"
                     s = s + "</options>"
         except:
             f.close()
