@@ -151,6 +151,7 @@ xmlobj *find_type(char *prefix, char *name, int type)
 char *find_type_value(char *prefix, char *name, int type)
 char *get_body()
 char *get_attr(char *prefix, char *name)
+char *to_str() // Convert to an xml string
 ```
 
 These are a pretty close match to the `clixon_xml` functions.  The

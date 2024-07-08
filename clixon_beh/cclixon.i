@@ -554,6 +554,70 @@ struct clixon_beh_api pyclixon_beh_api_strxml = {
     .datastore_upgrade = pyclixon_beh_datastore_upgrade,
 };
 
+struct pyclixon_rpc_info {
+    PyObject *handler;
+};
+
+static int
+pyclixon_rpc_callback(clixon_handle h,
+		      cxobj        *xe,
+		      cbuf         *cbret,
+		      void         *xarg,
+		      void         *regarg)
+{
+    struct pyclixon_rpc_info *info = regarg;
+    PyObject *arg, *args = PyTuple_New(1);
+    PyObject *o = NULL;
+    const char *xmlstr;
+    struct xmlobj *xml;
+
+    xml = xmlobj_new(NULL, xe);
+    if (!xml) {
+	clixon_err(OE_PLUGIN, 0, "pyclixon_beh:rpc: Could create xmlobj.");
+	return -1;
+    }
+    arg = SWIG_NewPointerObj(SWIG_as_voidptr(xml),
+			     SWIGTYPE_p_xmlobj,
+			     0);
+    PyTuple_SET_ITEM(args, 0, arg);
+    if (pyclixon_call_rv(info->handler, "rpc", args, false, &o) < 0)
+	return -1;
+    if (!o)
+	return -1;
+    if (!PyTuple_Check(o) || PyTuple_GET_SIZE(o) != 2 ||
+		!PyLong_Check(PyTuple_GET_ITEM(o, 0)) ||
+		!PyUnicode_Check(PyTuple_GET_ITEM(o, 1))) {
+	PyObject *t = PyObject_GetAttrString(info->handler, "__class__");
+	PyObject *c = PyObject_GetAttrString(t, "__name__");
+	const char *classt = PyUnicode_AsUTF8(c);
+
+	clixon_err(OE_PLUGIN, 0, "pyclixon_beh:rpc: method rpc of "
+		   "class %s didn't return a tuple of size 2, first element "
+		   "an int and second a string", classt);
+	Py_DECREF(o);
+	return -1;
+    }
+    if (PyLong_AsUnsignedLong(PyTuple_GET_ITEM(o, 0)) < 0) {
+	Py_DECREF(o);
+	return -1;
+    }
+    xmlstr = PyUnicode_AsUTF8AndSize(PyTuple_GET_ITEM(o, 1), NULL);
+    if (!xmlstr) {
+	clixon_err(OE_PLUGIN, 0, "pyclixon_beh:rpc: Could convert string "
+		   "return of method statedata to a string.");
+	Py_DECREF(o);
+	return -1;
+    }
+    if (cbuf_append_str(cbret, (char *) xmlstr) < 0) {
+	clixon_err(OE_PLUGIN, 0, "pyclixon_beh:rpc: Could append return "
+		   "string.");
+	Py_DECREF(o);
+	return -1;
+    }
+    Py_DECREF(o);
+    return 0;
+}
+
 void clixon_errt(int oe, int ev, char *str)
 {
     clixon_err(oe, ev, "%s", str);
@@ -589,6 +653,12 @@ struct plugin *add_plugin(const char *name,
 	return NULL;
 
     bp = malloc(sizeof(*bp));
+    if (!bp) {
+	PyErr_Format(PyExc_RuntimeError,
+		     "Out of memory allocating BEH info");
+	return NULL;
+    }
+
     bp->handler = handler;
 
     Py_INCREF(handler);
@@ -616,6 +686,52 @@ struct plugin *add_plugin(const char *name,
     }
 }
 
+%inline %{
+/* FIXME - There is no way to unregister this.  Maybe it doesn't matter. */
+void add_rpc_callback(const char *name,
+		      const char *namespace,
+		      PyObject *handler)
+{
+    int rv;
+    struct pyclixon_rpc_info *info;
+    struct clixon_beh *beh = clixon_beh_get_global_beh();
+    struct clixon_handle *h = clixon_beh_get_handle(beh);
+
+    if (name == NULL) {
+	PyErr_Format(PyExc_RuntimeError,
+		     "No name given for add_rpc_callback");
+	return;
+    }
+    if (namespace == NULL) {
+	PyErr_Format(PyExc_RuntimeError,
+		     "No name given for add_rpc_callback");
+	return;
+    }
+    if (handler == NULL) {
+	PyErr_Format(PyExc_RuntimeError,
+		     "No name given for add_rpc_callback");
+	return;
+    }
+
+    info = malloc(sizeof(*info));
+    if (!info) {
+	PyErr_Format(PyExc_RuntimeError,
+		     "Out of memory allocating RPC info");
+	return;
+    }
+    info->handler = handler;
+    Py_INCREF(handler);
+    rv = rpc_callback_register(h, pyclixon_rpc_callback, info, namespace,
+			       name);
+    if (rv == -1) {
+	PyErr_Format(PyExc_RuntimeError,
+		     "Error registering RPC callback");
+	Py_DECREF(handler);
+	free(info);
+    }
+}
+%}
+
 %constant int XMLOBJ_TYPE_ELEMENT = CX_ELMNT;
 %constant int XMLOBJ_TYPE_ATTR = CX_ATTR;
 %constant int XMLOBJ_TYPE_BODY = CX_BODY;
@@ -640,6 +756,11 @@ struct xmlobj { };
     ~xmlobj()
     {
 	free_xmlobj(self);
+    }
+
+    PyObject *to_str()
+    {
+	return clixon_beh_xml2str(self->xml);
     }
 
     char *get_name()
@@ -838,3 +959,5 @@ void clixon_errt(int oe, int ev, char *str);
 
 %rename(log) clixon_logt;
 void clixon_logt(int logtype, char *str);
+
+%constant char *NETCONF_BASE_NAMESPACE = "urn:ietf:params:xml:ns:netconf:base:1.0";
