@@ -5,6 +5,10 @@ import shlex
 import clixon_beh
 import clixon_beh.transaction_framework as tf
 
+# This must match the commenting out or not of the dns-resolver deviation
+# in linux-system.yang.
+old_dns_supported = True
+
 # /system/hostname
 class Hostname(tf.ElemOpBaseLeaf):
     def validate_add(self, data, xml):
@@ -268,6 +272,9 @@ class DNSResolver(tf.ElemOpBase):
         of the children will need to handle it.
 
         """
+        if not old_dns_supported:
+            return ""
+
         try:
             f = open("/etc/resolv.conf", "r", encoding="utf-8")
         except:
@@ -716,3 +723,13 @@ children = {
 handler = Handler("linux-system", "urn:ietf:params:xml:ns:yang:ietf-system",
                   children)
 handler.p = clixon_beh.add_plugin("linux-system", handler.namespace, handler)
+
+class RestartHandler:
+    def rpc(self, x):
+        s = '<rpc-reply xmlns="' + clixon_beh.NETCONF_BASE_NAMESPACE + '">'
+        s += '</rpc-reply>'
+        return (0, s)
+
+clixon_beh.add_rpc_callback("system-restart",
+                            "urn:ietf:params:xml:ns:yang:ietf-system",
+                            RestartHandler())
