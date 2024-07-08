@@ -111,7 +111,11 @@ class TimeZone(tf.ElemOpBaseLeaf):
     def getvalue(self):
         if not self.is_name:
             return ""
-        return self.program_output(["/bin/cat", "/etc/timezone"]).strip()
+        try:
+            s = self.program_output(["/bin/cat", "/etc/timezone"]).strip() 
+        except:
+            s = "GMT"
+        return s
 
 # /system/clock
 system_clock_children = {
@@ -137,10 +141,10 @@ class DNSHandler(tf.ElemOpBaseCommitOnly):
     def priv(self, op):
         ddata = op.userData
         if op.revert:
-            os.remove("/etc/resolve.conf.tmp")
+            os.remove("/etc/resolv.conf.tmp")
             pass
         elif op.done:
-            os.replace("/etc/resolve.conf.tmp", "/etc/resolv.conf")
+            os.replace("/etc/resolv.conf.tmp", "/etc/resolv.conf")
         else:
             # Create a file to hold the data.  We move the file over when
             # done.
@@ -152,7 +156,8 @@ class DNSHandler(tf.ElemOpBaseCommitOnly):
                         f.write(" " + str(i))
                     f.write("\n")
                 for i in ddata.add_server:
-                    f.write("nameserver " + str(i) + "\n")
+                    f.write("#name: " + str(i.name) + "\n")
+                    f.write("nameserver " + str(i.address) + "\n")
                 f.write("options timeout:" + ddata.timeout + " attempts:"
                         + ddata.attempts + "\n")
             finally:
@@ -263,8 +268,48 @@ class DNSResolver(tf.ElemOpBase):
         of the children will need to handle it.
 
         """
-        # FIXME
-        return ""
+        try:
+            f = open("/etc/resolv.conf", "r", encoding="utf-8")
+        except:
+            return ""
+        try:
+            s = ""
+            srvnum = 1
+            srvstr = str(srvnum)
+            for l in f:
+                if l.startswith("search "):
+                    for i in l.split()[1:]:
+                        s = s + "<search>" + i + "</search>"
+                elif l.startswith("#name: "):
+                    ts = l.split()
+                    if len(ts) > 1:
+                        srvstr = ts[1]
+                elif l.startswith("nameserver "):
+                    ts = l.split()
+                    if len(ts) > 1:
+                        s = s + "<server>"
+                        s = s + "<name>" + srvstr + "</name>"
+                        s = s + "<udp-and-tcp>"
+                        s = s + "<address>" + ts[1] + "</address>"
+                        s = s + "</udp-and-tcp>"
+                        s = s + "</server>"
+                elif l.startswith("options"):
+                    s = s + "<options>"
+                    for i in l.split()[1:]:
+                        if i.startswith("timeout:"):
+                            ts = i.split(":")
+                            if len(ts) > 1:
+                                s = s + "<timeout>" + ts[1] + "</timeout>"
+                        elif i.startswith("attempts:"):
+                            ts = i.split(":")
+                            if len(ts) > 1:
+                                s = s + "<attempts>" + ts[1] + "</attempts>"
+                    s = s + "</options>"
+        except:
+            f.close()
+            return ""
+        f.close()
+        return s
 
 # /system/dns-resolver/options
 system_dns_options_children = {
@@ -576,7 +621,7 @@ system_children = {
                xmlprocvalue = True),
     "dns-resolver": DNSResolver("dns-resolver",
                                 children = system_dns_resolver_children,
-                                validate_all = True, xmlprocvalue = True),
+                                validate_all = True, xmlprocvalue = False),
     "authentication": tf.ElemOpBase("authentication",
                                     children = system_authentication_children),
 }
