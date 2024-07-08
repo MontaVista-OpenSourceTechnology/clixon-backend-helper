@@ -163,6 +163,64 @@ are doing, but that doesn't map very well into Python.  The only real
 limitation here is with statedata; it would be nice if that could
 return an `xmlobj`.
 
+### RPCs, Actions, and Notifications
+The python interface contains functions to register for RPC and action
+callbacks, and functions to register and send notifications.
+
+#### RPCs
+To register an RPC, call the following:
+```
+clixon_beh.add_rpc_callback(name, namespace, cbobj)
+```
+where `name` is the RPC name, `namespace` is the namespace it's in, and
+`cbobj` is an object that has the following method:
+```
+def rpc(self, x, username):
+```
+When the RPC is called on the external interface, this rpc function will
+be called. The `x` value is an `xmlobj` of the input parameters.  This
+function should return a tuple with the first value an error value and
+the second value the return XML string (or `None` if an error).
+
+#### Actions
+Actions are much like RPCs, except they are registered against a path
+in the YANG structures.  The register function is:
+```
+clixon_beh.add_action_callback(yang_path, cbobj)
+```
+where `yang_path` is the path in the yang structures where the action
+is.  If you are using the example-server-farm from RFC7950, for instance,
+the reset action would be registered with the path
+`/sfarm:server/sfarm:reset`.  The `sfarm` part is the prefix from the
+module and the `server` and `reset` parts are the path to the action.
+
+#### Notifications
+To use a notification, you must first register it with:
+```
+clixon_beh.add_stream(name, description)
+```
+where `name` must match the name in notify and `description` should be
+some sort of descriptive string.  To publish a notification to the stream,
+do:
+```
+clixon_beh.stream_notify(name, xmlstr)
+```
+where `xmlstr` must be the full XML of the notification.  For instance,
+if you had something like:
+```
+notification event {
+    leave event-type {
+	    type string;
+	}
+}
+```
+then your `xmlstr` would be something like:
+```
+<event xmlns=...>
+  <event-type>error</event-type>
+</event>
+```
+
 ### Other Stuff
 
 In addition to the main interface, this has some interfaces to some

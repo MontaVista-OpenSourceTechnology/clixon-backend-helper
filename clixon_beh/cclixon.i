@@ -754,6 +754,8 @@ struct plugin *add_plugin(const char *name,
     }
 }
 
+%rename(add_stream) add_streamt;
+%rename(stream_notify) stream_notifyt;
 %inline %{
 /* FIXME - There is no way to unregister this.  Maybe it doesn't matter. */
 void add_rpc_callback(const char *name,
@@ -853,6 +855,39 @@ void add_action_callback(char *yang_path,
 	Py_DECREF(handler);
 	free(info);
     }
+}
+
+void
+add_streamt(char *name, char *description, bool replay_enabled)
+{
+    struct clixon_beh *beh = clixon_beh_get_global_beh();
+    struct clixon_handle *h = clixon_beh_get_handle(beh);
+    struct timeval retention = {0,0};
+
+    if (clicon_option_exists(h, "CLICON_STREAM_RETENTION"))
+	retention.tv_sec = clicon_option_int(h, "CLICON_STREAM_RETENTION");
+    if (stream_add(h, name, description, replay_enabled, &retention) < 0) {
+	PyErr_Format(PyExc_RuntimeError,
+		     "Error adding stream for %s", name);
+	return;
+    }
+    if (clicon_option_exists(h, "CLICON_STREAM_PUB") &&
+		stream_publish(h, name) < 0) {
+	PyErr_Format(PyExc_RuntimeError,
+		     "Error publishing stream for %s", name);
+	return;
+    }
+}
+
+void
+stream_notifyt(char *name, char *xmlstr)
+{
+    struct clixon_beh *beh = clixon_beh_get_global_beh();
+    struct clixon_handle *h = clixon_beh_get_handle(beh);
+
+    if (stream_notify(h, name, "%s", xmlstr) < 0)
+	PyErr_Format(PyExc_RuntimeError,
+		     "Error notifying stream for %s", name);
 }
 %}
 
