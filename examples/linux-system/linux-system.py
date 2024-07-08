@@ -279,7 +279,7 @@ class DNSResolver(tf.ElemOpBase):
             for l in f:
                 if l.startswith("search "):
                     for i in l.split()[1:]:
-                        s = s + "<search>" + tf.xmlescape(i) + "</search>"
+                        s += "<search>" + tf.xmlescape(i) + "</search>"
                 elif l.startswith("#name: "):
                     ts = l.split()
                     if len(ts) > 1:
@@ -287,26 +287,28 @@ class DNSResolver(tf.ElemOpBase):
                 elif l.startswith("nameserver "):
                     ts = l.split()
                     if len(ts) > 1:
-                        s = s + "<server>"
-                        s = s + "<name>" + tf.xmlescape(srvstr) + "</name>"
-                        s = s + "<udp-and-tcp>"
-                        s = s + "<address>" + tf.xmlescape(ts[1]) + "</address>"
-                        s = s + "</udp-and-tcp>"
-                        s = s + "</server>"
+                        s += "<server>"
+                        s += "<name>" + tf.xmlescape(srvstr) + "</name>"
+                        s += "<udp-and-tcp>"
+                        s += "<address>" + tf.xmlescape(ts[1]) + "</address>"
+                        s += "</udp-and-tcp>"
+                        s += "</server>"
+                        srvnum = srvnum + 1
+                        srvstr = str(srvnum)
                 elif l.startswith("options"):
-                    s = s + "<options>"
+                    s += "<options>"
                     for i in l.split()[1:]:
                         if i.startswith("timeout:"):
                             ts = i.split(":")
                             if len(ts) > 1:
                                 to = tf.xmlescape(ts[1])
-                                s = s + "<timeout>" + to + "</timeout>"
+                                s += "<timeout>" + to + "</timeout>"
                         elif i.startswith("attempts:"):
                             ts = i.split(":")
                             if len(ts) > 1:
                                 at = tf.xmlescape(ts[1])
-                                s = s + "<attempts>" + at + "</attempts>"
-                    s = s + "</options>"
+                                s += "<attempts>" + at + "</attempts>"
+                    s += "</options>"
         except:
             f.close()
             return ""
