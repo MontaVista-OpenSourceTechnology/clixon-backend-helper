@@ -620,6 +620,72 @@ pyclixon_rpc_callback(clixon_handle h,
     return 0;
 }
 
+struct pyclixon_action_info {
+    PyObject *handler;
+};
+
+static int
+pyclixon_action_callback(clixon_handle h,
+			 cxobj        *xe,
+			 cbuf         *cbret,
+			 void         *xarg,
+			 void         *regarg)
+{
+    struct pyclixon_action_info *info = regarg;
+    PyObject *arg, *args = PyTuple_New(2);
+    PyObject *o = NULL;
+    const char *xmlstr;
+    struct xmlobj *xml;
+
+    xml = xmlobj_new(NULL, xe);
+    if (!xml) {
+	clixon_err(OE_PLUGIN, 0, "pyclixon_beh:action: Could create xmlobj.");
+	return -1;
+    }
+    arg = SWIG_NewPointerObj(SWIG_as_voidptr(xml),
+			     SWIGTYPE_p_xmlobj,
+			     0);
+    PyTuple_SET_ITEM(args, 0, arg);
+    arg = PyUnicode_FromString(xarg);
+    PyTuple_SET_ITEM(args, 1, arg);
+    if (pyclixon_call_rv(info->handler, "action", args, false, &o) < 0)
+	return -1;
+    if (!o)
+	return -1;
+    if (!PyTuple_Check(o) || PyTuple_GET_SIZE(o) != 2 ||
+		!PyLong_Check(PyTuple_GET_ITEM(o, 0)) ||
+		!PyUnicode_Check(PyTuple_GET_ITEM(o, 1))) {
+	PyObject *t = PyObject_GetAttrString(info->handler, "__class__");
+	PyObject *c = PyObject_GetAttrString(t, "__name__");
+	const char *classt = PyUnicode_AsUTF8(c);
+
+	clixon_err(OE_PLUGIN, 0, "pyclixon_beh:action: method action of "
+		   "class %s didn't return a tuple of size 2, first element "
+		   "an int and second a string", classt);
+	Py_DECREF(o);
+	return -1;
+    }
+    if (PyLong_AsUnsignedLong(PyTuple_GET_ITEM(o, 0)) < 0) {
+	Py_DECREF(o);
+	return -1;
+    }
+    xmlstr = PyUnicode_AsUTF8AndSize(PyTuple_GET_ITEM(o, 1), NULL);
+    if (!xmlstr) {
+	clixon_err(OE_PLUGIN, 0, "pyclixon_beh:action: Could convert string "
+		   "return of method statedata to a string.");
+	Py_DECREF(o);
+	return -1;
+    }
+    if (cbuf_append_str(cbret, (char *) xmlstr) < 0) {
+	clixon_err(OE_PLUGIN, 0, "pyclixon_beh:action: Could append return "
+		   "string.");
+	Py_DECREF(o);
+	return -1;
+    }
+    Py_DECREF(o);
+    return 0;
+}
+
 void clixon_errt(int oe, int ev, char *str)
 {
     clixon_err(oe, ev, "%s", str);
@@ -728,6 +794,62 @@ void add_rpc_callback(const char *name,
     if (rv == -1) {
 	PyErr_Format(PyExc_RuntimeError,
 		     "Error registering RPC callback");
+	Py_DECREF(handler);
+	free(info);
+    }
+}
+
+/* FIXME - There is no way to unregister this.  Maybe it doesn't matter. */
+void add_action_callback(char *yang_path,
+			 PyObject *handler)
+{
+    int rv;
+    struct pyclixon_action_info *info;
+    struct clixon_beh *beh = clixon_beh_get_global_beh();
+    struct clixon_handle *h = clixon_beh_get_handle(beh);
+    yang_stmt *yspec;
+    yang_stmt *ya = NULL;
+
+    if (ya == NULL) {
+	PyErr_Format(PyExc_RuntimeError,
+		     "No yang action given for add_action_callback");
+	return;
+    }
+    if (handler == NULL) {
+	PyErr_Format(PyExc_RuntimeError,
+		     "No name given for add_action_callback");
+	return;
+    }
+
+    yspec = clicon_dbspec_yang(h);
+    if (yspec == NULL) {
+	PyErr_Format(PyExc_RuntimeError,
+		     "No yang dbspec available");
+	return;
+    }
+    if (yang_abs_schema_nodeid(yspec, yang_path, &ya) < 0) {
+	PyErr_Format(PyExc_RuntimeError,
+		     "Invalid yang path: %s", yang_path);
+	return;
+    }
+    if (!ya) {
+	PyErr_Format(PyExc_RuntimeError,
+		     "Empty yang path: %s", yang_path);
+	return;
+    }
+
+    info = malloc(sizeof(*info));
+    if (!info) {
+	PyErr_Format(PyExc_RuntimeError,
+		     "Out of memory allocating action info");
+	return;
+    }
+    info->handler = handler;
+    Py_INCREF(handler);
+    rv = action_callback_register(h, ya, pyclixon_action_callback, info);
+    if (rv == -1) {
+	PyErr_Format(PyExc_RuntimeError,
+		     "Error registering action callback");
 	Py_DECREF(handler);
 	free(info);
     }
