@@ -473,8 +473,10 @@ class User(tf.ElemOpBaseValidateOnly):
         super().validate(data, origxml, newxml)
 
     def getvalue(self):
-        # FIXME
-        return ""
+        s = ""
+        for i in pwd.getpwall():
+            s += "<user><name>" + tf.xmlescape(i[0]) + "</name></user>"
+        return s
 
 # /system/authentication/user
 system_user_children = {
@@ -488,7 +490,8 @@ system_user_children = {
 # /system/authentication
 system_authentication_children = {
     "user-authentication-order": tf.ElemOpBaseConfigOnly("user-authentication-order"),
-    "user": User("user", children = system_user_children, validate_all = True),
+    "user": User("user", children = system_user_children, validate_all = True,
+                 wrapxml = False),
 }
 
 class NTPServerData:
@@ -698,7 +701,6 @@ system_state_children = {
 
 class Handler(tf.TopElemHandler):
     def exit(self):
-        print("***exit**")
         self.p = None # Break circular dependency
         return 0;
 
@@ -713,8 +715,7 @@ class Handler(tf.TopElemHandler):
         return 0
 
     def statedata(self, nsc, xpath):
-        rv = super().statedata(nsc, xpath)
-        return rv
+        return super().statedata(nsc, xpath)
 
 children = {
     "system": tf.ElemOpBase("system", system_children),
