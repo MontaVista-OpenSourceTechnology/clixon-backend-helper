@@ -166,7 +166,7 @@ class ElemOpBase:
 
     """
     def __init__(self, name, children = {}, validate_all = False,
-                 xmlprocvalue = False):
+                 xmlprocvalue = False, wrapxml = True):
         """name should be the xml tag name for this operations.  children, if
         set, should be a map of the xml elements that can occur in
         this xml element, and their handlers.  If validate_all is set,
@@ -179,11 +179,19 @@ class ElemOpBase:
         do this, though any class that just returns raw strings should
         set this, too.
 
+        If wrapxml is True, the return of getvalue() will be wrapped
+        with the given name.  If not, the getvalue() call will need to
+        wrap the call with the given name.  This is useful for
+        returning lists where the getvalue() will return a number of
+        the same item.  Those should set wrapxml to False.  Default is
+        True.
+
         """
         self.name = name
         self.children = children
         self.validate_all = validate_all
         self.xmlprocvalue = xmlprocvalue
+        self.wrapxml = wrapxml
 
     def validate_add(self, data, xml):
         """Validate add of an element list.  Leaf elements should override
@@ -311,8 +319,10 @@ class ElemOpBase:
             s = self.children[name].getvalue()
             if self.children[name].xmlprocvalue:
                 s = xmlescape(s)
-            if s and len(s) > 0:
+            if self.children[name].wrapxml and s and len(s) > 0:
                 xml += "<" + name + ">" + s + "</" + name + ">"
+            else:
+                xml += s
         return xml
 
     def program_output(self, args, timeout=1000):
@@ -331,9 +341,10 @@ class ElemOpBaseLeaf(ElemOpBase):
     flag for now.
 
     """
-    def __init__(self, name, validate_all = False, xmlprocvalue = True):
+    def __init__(self, name, validate_all = False, xmlprocvalue = True,
+                 wrapxml = True):
         super().__init__(name, validate_all = validate_all,
-                         xmlprocvalue = xmlprocvalue)
+                         xmlprocvalue = xmlprocvalue, wrapxml = wrapxml)
 
 class ElemOpBaseConfigOnly(ElemOpBaseLeaf):
     """If a leaf element is config only, there's no need to do much, it's
@@ -393,9 +404,9 @@ class ElemOpBaseValidateOnly(ElemOpBase):
 
     """
     def __init__(self, name, children = {}, validate_all = True,
-                 xmlprocvalue = False):
+                 xmlprocvalue = False, wrapxml = True):
         super().__init__(name, children, validate_all = validate_all,
-                         xmlprocvalue = xmlprocvalue)
+                         xmlprocvalue = xmlprocvalue, wrapxml = wrapxml)
 
     def getvalue(self):
         # We assume a higher-level handler builds the entire value, so
@@ -420,9 +431,10 @@ class ElemOpBaseValidateOnlyLeaf(ElemOpBaseValidateOnly):
     validate_add.  This can be overriden, of course.
 
     """
-    def __init__(self, name, children = {}, validate_all = True):
+    def __init__(self, name, children = {}, validate_all = True,
+                 wrapxml = True):
         super().__init__(name, children, validate_all = validate_all,
-                         xmlprocvalue = True)
+                         xmlprocvalue = True, wrapxml = wrapxml)
 
     def validate_del(self, data, xml):
         # We assume in this case that the user is doing a full rebuild of
@@ -441,8 +453,9 @@ class ElemOpBaseValueOnly(ElemOpBaseLeaf):
     override getvalue.
 
     """
-    def __init__(self, name, validate_all = True):
-        super().__init__(name, validate_all = validate_all, xmlprocvalue = True)
+    def __init__(self, name, validate_all = True, wrapxml = True):
+        super().__init__(name, validate_all = validate_all, xmlprocvalue = True,
+                         wrapxml = wrapxml)
 
     def validate_add(self, data, xml):
         raise Exception("Cannot modify system state")
