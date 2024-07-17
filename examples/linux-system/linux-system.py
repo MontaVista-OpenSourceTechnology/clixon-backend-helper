@@ -857,6 +857,7 @@ clixon_beh.add_rpc_callback("system-restart",
                             "urn:ietf:params:xml:ns:yang:ietf-system",
                             RestartHandler())
 
+
 class ShutdownHandler(tf.RPC):
     def rpc(self, x, username):
         self.do_priv("")
@@ -870,3 +871,13 @@ class ShutdownHandler(tf.RPC):
 clixon_beh.add_rpc_callback("system-shutdown",
                             "urn:ietf:params:xml:ns:yang:ietf-system",
                             ShutdownHandler())
+
+class AuthStatedata:
+    def stateonly(self):
+        rv = system_children["authentication"].getvalue()
+        if rv and len(rv) > 0:
+            rv = "<authentication>" + rv + "</authentication>"
+        return (0, rv)
+
+clixon_beh.add_stateonly("<system xmlns=\"urn:ietf:params:xml:ns:yang:ietf-system\"><authentication/></system>",
+                         AuthStatedata())
