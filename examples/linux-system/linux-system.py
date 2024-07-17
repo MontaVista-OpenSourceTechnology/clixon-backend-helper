@@ -7,7 +7,12 @@ import clixon_beh.transaction_framework as tf
 
 # This must match the commenting out or not of the dns-resolver deviation
 # in linux-system.yang.
-old_dns_supported = True
+old_dns_supported = False
+
+# Enable various password operations
+allow_user_add_del = False      # Add/delete users allowed?
+allow_user_pw_change = False    # User password changes allowed?
+allow_user_key_change = False   # SSH authorized key changes allowed?
 
 # /system/hostname
 class Hostname(tf.ElemOpBaseLeaf):
@@ -349,27 +354,67 @@ class UserKey:
 class UserData(tf.ElemOpBaseCommitOnly):
     """This handles the user operation."""
     def __init__(self, name):
-        super().__init__(name)
+        super().__init__(name, data)
+        self.data = data
         self.user_op = None
         self.user_name = None
         self.user_password_op = None
         self.user_password = None
         self.user_curr_key = None
         self.user_keys = []
+        self.oldkeyfile = False
+        self.oldkeyempty = False
 
-    # FIXME - really implement this
+    def savepwfile(self):
+        if not self.data.oldpwfile:
+            self.data.oldpwfile = True
+            self.program_output(["/bin/cp", "/etc/passwd", "/etc/passwd.keep"])
+            self.program_output(["/bin/cp", "/etc/shadow", "/etc/shadow.keep"])
+
+    def savekeyfile(self):
+        if not self.oldkeyfile:
+            self.home = pwd.getpwname(self.user_name)[5]
+            self.keyfile = self.home + "/.ssh/authorized_keys";
+            try:
+                self.program_output(["/bin/cp", self.keyfile,
+                                     self.keyfile + ".keep"])
+                self.oldkeyfile = True
+            except:
+                self.oldkeyempty = True
+                self.program_output(["/bin/touch", self.keyfile])
+
     def commit(self, op):
-        print("User " + str(self.user_op))
-        print("  name: " + str(self.user_name))
-        print("  password(" + str(self.user_password_op) + "): " +
-              str(self.user_password))
-        for i in self.user_keys:
-            print("  key(" + str(i.op) + "): " + str(i.name))
-            print("    algorithm: " + str(i.algorithm))
-            print("    keydata: " + str(i.keydata))
+        if self.user_name is None:
+            raise Exception("User name not set") # Shouldn't be possible
+        self.savepwfile()
+        if self.user_op == "add":
+            self.program_output(["/bin/useradd", "-m", self.user_name])
+        elif self.user_op == "del":
+            self.program_output(["/bin/userdel", self.user_name])
+        else:
+            if self.user_password_op == "add":
+                self.program_output(["/bin/usermod", "-p", self.user_password,
+                                     self.user_name])
+            for i in self.user_keys:
+                if i.op == "add":
+                    self.savekeyfile()
+                    f = open(self.keyfile, "a")
+                    f.write(str(i.algorithm) + " "
+                            + str(i.keydata) + " "
+                            + str(i.name) + "\n")
+                    f.close()
+                else:
+                    self.savekeyfile()
+                    self.program_output(["sed", "-i", "/" + i.name + "/d",
+                                         self.keyfile])
 
     def revert(self, op):
-        return
+        if self.oldkeyfile:
+            if self.oldkeyempty:
+                self.program_output(["/bin/rm", self.keyfile])
+            else:
+                self.program_output(["/bin/mv", "-f", self.keyfile + ".keep",
+                                     self.keyfile])
 
     def user_exists(self):
         try:
@@ -382,9 +427,14 @@ class UserData(tf.ElemOpBaseCommitOnly):
 class UserName(tf.ElemOpBaseValidateOnlyLeaf):
     def validate_add(self, data, xml):
         data.userCurrU.user_name = xml.get_body()
+        if data.userCurrU.user_op == "add" and data.userCurrU.user_exists():
+            raise Exception("User " + data.userCurrU.user_name
+                            + " already exists")
 
     def validate_del(self, data, xml):
         data.userCurrU.user_name = xml.get_body()
+        if not data.userCurrU.user_exists():
+            raise Exception("User " + data.userCurrU.user_name + " not present")
 
     def validate(self, data, origxml, newxml):
         data.userCurrU.user_name = newxml.get_body()
@@ -394,16 +444,22 @@ class UserName(tf.ElemOpBaseValidateOnlyLeaf):
 # /system/authentication/user/password
 class UserPassword(tf.ElemOpBaseValidateOnlyLeaf):
     def validate_add(self, data, xml):
+        if not allow_user_key_change:
+            raise Exception("User password change not allowed")
         data.userCurrU.user_password_op = "add"
         data.userCurrU.user_password = xml.get_body()
 
     def validate_del(self, data, xml):
+        if data.userCurrU.user_op != "del":
+            raise Exception("User password delete not allowed")
         data.userCurrU.user_password_op = "del"
 
     def validate(self, data, origxml, newxml):
         # Don't have to worry about the password on a delete.
         if newxml.get_flags(clixon_beh.XMLOBJ_FLAG_CHANGE):
-            data.userCurrU.user_password_op = "change"
+            if not allow_user_key_change:
+                raise Exception("User password change not allowed")
+            data.userCurrU.user_password_op = "add" # Add and change are same
             data.userCurrU.user_password = xml.get_body()
 
 # /system/authentication/user/authorized-key/name
@@ -435,12 +491,16 @@ class UserAuthkeyKeyData(tf.ElemOpBaseValidateOnlyLeaf):
 class UserAuthkey(tf.ElemOpBaseValidateOnly):
     """This handles the user authorized key."""
     def validate_add(self, data, xml):
+        if not allow_user_key_change:
+            raise Exception("User key addition not allowed")
         data.userCurrU.user_curr_key = UserKey()
         data.userCurrU.user_keys.append(data.userCurrU.user_curr_key)
         data.userCurrU.user_curr_key.op = "add"
         super().validate_add(data, xml)
 
     def validate_del(self, data, xml):
+        if not allow_user_key_change:
+            raise Exception("User key deletion not allowed")
         data.userCurrU.user_curr_key = UserKey()
         data.userCurrU.user_keys.append(data.userCurrU.user_curr_key)
         data.userCurrU.user_curr_key.op = "del"
@@ -456,15 +516,19 @@ system_user_authkey_children = {
 # /system/authentication/user
 class User(tf.ElemOpBaseValidateOnly):
     def start(self, data, op):
-        data.userCurrU = UserData("user")
+        data.userCurrU = UserData("user", data)
         data.add_op(data.userCurrU, "user", None)
         data.userCurrU.user_op = op
 
     def validate_add(self, data, xml):
+        if not allow_user_add_del:
+            raise Exception("User addition not allowed")
         self.start(data, "add")
         super().validate_add(data, xml)
 
     def validate_del(self, data, xml):
+        if not allow_user_add_del:
+            raise Exception("User deletion not allowed")
         self.start(data, "del")
         super().validate_del(data, xml)
 
@@ -475,7 +539,20 @@ class User(tf.ElemOpBaseValidateOnly):
     def getvalue(self):
         s = ""
         for i in pwd.getpwall():
-            s += "<user><name>" + tf.xmlescape(i[0]) + "</name></user>"
+            s += "<user><name>" + tf.xmlescape(i[0]) + "</name>"
+            f = None
+            try:
+                f = open(i[5] + ".ssh/authorized_keys", "r")
+                for j in f:
+                    k = j.split()
+                    if len(k) >= 3:
+                        s += ("<authorized-key><name>" + k[2]
+                              + "</name></authorized_key>")
+            except:
+                pass
+            if f is not None:
+                f.close()
+            s += "</user>"
         return s
 
 # /system/authentication/user
@@ -711,8 +788,23 @@ class Handler(tf.TopElemHandler):
         data = t.get_userdata()
         data.userDNSOp = None # Replaced when DNS operations are done.
         data.userCurrU = None # Replaced by user operations
+        data.oldpwfile = False # Are the old pw/shadow files set
         data.userNTP = None # Replaced by NTP operations
         return 0
+
+    def end(self, t):
+        if data.oldpwfile:
+            self.program_output(["/bin/rm", "-f", "/etc/passwd.keep"])
+            self.program_output(["/bin/rm", "-f", "/etc/shadow.keep"])
+        return super().end(t)
+
+    def abort(self, t):
+        if data.oldpwfile:
+            self.program_output(["/bin/mv", "-f", "/etc/passwd.keep",
+                                 "/etc/passwd"])
+            self.program_output(["/bin/rm", "-f", "/etc/shadow.keep",
+                                 "/etc/shadow"])
+        return super().abort(t)
 
     def statedata(self, nsc, xpath):
         return super().statedata(nsc, xpath)
@@ -734,3 +826,13 @@ class RestartHandler:
 clixon_beh.add_rpc_callback("system-restart",
                             "urn:ietf:params:xml:ns:yang:ietf-system",
                             RestartHandler())
+
+class AuthStatedata:
+    def stateonly(self):
+        rv = system_children["authentication"].getvalue()
+        if rv and len(rv) > 0:
+            rv = "<authentication>" + rv + "</authentication>"
+        return (0, rv)
+
+clixon_beh.add_stateonly("<system xmlns=\"urn:ietf:params:xml:ns:yang:ietf-system\"><authentication/></system>",
+                         AuthStatedata())

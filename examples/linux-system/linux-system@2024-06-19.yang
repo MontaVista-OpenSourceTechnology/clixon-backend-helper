@@ -58,10 +58,10 @@ module linux-system {
              compatible with the old type";
     }
 
-//    deviation /ietf:system/ietf:dns-resolver {
-//	deviate not-supported;
-//	description
-//	    "We don't support old DNS resolving, we use systemd's
-//             resolver.  So we don't want anyone touching this stuff.";
-//    }
+    deviation /ietf:system/ietf:dns-resolver {
+	deviate not-supported;
+	description
+	    "We don't support old DNS resolving, we use systemd's
+             resolver.  So we don't want anyone touching this stuff.";
+    }
 }
