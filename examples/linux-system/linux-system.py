@@ -139,7 +139,6 @@ system_clock_children = {
 class DNSHandler(tf.ElemOpBaseCommitOnly):
     """This handles the full commit operation for DNS updates.
     """
-    # FIXME - really implement this
     def commit(self, op):
         self.do_priv(op)
 
