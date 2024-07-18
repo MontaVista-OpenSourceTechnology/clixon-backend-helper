@@ -14,6 +14,9 @@ allow_user_add_del = False      # Add/delete users allowed?
 allow_user_pw_change = False    # User password changes allowed?
 allow_user_key_change = False   # SSH authorized key changes allowed?
 
+# NTP handling
+using_ntp = True
+
 # /system/hostname
 class Hostname(tf.ElemOpBaseLeaf):
     def validate_add(self, data, xml):
@@ -818,10 +821,18 @@ handler.p = clixon_beh.add_plugin("linux-system", handler.namespace, handler)
 
 class SetTimeHandler(tf.RPC):
     def rpc(self, x, username):
-        # FIXME - implement this.  Need to detect if NTP is running and
-        # return an error if so.  Otherwise need to extract the date from
-        # the xml and call self.do_priv() with it.
         s = '<rpc-reply xmlns="' + clixon_beh.NETCONF_BASE_NAMESPACE + '">'
+        if using_ntp:
+            s += ("<rpc-error>"
+                 + "<error-type>application</error-type>"
+                 + "<error-tag>ntp-active</error-tag>"
+                 + "<error-severity>error</error-severity>"
+                 + "</rpc-error>")
+        else:
+            d = x.find("current-datetime")
+            if d is None:
+                raise Exception("current-datetime not in set time rpc")
+            self.do_priv(d.get_body())
         s += '</rpc-reply>'
         return (0, s)
 
