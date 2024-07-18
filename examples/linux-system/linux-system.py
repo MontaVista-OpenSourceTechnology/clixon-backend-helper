@@ -816,12 +816,46 @@ handler = Handler("linux-system", "urn:ietf:params:xml:ns:yang:ietf-system",
                   children)
 handler.p = clixon_beh.add_plugin("linux-system", handler.namespace, handler)
 
-class RestartHandler:
+class SetTimeHandler(tf.RPC):
     def rpc(self, x, username):
+        # FIXME - implement this.  Need to detect if NTP is running and
+        # return an error if so.  Otherwise need to extract the date from
+        # the xml and call self.do_priv() with it.
         s = '<rpc-reply xmlns="' + clixon_beh.NETCONF_BASE_NAMESPACE + '">'
         s += '</rpc-reply>'
         return (0, s)
 
+    def priv(self, op):
+        self.program_output(["/bin/date", "-s", op])
+
+clixon_beh.add_rpc_callback("set-current-datetime",
+                            "urn:ietf:params:xml:ns:yang:ietf-system",
+                            SetTimeHandler())
+
+class RestartHandler(tf.RPC):
+    def rpc(self, x, username):
+        self.do_priv("")
+        s = '<rpc-reply xmlns="' + clixon_beh.NETCONF_BASE_NAMESPACE + '">'
+        s += '</rpc-reply>'
+        return (0, s)
+
+    def priv(self, op):
+        self.program_output(["/sbin/reboot"])
+
 clixon_beh.add_rpc_callback("system-restart",
                             "urn:ietf:params:xml:ns:yang:ietf-system",
                             RestartHandler())
+
+class ShutdownHandler(tf.RPC):
+    def rpc(self, x, username):
+        self.do_priv("")
+        s = '<rpc-reply xmlns="' + clixon_beh.NETCONF_BASE_NAMESPACE + '">'
+        s += '</rpc-reply>'
+        return (0, s)
+
+    def priv(self, op):
+        self.program_output(["/sbin/shutdown", "now"])
+
+clixon_beh.add_rpc_callback("system-shutdown",
+                            "urn:ietf:params:xml:ns:yang:ietf-system",
+                            ShutdownHandler())
