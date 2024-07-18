@@ -961,6 +961,7 @@ add_stateonly(char *path, PyObject *handler)
 	return;
     }
     if (xml_rootchild(xpath, 0, &xpath) < 0) {
+	xml_free(xpath);
 	PyErr_Format(PyExc_RuntimeError,
 		     "Error removing top of xml path for %s", path);
 	return;
