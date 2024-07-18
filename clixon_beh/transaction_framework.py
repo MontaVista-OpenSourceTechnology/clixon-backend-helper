@@ -152,7 +152,35 @@ class Data:
         for op in reversed(self.ops):
             op.revert()
 
-class ElemOpBase:
+class PrivOp:
+    def do_priv(self, op):
+        """Perform an operation at the initial privilege level."""
+        euid = clixon_beh.geteuid()
+        if clixon_beh.restore_priv() < 0:
+            raise Exception(self.name + ": Can't restore privileges.")
+        try:
+            self.priv(op)
+        finally:
+            if clixon_beh.drop_priv_temp(euid) < 0:
+                raise Exception(self.name + ": Can't drop privileges.")
+
+    def priv(self, op):
+        """Subclasses must override this function for privileged operations."""
+        return
+
+class ProgOut:
+    def program_output(self, args, timeout=1000):
+        """Call a program with the given arguments and return the stdout.
+        If it errors, generate an exception with stderr output."""
+        p = subprocess.Popen(args, stdout=subprocess.PIPE,
+                             stderr=subprocess.PIPE)
+        (out, err) = p.communicate(timeout)
+        rc = p.wait()
+        if rc != 0:
+            raise Exception(args[0] + " error(" + str(rc) + "): " + err.decode("utf-8"))
+        return out.decode("utf-8")
+
+class ElemOpBase(PrivOp, ProgOut):
     """The base class for operation handler (what goes into an "Op" class
     handler) and an element handler (what gets called from the clixon
     validate call for handling XML elments).  Any operation should
@@ -270,21 +298,6 @@ class ElemOpBase:
     def revert(self, op):
         return
 
-    def do_priv(self, op):
-        """Perform an operation at the initial privilege level."""
-        euid = clixon_beh.geteuid()
-        if clixon_beh.restore_priv() < 0:
-            raise Exception(self.name + ": Can't restore privileges.")
-        try:
-            self.priv(op)
-        finally:
-            if clixon_beh.drop_priv_temp(euid) < 0:
-                raise Exception(self.name + ": Can't drop privileges.")
-
-    def priv(self, op):
-        """Subclasses must override this function for privileged operations."""
-        return
-
     def getxml(self, path, namespace=None):
         """Process a get operation before the path has ended.  We are just
         parsing down the path until we hit then end."""
@@ -324,17 +337,6 @@ class ElemOpBase:
             else:
                 xml += s
         return xml
-
-    def program_output(self, args, timeout=1000):
-        """Call a program with the given arguments and return the stdout.
-        If it errors, generate an exception with stderr output."""
-        p = subprocess.Popen(args, stdout=subprocess.PIPE,
-                             stderr=subprocess.PIPE)
-        (out, err) = p.communicate(timeout)
-        rc = p.wait()
-        if rc != 0:
-            raise Exception(args[0] + " error(" + str(rc) + "): " + err.decode("utf-8"))
-        return out.decode("utf-8")
 
 class ElemOpBaseLeaf(ElemOpBase):
     """An Op that is a leaf, set up for such.  Just sets the XML processing
@@ -565,3 +567,6 @@ class TopElemHandler:
             raise Exception("Unknown name " + name + " in " + self.name)
         return (0, xml)
 
+class RPC(PrivOp, ProgOut):
+    def rpc(self, x, username):
+        return (0, "")
