@@ -7,7 +7,7 @@ import clixon_beh.transaction_framework as tf
 
 # This must match the commenting out or not of the dns-resolver deviation
 # in linux-system.yang.
-old_dns_supported = False
+old_dns_supported = True
 
 # Enable various password operations
 allow_user_add_del = False      # Add/delete users allowed?
@@ -795,18 +795,20 @@ class Handler(tf.TopElemHandler):
         return 0
 
     def end(self, t):
+        data = t.get_userdata()
         if data.oldpwfile:
             self.program_output(["/bin/rm", "-f", "/etc/passwd.keep"])
             self.program_output(["/bin/rm", "-f", "/etc/shadow.keep"])
-        return super().end(t)
+        return 0
 
     def abort(self, t):
+        data = t.get_userdata()
         if data.oldpwfile:
             self.program_output(["/bin/mv", "-f", "/etc/passwd.keep",
                                  "/etc/passwd"])
             self.program_output(["/bin/rm", "-f", "/etc/shadow.keep",
                                  "/etc/shadow"])
-        return super().abort(t)
+        return 0
 
     def statedata(self, nsc, xpath):
         return super().statedata(nsc, xpath)
@@ -874,10 +876,11 @@ clixon_beh.add_rpc_callback("system-shutdown",
 
 class AuthStatedata:
     def stateonly(self):
-        rv = system_children["authentication"].getvalue()
+        rv = children["system"].getvalue()
         if rv and len(rv) > 0:
-            rv = "<authentication>" + rv + "</authentication>"
+            rv = ("<system xmlns=\"urn:ietf:params:xml:ns:yang:ietf-system\">"
+                  + rv + "</system>")
         return (0, rv)
 
-clixon_beh.add_stateonly("<system xmlns=\"urn:ietf:params:xml:ns:yang:ietf-system\"><authentication/></system>",
+clixon_beh.add_stateonly("<system xmlns=\"urn:ietf:params:xml:ns:yang:ietf-system\"></system>",
                          AuthStatedata())
