@@ -5,6 +5,8 @@ import shlex
 import clixon_beh
 import clixon_beh.transaction_framework as tf
 
+MY_NAMESPACE = "http://linux.org"
+
 # This must match the commenting out or not of the dns-resolver deviation
 # in linux-system.yang.
 old_dns_supported = True
@@ -197,6 +199,7 @@ class DNSData:
         self.add_server = []
         self.timeout = None
         self.attempts = None
+        self.use_vc = False
 
 def dns_get_opdata(data):
     """If a DNS operation is already registered in the op queue, just
@@ -268,6 +271,12 @@ class DNSAttempts(tf.ElemOpBaseValidateOnlyLeaf):
         ddata = dns_get_opdata(data)
         ddata.attempts = xml.get_body()
 
+# /system/dns-resolver/options/use-vc - augment in linux-system
+class DNSUseVC(tf.ElemOpBaseValidateOnlyLeaf):
+    def validate_add(self, data, xml):
+        ddata = dns_get_opdata(data)
+        ddata.use_vc = xml.get_body().lower() == "true"
+
 # /system/dns-resolver
 class DNSResolver(tf.ElemOpBase):
     def validate_del(self, data, xml):
@@ -310,6 +319,7 @@ class DNSResolver(tf.ElemOpBase):
                         srvnum = srvnum + 1
                         srvstr = str(srvnum)
                 elif l.startswith("options"):
+                    use_vc_found = "false"
                     s += "<options>"
                     for i in l.split()[1:]:
                         if i.startswith("timeout:"):
@@ -322,6 +332,10 @@ class DNSResolver(tf.ElemOpBase):
                             if len(ts) > 1:
                                 at = tf.xmlescape(ts[1])
                                 s += "<attempts>" + at + "</attempts>"
+                        elif i == "use-vc":
+                            use_vc_found = "true"
+                    s += ("<use-vc xmlns=\"" + MY_NAMESPACE
+                          + "\">" + use_vc_found + "</use-vc>")
                     s += "</options>"
         except:
             f.close()
@@ -333,6 +347,7 @@ class DNSResolver(tf.ElemOpBase):
 system_dns_options_children = {
     "timeout": DNSTimeout("timeout"),
     "attempts": DNSAttempts("attempts"),
+    "use-vc": DNSUseVC("use-vc"),
 }
 
 # /system/dns-resolver
@@ -544,12 +559,12 @@ class User(tf.ElemOpBaseValidateOnly):
             s += "<user><name>" + tf.xmlescape(i[0]) + "</name>"
             f = None
             try:
-                f = open(i[5] + ".ssh/authorized_keys", "r")
+                f = open(i[5] + "/.ssh/authorized_keys", "r")
                 for j in f:
                     k = j.split()
                     if len(k) >= 3:
                         s += ("<authorized-key><name>" + k[2]
-                              + "</name></authorized_key>")
+                              + "</name></authorized-key>")
             except:
                 pass
             if f is not None:
