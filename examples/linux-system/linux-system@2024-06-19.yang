@@ -64,4 +64,13 @@ module linux-system {
     //	    "We don't support old DNS resolving, we use systemd's
     //             resolver.  So we don't want anyone touching this stuff.";
     //}
+
+    augment "/ietf:system/ietf:dns-resolver/ietf:options" {
+	leaf use-vc {
+	    type boolean;
+	    default false;
+	    description
+		"Indicates whether to use UDP (false) or TCP (true).";
+	}
+    }
 }
