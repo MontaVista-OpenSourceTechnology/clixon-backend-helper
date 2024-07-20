@@ -212,12 +212,13 @@ pyclixon_beh_statedata(struct clixon_beh_plugin *p,
 	Py_DECREF(o);
 	return -1;
     }
-    Py_DECREF(o);
     if (clixon_xml_parse_string(xmlstr, YB_NONE, NULL, &xtop, NULL) < 0) {
 	clixon_err(OE_PLUGIN, 0, "pyclixon_beh:callback: Could not parse "
 		   "returned XML string.");
+	Py_DECREF(o);
 	return -1;
     }
+    Py_DECREF(o);
 
     return 0;
 }
