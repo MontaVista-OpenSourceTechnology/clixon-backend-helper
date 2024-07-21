@@ -691,8 +691,11 @@ static int
 pyclixon_stateonly_callback(void *regarg, cxobj *retxml)
 {
     struct pyclixon_rpc_info *info = regarg;
+    struct clixon_beh *beh = clixon_beh_get_global_beh();
+    struct clixon_handle *h = clixon_beh_get_handle(beh);
     PyObject *o = NULL;
     const char *xmlstr;
+    int ret;
 
     if (pyclixon_call_rv(info->handler, "stateonly", NULL, false, &o) < 0)
 	return -1;
@@ -722,10 +725,15 @@ pyclixon_stateonly_callback(void *regarg, cxobj *retxml)
 	Py_DECREF(o);
 	return -1;
     }
-    if (clixon_xml_parse_string(xmlstr, YB_NONE, NULL, &retxml, NULL) < 0) {
-	clixon_err(OE_PLUGIN, 0, "pyclixon_beh:stateonly: Could not parse "
-		   "returned XML string.");
-	return -1;
+    if (xml_spec(retxml))
+	ret =clixon_xml_parse_string(xmlstr, YB_PARENT, NULL, &retxml, NULL);
+    else
+	ret =clixon_xml_parse_string(xmlstr, YB_MODULE, clicon_dbspec_yang(h),
+				     &retxml, NULL);
+    if (ret < 0) {
+	    clixon_err(OE_PLUGIN, 0, "pyclixon_beh:stateonly: Could not parse "
+		       "returned XML string.");
+	    return -1;
     }
     Py_DECREF(o);
     return 0;
