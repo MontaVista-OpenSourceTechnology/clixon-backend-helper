@@ -259,6 +259,9 @@ class DNSServer(tf.ElemOpBaseValidateOnly):
         ddata.add_server.append(ddata.curr_server)
         super().validate_add(data, xml)
 
+    def validate(self, data, origxml, newxml):
+        self.validate_add(data, newxml)
+
 # /system/dns-resolver/options/timeout
 class DNSTimeout(tf.ElemOpBaseValidateOnlyLeaf):
     def validate_add(self, data, xml):
@@ -314,6 +317,7 @@ class DNSResolver(tf.ElemOpBase):
                         s += "<name>" + tf.xmlescape(srvstr) + "</name>"
                         s += "<udp-and-tcp>"
                         s += "<address>" + tf.xmlescape(ts[1]) + "</address>"
+                        s += "<port>53</port>"
                         s += "</udp-and-tcp>"
                         s += "</server>"
                         srvnum = srvnum + 1
@@ -370,8 +374,8 @@ class UserKey:
 
 class UserData(tf.ElemOpBaseCommitOnly):
     """This handles the user operation."""
-    def __init__(self, name):
-        super().__init__(name, data)
+    def __init__(self, name, data):
+        super().__init__(name)
         self.data = data
         self.user_op = None
         self.user_name = None
@@ -435,7 +439,7 @@ class UserData(tf.ElemOpBaseCommitOnly):
 
     def user_exists(self):
         try:
-            pwd.getpwname(self.user_name)
+            pwd.getpwnam(self.user_name)
         except:
             return False
         return True
@@ -563,8 +567,11 @@ class User(tf.ElemOpBaseValidateOnly):
                 for j in f:
                     k = j.split()
                     if len(k) >= 3:
-                        s += ("<authorized-key><name>" + k[2]
-                              + "</name></authorized-key>")
+                        s += "<authorized-key>"
+                        s += "<name>" + k[2] + "</name>"
+                        s += "<algorithm>" + k[0] + "</algorithm>"
+                        s += "<key-data>x</key-data>"
+                        s += "</authorized-key>"
             except:
                 pass
             if f is not None:
@@ -584,8 +591,7 @@ system_user_children = {
 # /system/authentication
 system_authentication_children = {
     "user-authentication-order": tf.ElemOpBaseConfigOnly("user-authentication-order"),
-    "user": User("user", children = system_user_children, validate_all = True,
-                 wrapxml = False),
+    "user": User("user", children = system_user_children, wrapxml = False),
 }
 
 class NTPServerData:
@@ -793,7 +799,7 @@ system_state_children = {
     "clock": tf.ElemOpBase("clock", system_state_clock_children)
 }
 
-class Handler(tf.TopElemHandler):
+class Handler(tf.TopElemHandler, tf.ProgOut):
     def exit(self):
         self.p = None # Break circular dependency
         return 0;
