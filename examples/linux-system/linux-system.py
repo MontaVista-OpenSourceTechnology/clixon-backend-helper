@@ -12,9 +12,13 @@ MY_NAMESPACE = "http://linux.org"
 old_dns_supported = True
 
 # Enable various password operations
-allow_user_add_del = False      # Add/delete users allowed?
-allow_user_pw_change = False    # User password changes allowed?
-allow_user_key_change = False   # SSH authorized key changes allowed?
+allow_user_add_del = True      # Add/delete users allowed?
+allow_user_pw_change = True    # User password changes allowed?
+allow_user_key_change = True   # SSH authorized key changes allowed?
+useradd = "/usr/sbin/useradd"
+userdel = "/usr/sbin/userdel"
+usermod = "/usr/sbin/usermod"
+have_shadow = False
 
 # NTP handling
 using_ntp = True
@@ -390,11 +394,12 @@ class UserData(tf.ElemOpBaseCommitOnly):
         if not self.data.oldpwfile:
             self.data.oldpwfile = True
             self.program_output(["/bin/cp", "/etc/passwd", "/etc/passwd.keep"])
-            self.program_output(["/bin/cp", "/etc/shadow", "/etc/shadow.keep"])
+            if have_shadow:
+                self.program_output(["/bin/cp", "/etc/shadow", "/etc/shadow.keep"])
 
     def savekeyfile(self):
         if not self.oldkeyfile:
-            self.home = pwd.getpwname(self.user_name)[5]
+            self.home = pwd.getpwnam(self.user_name)[5]
             self.keyfile = self.home + "/.ssh/authorized_keys";
             try:
                 self.program_output(["/bin/cp", self.keyfile,
@@ -408,13 +413,13 @@ class UserData(tf.ElemOpBaseCommitOnly):
         if self.user_name is None:
             raise Exception("User name not set") # Shouldn't be possible
         self.savepwfile()
-        if self.user_op == "add":
-            self.program_output(["/bin/useradd", "-m", self.user_name])
-        elif self.user_op == "del":
-            self.program_output(["/bin/userdel", self.user_name])
+        if self.user_op == "del":
+            self.program_output([userdel, self.user_name])
         else:
+            if self.user_op == "add":
+                self.program_output([useradd, "-m", self.user_name])
             if self.user_password_op == "add":
-                self.program_output(["/bin/usermod", "-p", self.user_password,
+                self.program_output([usermod, "-p", self.user_password,
                                      self.user_name])
             for i in self.user_keys:
                 if i.op == "add":
@@ -819,7 +824,8 @@ class Handler(tf.TopElemHandler, tf.ProgOut):
         data = t.get_userdata()
         if data.oldpwfile:
             self.program_output(["/bin/rm", "-f", "/etc/passwd.keep"])
-            self.program_output(["/bin/rm", "-f", "/etc/shadow.keep"])
+            if have_shadow:
+                self.program_output(["/bin/rm", "-f", "/etc/shadow.keep"])
         return 0
 
     def abort(self, t):
@@ -827,8 +833,9 @@ class Handler(tf.TopElemHandler, tf.ProgOut):
         if data.oldpwfile:
             self.program_output(["/bin/mv", "-f", "/etc/passwd.keep",
                                  "/etc/passwd"])
-            self.program_output(["/bin/rm", "-f", "/etc/shadow.keep",
-                                 "/etc/shadow"])
+            if have_shadow:
+                self.program_output(["/bin/rm", "-f", "/etc/shadow.keep",
+                                     "/etc/shadow"])
         return 0
 
     def statedata(self, nsc, xpath):
