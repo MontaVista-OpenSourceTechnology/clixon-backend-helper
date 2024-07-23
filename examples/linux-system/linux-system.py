@@ -393,9 +393,9 @@ class UserData(tf.ElemOpBaseCommitOnly):
     def savepwfile(self):
         if not self.data.oldpwfile:
             self.data.oldpwfile = True
-            self.program_output(["/bin/cp", "/etc/passwd", "/etc/passwd.keep"])
-            if have_shadow:
-                self.program_output(["/bin/cp", "/etc/shadow", "/etc/shadow.keep"])
+            #self.program_output(["/bin/cp", "/etc/passwd", "/etc/passwd.keep"])
+            #if have_shadow:
+            #    self.program_output(["/bin/cp", "/etc/shadow", "/etc/shadow.keep"])
 
     def savekeyfile(self):
         if not self.oldkeyfile:
@@ -414,25 +414,25 @@ class UserData(tf.ElemOpBaseCommitOnly):
             raise Exception("User name not set") # Shouldn't be possible
         self.savepwfile()
         if self.user_op == "del":
-            self.program_output([userdel, self.user_name])
+            print(str([userdel, self.user_name]))
         else:
             if self.user_op == "add":
-                self.program_output([useradd, "-m", self.user_name])
+                print(str([useradd, "-m", self.user_name]))
             if self.user_password_op == "add":
-                self.program_output([usermod, "-p", self.user_password,
-                                     self.user_name])
+                print(str([usermod, "-p", self.user_password,
+                           self.user_name]))
             for i in self.user_keys:
                 if i.op == "add":
-                    self.savekeyfile()
-                    f = open(self.keyfile, "a")
-                    f.write(str(i.algorithm) + " "
+                    #self.savekeyfile()
+                    #f = open(self.keyfile, "a")
+                    print(str(i.algorithm) + " "
                             + str(i.keydata) + " "
                             + str(i.name) + "\n")
-                    f.close()
+                    #f.close()
                 else:
-                    self.savekeyfile()
-                    self.program_output(["sed", "-i", "/" + i.name + "/d",
-                                         self.keyfile])
+                    #self.savekeyfile()
+                    print(str(["sed", "-i", "/" + i.name + "/d",
+                               self.keyfile]))
 
     def revert(self, op):
         if self.oldkeyfile:
@@ -562,26 +562,54 @@ class User(tf.ElemOpBaseValidateOnly):
         self.start(data, None)
         super().validate(data, origxml, newxml)
 
+    def getxml(self, path, namespace=None, indexname=None, index=None):
+        if index is None:
+            raise Exception("getxml for user with no index")
+        try:
+            p = pwd.getpwnam(index)
+        except:
+            return ""
+        if len(path) == 0:
+            return self.getoneuser(p)
+        (name, indexname, index) = self.parsepathentry(path[0])
+        if name == "name":
+            xml = "<user><name>" + tf.xmlescape(p[0]) + "</name></user>"
+        elif name == "authorized-key":
+            if index is None:
+                xml = self.getkey(p[5])
+            else:
+                xml = self.getkey(p[5], keyname=index)
+        return xml
+
+    def getkey(self, keypath, keyname=None):
+        f = open(keypath + "/.ssh/authorized_keys", "r")
+        s = ""
+        for j in f:
+            k = j.split()
+            if len(k) >= 3 and (keyname is None or keyname == k[2]):
+                s += "<authorized-key>"
+                s += "<name>" + tf.xmlescape(k[2]) + "</name>"
+                s += "<algorithm>" + tf.xmlescape(k[0]) + "</algorithm>"
+                s += "<key-data>x</key-data>"
+                s += "</authorized-key>"
+        return s
+        
+    def getoneuser(self, p):
+        s = "<user><name>" + tf.xmlescape(p[0]) + "</name>"
+        f = None
+        try:
+            s += self.getkey(p[5])
+        except:
+            pass
+        if f is not None:
+            f.close()
+        s += "</user>"
+        return s
+        
     def getvalue(self):
         s = ""
         for i in pwd.getpwall():
-            s += "<user><name>" + tf.xmlescape(i[0]) + "</name>"
-            f = None
-            try:
-                f = open(i[5] + "/.ssh/authorized_keys", "r")
-                for j in f:
-                    k = j.split()
-                    if len(k) >= 3:
-                        s += "<authorized-key>"
-                        s += "<name>" + k[2] + "</name>"
-                        s += "<algorithm>" + k[0] + "</algorithm>"
-                        s += "<key-data>x</key-data>"
-                        s += "</authorized-key>"
-            except:
-                pass
-            if f is not None:
-                f.close()
-            s += "</user>"
+            s += self.getoneuser(i)
         return s
 
 # /system/authentication/user
@@ -822,20 +850,20 @@ class Handler(tf.TopElemHandler, tf.ProgOut):
 
     def end(self, t):
         data = t.get_userdata()
-        if data.oldpwfile:
-            self.program_output(["/bin/rm", "-f", "/etc/passwd.keep"])
-            if have_shadow:
-                self.program_output(["/bin/rm", "-f", "/etc/shadow.keep"])
+        #if data.oldpwfile:
+            #self.program_output(["/bin/rm", "-f", "/etc/passwd.keep"])
+            #if have_shadow:
+            #    self.program_output(["/bin/rm", "-f", "/etc/shadow.keep"])
         return 0
 
     def abort(self, t):
         data = t.get_userdata()
-        if data.oldpwfile:
-            self.program_output(["/bin/mv", "-f", "/etc/passwd.keep",
-                                 "/etc/passwd"])
-            if have_shadow:
-                self.program_output(["/bin/rm", "-f", "/etc/shadow.keep",
-                                     "/etc/shadow"])
+        #if data.oldpwfile:
+        #    self.program_output(["/bin/mv", "-f", "/etc/passwd.keep",
+        #                         "/etc/passwd"])
+        #    if have_shadow:
+        #        self.program_output(["/bin/rm", "-f", "/etc/shadow.keep",
+        #                             "/etc/shadow"])
         return 0
 
     def statedata(self, nsc, xpath):
