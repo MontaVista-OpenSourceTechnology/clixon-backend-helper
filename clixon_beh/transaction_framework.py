@@ -298,30 +298,56 @@ class ElemOpBase(PrivOp, ProgOut):
     def revert(self, op):
         return
 
-    def getxml(self, path, namespace=None):
+    def parsepathentry(self, e):
+        """Parse value in the form "[pfx:]name"[\[[pfx:]indexname='value'\]]"
+        Ignore the prefixes, get the name, indexname, and value.
+        """
+        name = e.split(":", 1)
+        indexname = None
+        index = None
+        if len(name) == 1:
+            name = name[0]
+        elif "[" in name[1]:
+            (name, index) = name[1].split("[", 1)
+            index = index[:-1] # Remove the ']' at the end
+            if ':' in name:
+                name = name.split(":")[1]
+            (indexname, index) = index.split("=", 1)
+            if ':' in indexname:
+                indexname = indexname.split(":")[1]
+            index = index[1:-1] # remove the quotes
+        else:
+            name = name[1]
+        return (name, indexname, index)
+
+    def getxml(self, path, namespace=None, indexname=None, index=None):
         """Process a get operation before the path has ended.  We are just
         parsing down the path until we hit then end."""
-        xml = "<" + self.name
-        if namespace is not None:
-            xml += " xmlns=\"" + namespace + "\">"
-        else:
-            xml += ">"
+        if indexname is not None:
+            raise Exception("Index is set for " + self.name +
+                            " which doesn't support indexes")
+        if self.wrapxml:
+            xml = "<" + self.name
+            if namespace is not None:
+                xml += " xmlns=\"" + namespace + "\">"
+            else:
+                xml += ">"
         if len(path) == 0:
             value = self.getvalue()
             if self.xmlprocvalue:
                 value = xmlescape(value)
             xml += value
         else:
-            name = path[0].split(":")
-            if len(name) == 1:
-                name = name[0]
-            else:
-                name = name[1]
+            (name, index, indexname) = self.parsepathentry(path[0])
             if name in self.children:
-                xml += self.children[name].getxml(path[1:])
+                xml += self.children[name].getxml(path[1:],
+                                                  indexname=indexname,
+                                                  index=index)
             else:
                 raise Exception("Unknown name " + name + " in " + self.name)
-        xml += "</" + self.name + ">"
+        if self.wrapxml:
+            xml += "</" + self.name + ">"
+        print("getxml for {}: {}".format(self.name, xml))
         return xml
 
     def getvalue(self):
@@ -366,7 +392,7 @@ class ElemOpBaseConfigOnly(ElemOpBaseLeaf):
     def validate(self, data, origxml, newxml):
         return
 
-    def getxml(self, path, namespace=None):
+    def getxml(self, path, namespace=None, indexname=None, index=None):
         return ""
 
     def getvalue(self):
@@ -474,7 +500,7 @@ class ElemOpBaseValueOnly(ElemOpBaseLeaf):
     def revert(self, data, xml):
         raise Exception("abort")
 
-    def getxml(self, path, namespace=None):
+    def getxml(self, path, namespace=None, indexname=None, index=None):
         return ""
 
     def getvalue(self):
