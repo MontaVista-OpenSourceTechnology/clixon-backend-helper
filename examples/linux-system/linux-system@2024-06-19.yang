@@ -17,7 +17,8 @@ module linux-system {
 	"This module extends ietf-system for newer things in Linux.  New
          items are:
          * New password hash types.
-         * systemd DNS resolver";
+         * systemd DNS resolver.
+         * NTP NTS-KE support, NTP over TLS.g";
 
     revision 2024-06-19 {
 	description
@@ -79,6 +80,36 @@ module linux-system {
 	    type binary;
 	    description
 		"The certificate used to validate the server.";
+	}
+    }
+
+    augment "/ietf:system/ietf:ntp/ietf:server/ietf:transport" {
+	case tcp {
+            container tcp {
+		description
+		    "Contains TCP-specific configuration parameters
+                     for NTP over TLS, with NTS-KE.";
+		leaf address {
+		    type inet:host;
+		    mandatory true;
+		    description
+			"The address of the NTP server.";
+		}
+		leaf port {
+		    if-feature ntp-udp-port;
+		    type inet:port-number;
+		    default 4460;
+		    description
+			"The port number of the NTP server.";
+		}
+		leaf certificate {
+		    type binary;
+		    description
+			"The certificate used to validate the server.  If
+			 not provided, defaults to the standard system
+			 certificates.";
+		}
+            }
 	}
     }
 }
