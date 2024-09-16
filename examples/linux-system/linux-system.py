@@ -185,6 +185,8 @@ class DNSHandler(tf.ElemOpBaseCommitOnly):
         else:
             # Create a file to hold the data.  We move the file over when
             # done.
+            # FIXME - no handling for port or certificate in the default
+            # way of doing this.
             f = open(sysbase + "/etc/resolv.conf.tmp", "w")
             try:
                 if len(ddata.add_search) > 0:
@@ -211,6 +213,7 @@ class DNSServerData:
         self.name = None
         self.address = None
         self.port = None
+        self.certificate = None
 
     def __str__(self):
         return f'({self.name}, {self.address}:{self.port})'
@@ -262,16 +265,23 @@ class DNSServerPort(tf.ElemOpBaseValidateOnlyLeaf):
 
 # /system/dns-resolver/server/udp-and-tcp
 system_dns_server_ip_children = {
-    "address": DNSServerAddress("timeout"),
+    "address": DNSServerAddress("address"),
     "port": DNSServerPort("port"),
 }
 
+# /system/dns-resolver/server/certificate
+class DNSServerCertificate(tf.ElemOpBaseValidateOnlyLeaf):
+    def validate_add(self, data, xml):
+        ddata = dns_get_opdata(data)
+        ddata.curr_server.certificate = xml.get_body()
+
 # /system/dns-resolver/server
 system_dns_server_children = {
-    "name": DNSServerName("timeout"),
+    "name": DNSServerName("name"),
     "udp-and-tcp": tf.ElemOpBaseValidateOnly("upd-and-tcp",
                                     children = system_dns_server_ip_children,
                                     validate_all = True),
+    "certificate": DNSServerCertificate("certificate"),
     # FIXME - Add encrypted DNS support, and possibly DNSSEC.
 }
 

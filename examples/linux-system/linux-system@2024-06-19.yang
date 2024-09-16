@@ -73,4 +73,12 @@ module linux-system {
 		"Indicates whether to use UDP (false) or TCP (true).";
 	}
     }
+
+    augment "/ietf:system/ietf:dns-resolver/ietf:server" {
+	leaf certificate {
+	    type binary;
+	    description
+		"The certificate used to validate the server.";
+	}
+    }
 }
