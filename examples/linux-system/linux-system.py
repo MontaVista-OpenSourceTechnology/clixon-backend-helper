@@ -760,19 +760,19 @@ class NTPServerUDPPort(tf.ElemOpBaseValidateOnlyLeaf):
         data.userNTP.curr_server.port = xml.get_body()
 
 # /system/ntp/server/tcp/address
-class NTPServerTCPAddress(tf.ElemOpBaseValidateOnlyLeaf):
+class NTPServerNTSAddress(tf.ElemOpBaseValidateOnlyLeaf):
     def validate_add(self, data, xml):
         data.userNTP.curr_server.is_udp = False
         data.userNTP.curr_server.address = xml.get_body()
 
 # /system/ntp/server/tcp/port
-class NTPServerTCPPort(tf.ElemOpBaseValidateOnlyLeaf):
+class NTPServerNTSPort(tf.ElemOpBaseValidateOnlyLeaf):
     def validate_add(self, data, xml):
         data.userNTP.curr_server.is_udp = False
         data.userNTP.curr_server.port = xml.get_body()
 
-# /system/ntp/server/tcp/port
-class NTPServerTCPCertificate(tf.ElemOpBaseValidateOnlyLeaf):
+# /system/ntp/server/tcp/certificate
+class NTPServerNTSCertificate(tf.ElemOpBaseValidateOnlyLeaf):
     def validate_add(self, data, xml):
         data.userNTP.curr_server.is_udp = False
         data.userNTP.curr_server.certificate = xml.get_body()
@@ -812,16 +812,16 @@ class NTPServer(tf.ElemOpBaseValidateOnly):
         super().validate(data, origxml, newxml)
 
 # /system/ntp/server/udp
-system_ntp_server_net_children = {
+system_ntp_server_udp_children = {
     "address": NTPServerUDPAddress("address"),
     "port": NTPServerUDPPort("port"),
 }
 
-# /system/ntp/server/tcp
-system_ntp_server_net_children = {
-    "address": NTPServerTCPAddress("address"),
-    "port": NTPServerTCPPort("port"),
-    "certificate": NTPServerTCPCertificate("certificate"),
+# /system/ntp/server/nts
+system_ntp_server_nts_children = {
+    "address": NTPServerNTSAddress("address"),
+    "port": NTPServerNTSPort("port"),
+    "certificate": NTPServerNTSCertificate("certificate"),
 }
 
 # /system/ntp/server
@@ -830,8 +830,8 @@ system_ntp_server_children = {
     "udp": tf.ElemOpBaseValidateOnly("udp",
                                      children = system_ntp_server_udp_children,
                                      validate_all = True),
-    "tcp": tf.ElemOpBaseValidateOnly("tcp",
-                                     children = system_ntp_server_tcp_children,
+    "nts": tf.ElemOpBaseValidateOnly("nts",
+                                     children = system_ntp_server_ntx_children,
                                      validate_all = True),
     "association-type": NTPServerAsocType("association-type"),
     "iburst": NTPServerIBurst("iburst"),
