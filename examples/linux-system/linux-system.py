@@ -712,6 +712,8 @@ class NTPServerData:
         self.assoc_type = "server" # server, peer, or pool
         self.iburst = False
         self.prefer = False
+        self.is_udp = True
+        self.certificate = None
 
 class NTPData(tf.ElemOpBaseCommitOnly):
     def __init__(self, name):
@@ -726,8 +728,10 @@ class NTPData(tf.ElemOpBaseCommitOnly):
         for i in self.servers:
             print("  server(" + str(i.op) + "): " + str(i.name))
             print("    name: " + str(i.name))
+            print("    is_udp: " + str(i.is_udp))
             print("    address: " + str(i.address))
             print("    port: " + str(i.port))
+            print("    cert: " + str(i.certificate))
             print("    assoc_type: " + str(i.assoc_type))
             print("    iburst: " + str(i.iburst))
             print("    prefer: " + str(i.prefer))
@@ -754,6 +758,24 @@ class NTPServerUDPAddress(tf.ElemOpBaseValidateOnlyLeaf):
 class NTPServerUDPPort(tf.ElemOpBaseValidateOnlyLeaf):
     def validate_add(self, data, xml):
         data.userNTP.curr_server.port = xml.get_body()
+
+# /system/ntp/server/tcp/address
+class NTPServerTCPAddress(tf.ElemOpBaseValidateOnlyLeaf):
+    def validate_add(self, data, xml):
+        data.userNTP.curr_server.is_udp = False
+        data.userNTP.curr_server.address = xml.get_body()
+
+# /system/ntp/server/tcp/port
+class NTPServerTCPPort(tf.ElemOpBaseValidateOnlyLeaf):
+    def validate_add(self, data, xml):
+        data.userNTP.curr_server.is_udp = False
+        data.userNTP.curr_server.port = xml.get_body()
+
+# /system/ntp/server/tcp/port
+class NTPServerTCPCertificate(tf.ElemOpBaseValidateOnlyLeaf):
+    def validate_add(self, data, xml):
+        data.userNTP.curr_server.is_udp = False
+        data.userNTP.curr_server.certificate = xml.get_body()
 
 # /system/ntp/server/association-type
 class NTPServerAsocType(tf.ElemOpBaseValidateOnlyLeaf):
@@ -790,9 +812,16 @@ class NTPServer(tf.ElemOpBaseValidateOnly):
         super().validate(data, origxml, newxml)
 
 # /system/ntp/server/udp
-system_ntp_server_udp_children = {
+system_ntp_server_net_children = {
     "address": NTPServerUDPAddress("address"),
     "port": NTPServerUDPPort("port"),
+}
+
+# /system/ntp/server/tcp
+system_ntp_server_net_children = {
+    "address": NTPServerTCPAddress("address"),
+    "port": NTPServerTCPPort("port"),
+    "certificate": NTPServerTCPCertificate("certificate"),
 }
 
 # /system/ntp/server
@@ -800,6 +829,9 @@ system_ntp_server_children = {
     "name": NTPServerName("name"),
     "udp": tf.ElemOpBaseValidateOnly("udp",
                                      children = system_ntp_server_udp_children,
+                                     validate_all = True),
+    "tcp": tf.ElemOpBaseValidateOnly("tcp",
+                                     children = system_ntp_server_tcp_children,
                                      validate_all = True),
     "association-type": NTPServerAsocType("association-type"),
     "iburst": NTPServerIBurst("iburst"),
