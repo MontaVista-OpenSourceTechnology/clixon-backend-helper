@@ -1,6 +1,5 @@
 
 import os
-import pwd
 import shlex
 import clixon_beh
 import clixon_beh.transaction_framework as tf
@@ -18,10 +17,14 @@ allow_user_key_change = True   # SSH authorized key changes allowed?
 useradd = "/usr/sbin/useradd"
 userdel = "/usr/sbin/userdel"
 usermod = "/usr/sbin/usermod"
-have_shadow = False
+have_shadow = True
 
 # NTP handling
 using_ntp = True
+
+# For testing, to store the files elsewhere to avoid updating the main
+# system data
+sysbase = ""
 
 # /system/hostname
 class Hostname(tf.ElemOpBaseLeaf):
@@ -57,15 +60,18 @@ class Hostname(tf.ElemOpBaseLeaf):
         return
 
     def setvalue(self, value):
-        self.program_output(["/bin/hostname", value])
-        f = open("/etc/hostname", "w")
+        if sysbase == "":
+            self.program_output(["/bin/hostname", value])
+        f = open(sysbase + "/etc/hostname", "w")
         try:
             f.write(value + "\n")
         finally:
             f.close()
 
     def getvalue(self):
-        return self.program_output(["/bin/hostname"]).strip()
+        with open("/etc/hostname", "r") as file:
+            data = file.read().rstrip()
+        return data
 
 # /system/clock/timezone-*
 class TimeZone(tf.ElemOpBaseLeaf):
@@ -85,14 +91,15 @@ class TimeZone(tf.ElemOpBaseLeaf):
         if not self.is_name:
             raise Exception("Only name timezones are accepted")
         value = newxml.get_body()
-        if not os.path.exists("/usr/share/zoneinfo/" + value):
+        if not os.path.exists(sysbase + "/usr/share/zoneinfo/" + value):
             raise Exception(value + " not a valid timezone")
         data.add_op(self, None, value)
 
     def commit(self, op):
         oldlocaltime = None
         try:
-            lt = self.program_output(["/bin/ls", "-l", "/etc/localtime"])
+            lt = self.program_output(["/bin/ls", "-l",
+                                      sysbase + "/etc/localtime"])
             lt = lt.split("->")
             if len(lt) > 2:
                 oldlocaltime = lt[1].strip()
@@ -114,8 +121,8 @@ class TimeZone(tf.ElemOpBaseLeaf):
                     # does not exist or is not already a symlink.
                     # Make sure it points to something.
                     self.program_output(["/bin/ln", "-sf",
-                                         "/usr/share/zoneinfo/GMT",
-                                         "/etc/localtime"])
+                                         sysbase + "/usr/share/zoneinfo/GMT",
+                                         sysbase + "/etc/localtime"])
                 self.setvalue(op.oldvalue[1])
             except:
                 pass
@@ -124,13 +131,25 @@ class TimeZone(tf.ElemOpBaseLeaf):
         return
 
     def setvalue(self, value):
-        self.program_output(["/bin/timedatectl", "set-timezone", "--", value])
+        if sysbase == "":
+            self.program_output(["/bin/timedatectl", "set-timezone",
+                                 "--", value])
+        else:
+            f = open("/etc/timezone", "w")
+            f.write(value + "\n")
+            f.close()
+            self.program_output(["/bin/ln", "-sf",
+                                 sysbase + "/usr/share/zoneinfo/" + value,
+                                 sysbase + "/etc/localtime"])
+            pass
+        return
 
     def getvalue(self):
         if not self.is_name:
             return ""
         try:
-            s = self.program_output(["/bin/cat", "/etc/timezone"]).strip() 
+            s = self.program_output(["/bin/cat",
+                                     sysbase + "/etc/timezone"]).strip()
         except:
             s = "GMT"
         return s
@@ -158,14 +177,15 @@ class DNSHandler(tf.ElemOpBaseCommitOnly):
     def priv(self, op):
         ddata = op.userData
         if op.revert:
-            os.remove("/etc/resolv.conf.tmp")
+            os.remove(sysbase + "/etc/resolv.conf.tmp")
             pass
         elif op.done:
-            os.replace("/etc/resolv.conf.tmp", "/etc/resolv.conf")
+            os.replace(sysbase + "/etc/resolv.conf.tmp",
+                       sysbase + "/etc/resolv.conf")
         else:
             # Create a file to hold the data.  We move the file over when
             # done.
-            f = open("/etc/resolv.conf.tmp", "w")
+            f = open(sysbase + "/etc/resolv.conf.tmp", "w")
             try:
                 if len(ddata.add_search) > 0:
                     f.write("search")
@@ -299,7 +319,7 @@ class DNSResolver(tf.ElemOpBase):
             return ""
 
         try:
-            f = open("/etc/resolv.conf", "r", encoding="utf-8")
+            f = open(sysbase + "/etc/resolv.conf", "r", encoding="utf-8")
         except:
             return ""
         try:
@@ -367,6 +387,42 @@ system_dns_resolver_children = {
                              validate_all = True),
 }
 
+# The standard pwd methods for python don't have a way to override the
+# base location.  Re-implement them with that capability.
+def getpwentry(name):
+    f = open(sysbase + "/etc/passwd", "r")
+    found = False
+    for i in f:
+        p = i.split(":")
+        if p[0] == name:
+            found = True
+            break
+        pass
+    if found:
+        if len(p) != 7:
+            raise Exception("Password entry doesn't have 6 values")
+        p[5] = sysbase + p[5]
+        return p
+    raise Exception("Password entry not found")
+
+def getpwentryall():
+    f = open(sysbase + "/etc/passwd", "r")
+    plist = []
+    for i in f:
+        p = i.split(":")
+        if len(p) == 7:
+            p[5] = sysbase + p[5]
+            plist.append(p)
+            pass
+        pass
+    return plist
+
+if sysbase == "":
+    useropts = []
+else:
+    useropts = ["-P", sysbase]
+    pass
+
 class UserKey:
     def __init(self):
         self.op = None
@@ -392,14 +448,17 @@ class UserData(tf.ElemOpBaseCommitOnly):
 
     def savepwfile(self):
         if not self.data.oldpwfile:
-            self.data.oldpwfile = True
-            #self.program_output(["/bin/cp", "/etc/passwd", "/etc/passwd.keep"])
-            #if have_shadow:
-            #    self.program_output(["/bin/cp", "/etc/shadow", "/etc/shadow.keep"])
+            if enable_user_update:
+                self.data.oldpwfile = True
+                self.program_output(["/bin/cp", sysbase + "/etc/passwd",
+                                     sysbase + "/etc/passwd.keep"])
+                if have_shadow:
+                    self.program_output(["/bin/cp", sysbase + "/etc/shadow",
+                                         sysbase + "/etc/shadow.keep"])
 
     def savekeyfile(self):
         if not self.oldkeyfile:
-            self.home = pwd.getpwnam(self.user_name)[5]
+            self.home = getpwentry(self.user_name)[5]
             self.keyfile = self.home + "/.ssh/authorized_keys";
             try:
                 self.program_output(["/bin/cp", self.keyfile,
@@ -414,25 +473,29 @@ class UserData(tf.ElemOpBaseCommitOnly):
             raise Exception("User name not set") # Shouldn't be possible
         self.savepwfile()
         if self.user_op == "del":
-            print(str([userdel, self.user_name]))
+            self.program_output([userdel, self.user_name])
         else:
             if self.user_op == "add":
-                print(str([useradd, "-m", self.user_name]))
+                self.program_output([useradd, "-m"} + useropts +
+                                    [self.user_name])
             if self.user_password_op == "add":
-                print(str([usermod, "-p", self.user_password,
-                           self.user_name]))
+                self.program_output([usermod, "-p", self.user_password]
+                                    + useropts + [self.user_name])
             for i in self.user_keys:
+                self.savekeyfile()
+                # Always delete the old key
+                program_output(["sed", "-i", "/" + i.name + "/d",
+                                self.keyfile])
                 if i.op == "add":
-                    #self.savekeyfile()
-                    #f = open(self.keyfile, "a")
-                    print(str(i.algorithm) + " "
+                    f = open(self.keyfile, "a")
+                    f.write(str(i.algorithm) + " "
                             + str(i.keydata) + " "
                             + str(i.name) + "\n")
-                    #f.close()
-                else:
-                    #self.savekeyfile()
-                    print(str(["sed", "-i", "/" + i.name + "/d",
-                               self.keyfile]))
+                    f.close()
+                    pass
+                pass
+            pass
+        return
 
     def revert(self, op):
         if self.oldkeyfile:
@@ -441,10 +504,13 @@ class UserData(tf.ElemOpBaseCommitOnly):
             else:
                 self.program_output(["/bin/mv", "-f", self.keyfile + ".keep",
                                      self.keyfile])
+                pass
+            pass
+        return
 
     def user_exists(self):
         try:
-            pwd.getpwnam(self.user_name)
+            getpwentry(self.user_name)
         except:
             return False
         return True
@@ -566,7 +632,7 @@ class User(tf.ElemOpBaseValidateOnly):
         if index is None:
             raise Exception("getxml for user with no index")
         try:
-            p = pwd.getpwnam(index)
+            p = getpwentry(index)
         except:
             return ""
         if len(path) == 0:
@@ -608,7 +674,7 @@ class User(tf.ElemOpBaseValidateOnly):
         
     def getvalue(self):
         s = ""
-        for i in pwd.getpwall():
+        for i in getpwentryall():
             s += self.getoneuser(i)
         return s
 
@@ -850,20 +916,23 @@ class Handler(tf.TopElemHandler, tf.ProgOut):
 
     def end(self, t):
         data = t.get_userdata()
-        #if data.oldpwfile:
-            #self.program_output(["/bin/rm", "-f", "/etc/passwd.keep"])
-            #if have_shadow:
-            #    self.program_output(["/bin/rm", "-f", "/etc/shadow.keep"])
+        if data.oldpwfile:
+            self.program_output(["/bin/rm", "-f",
+                                 sysbase + "/etc/passwd.keep"])
+            if have_shadow:
+                self.program_output(["/bin/rm", "-f",
+                                     sysbase + "/etc/shadow.keep"])
         return 0
 
     def abort(self, t):
         data = t.get_userdata()
-        #if data.oldpwfile:
-        #    self.program_output(["/bin/mv", "-f", "/etc/passwd.keep",
-        #                         "/etc/passwd"])
-        #    if have_shadow:
-        #        self.program_output(["/bin/rm", "-f", "/etc/shadow.keep",
-        #                             "/etc/shadow"])
+        if data.oldpwfile:
+            self.program_output(["/bin/mv", "-f", sysbase + "/etc/passwd.keep",
+                                 sysbase + "/etc/passwd"])
+            if have_shadow:
+                self.program_output(["/bin/rm", "-f",
+                                     sysbase + "/etc/shadow.keep",
+                                     sysbase + "/etc/shadow"])
         return 0
 
     def statedata(self, nsc, xpath):

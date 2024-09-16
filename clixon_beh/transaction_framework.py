@@ -322,7 +322,11 @@ class ElemOpBase(PrivOp, ProgOut):
 
     def getxml(self, path, namespace=None, indexname=None, index=None):
         """Process a get operation before the path has ended.  We are just
-        parsing down the path until we hit then end."""
+        parsing down the path until we hit then end.  indexname and
+        index are for lists, they provide the index name and the index
+        for a list entry.  This code doesn't handle those, you must
+        override this function for nodes that are lists.
+        """
         if indexname is not None:
             raise Exception("Index is set for " + self.name +
                             " which doesn't support indexes")

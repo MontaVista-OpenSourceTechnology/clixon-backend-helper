@@ -58,5 +58,5 @@ Not yet implemented.
 
 ## The Python Interface
 
-See the README.md in the python_beh directory for information about the
+See the README.md in the clixon_beh directory for information about the
 Python interface.
