@@ -84,8 +84,8 @@ module linux-system {
     }
 
     augment "/ietf:system/ietf:ntp/ietf:server/ietf:transport" {
-	case tcp {
-            container tcp {
+	case nts {
+            container nts {
 		description
 		    "Contains TCP-specific configuration parameters
                      for NTP over TLS, with NTS-KE.";
