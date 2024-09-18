@@ -18,13 +18,14 @@ useradd = "/usr/sbin/useradd"
 userdel = "/usr/sbin/userdel"
 usermod = "/usr/sbin/usermod"
 have_shadow = True
+enable_user_update = True
 
 # NTP handling
 using_ntp = True
 
 # For testing, to store the files elsewhere to avoid updating the main
 # system data
-sysbase = ""
+sysbase = "/home/cminyard/tmp/clixon"
 
 # /system/hostname
 class Hostname(tf.ElemOpBaseLeaf):
@@ -135,7 +136,7 @@ class TimeZone(tf.ElemOpBaseLeaf):
             self.program_output(["/bin/timedatectl", "set-timezone",
                                  "--", value])
         else:
-            f = open("/etc/timezone", "w")
+            f = open(sysbase + "/etc/timezone", "w")
             f.write(value + "\n")
             f.close()
             self.program_output(["/bin/ln", "-sf",
@@ -198,7 +199,10 @@ class DNSHandler(tf.ElemOpBaseCommitOnly):
                     f.write("#name: " + str(i.name) + "\n")
                     f.write("nameserver " + str(i.address) + "\n")
                 f.write("options timeout:" + ddata.timeout + " attempts:"
-                        + ddata.attempts + "\n")
+                        + ddata.attempts)
+                if ddata.use_vc:
+                    f.write(" use-vc")
+                f.write("\n")
             finally:
                 f.close()
         return
@@ -486,7 +490,7 @@ class UserData(tf.ElemOpBaseCommitOnly):
             self.program_output([userdel, self.user_name])
         else:
             if self.user_op == "add":
-                self.program_output([useradd, "-m"} + useropts +
+                self.program_output([useradd, "-m"] + useropts +
                                     [self.user_name])
             if self.user_password_op == "add":
                 self.program_output([usermod, "-p", self.user_password]
@@ -709,6 +713,7 @@ class NTPServerData:
         self.name = None
         self.address = None
         self.port = "123"
+        self.port_set = False
         self.assoc_type = "server" # server, peer, or pool
         self.iburst = False
         self.prefer = False
@@ -758,18 +763,22 @@ class NTPServerUDPAddress(tf.ElemOpBaseValidateOnlyLeaf):
 class NTPServerUDPPort(tf.ElemOpBaseValidateOnlyLeaf):
     def validate_add(self, data, xml):
         data.userNTP.curr_server.port = xml.get_body()
+        data.userNTP.curr_server.port_set = True
 
 # /system/ntp/server/tcp/address
 class NTPServerNTSAddress(tf.ElemOpBaseValidateOnlyLeaf):
     def validate_add(self, data, xml):
         data.userNTP.curr_server.is_udp = False
         data.userNTP.curr_server.address = xml.get_body()
+        if not data.userNTP.curr_server.port_set:
+            data.userNTP.curr_server.port = 4460
 
 # /system/ntp/server/tcp/port
 class NTPServerNTSPort(tf.ElemOpBaseValidateOnlyLeaf):
     def validate_add(self, data, xml):
         data.userNTP.curr_server.is_udp = False
         data.userNTP.curr_server.port = xml.get_body()
+        data.userNTP.curr_server.port_set = True
 
 # /system/ntp/server/tcp/certificate
 class NTPServerNTSCertificate(tf.ElemOpBaseValidateOnlyLeaf):
@@ -831,7 +840,7 @@ system_ntp_server_children = {
                                      children = system_ntp_server_udp_children,
                                      validate_all = True),
     "nts": tf.ElemOpBaseValidateOnly("nts",
-                                     children = system_ntp_server_ntx_children,
+                                     children = system_ntp_server_nts_children,
                                      validate_all = True),
     "association-type": NTPServerAsocType("association-type"),
     "iburst": NTPServerIBurst("iburst"),
@@ -913,6 +922,7 @@ class SystemStateClock(tf.ElemOpBaseValueOnly):
             bdate = shlex.split(self.program_output(["/bin/who","-b"]))
             if len(bdate) < 4:
                 raise Exception("Invalid who -b output: " + str(bdate))
+            # Steal the time zone from the main date.
             zone = date.split("Z")
             if len(zone) < 2:
                 raise Exception("Invalid zone in date: " + date)

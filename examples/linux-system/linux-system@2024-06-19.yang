@@ -2,6 +2,10 @@ module linux-system {
     namespace "http://linux.org";
     prefix "lin";
 
+    import ietf-inet-types {
+	prefix inet;
+    }
+
     import ietf-system {
 	prefix ietf;
     }
@@ -96,7 +100,7 @@ module linux-system {
 			"The address of the NTP server.";
 		}
 		leaf port {
-		    if-feature ntp-udp-port;
+		    if-feature ietf:ntp-udp-port;
 		    type inet:port-number;
 		    default 4460;
 		    description

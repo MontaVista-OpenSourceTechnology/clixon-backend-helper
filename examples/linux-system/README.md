@@ -26,7 +26,7 @@ Start backend in the background:
 
 Start cli:
 ```
-    clixon_cli -f /usr/local/etc/clixon/itef-system.xml
+    clixon_cli -f /usr/local/etc/clixon/linux-system.xml
 ```
 
 ## Using the CLI
