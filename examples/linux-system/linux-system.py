@@ -38,7 +38,7 @@ hostnamecmd = "/bin/hostname"
 hostnamefile = "/etc/hostname"
 localtimefile = "/etc/localtime"
 timezonefile = "/etc/timezone"
-zoneinfo = "/usr/share/zoneinfo/"
+zoneinfodir = "/usr/share/zoneinfo/"
 resolvconffile = "/etc/resolv.conf"
 
 # For testing, to store the files elsewhere to avoid updating the main
@@ -110,7 +110,7 @@ class TimeZone(tf.ElemOpBaseLeaf):
         if not self.is_name:
             raise Exception("Only name timezones are accepted")
         value = newxml.get_body()
-        if not os.path.exists(sysbase + zoneinfo + value):
+        if not os.path.exists(sysbase + zoneinfodir + value):
             raise Exception(value + " not a valid timezone")
         data.add_op(self, None, value)
 
@@ -140,7 +140,7 @@ class TimeZone(tf.ElemOpBaseLeaf):
                     # does not exist or is not already a symlink.
                     # Make sure it points to something.
                     self.program_output([lncmd, "-sf",
-                                         sysbase + zoneinfo + "GMT",
+                                         sysbase + zoneinfodir + "GMT",
                                          sysbase + localtimefile])
                 self.setvalue(op.oldvalue[1])
             except:
@@ -158,7 +158,7 @@ class TimeZone(tf.ElemOpBaseLeaf):
             f.write(value + "\n")
             f.close()
             self.program_output([lncmd, "-sf",
-                                 sysbase + zoneinfo + value,
+                                 sysbase + zoneinfodir + value,
                                  sysbase + localtimefile])
             pass
         return
