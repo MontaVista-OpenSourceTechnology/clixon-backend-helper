@@ -299,7 +299,7 @@ class ElemOpBase(PrivOp, ProgOut):
         return
 
     def parsepathentry(self, e):
-        """Parse value in the form "[pfx:]name"[\[[pfx:]indexname='value'\]]"
+        """Parse value in the form "[pfx:]name[\\[[pfx:]indexname='value'\\]]"
         Ignore the prefixes, get the name, indexname, and value.
         """
         name = e.split(":", 1)
