@@ -25,7 +25,7 @@ using_ntp = True
 
 # For testing, to store the files elsewhere to avoid updating the main
 # system data
-sysbase = "/home/cminyard/tmp/clixon"
+sysbase = ""
 
 # /system/hostname
 class Hostname(tf.ElemOpBaseLeaf):
