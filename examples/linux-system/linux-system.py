@@ -14,14 +14,32 @@ old_dns_supported = True
 allow_user_add_del = True      # Add/delete users allowed?
 allow_user_pw_change = True    # User password changes allowed?
 allow_user_key_change = True   # SSH authorized key changes allowed?
+enable_user_update = True      # Allow the password files to be chagned at all.
 useradd = "/usr/sbin/useradd"
 userdel = "/usr/sbin/userdel"
 usermod = "/usr/sbin/usermod"
 have_shadow = True
-enable_user_update = True
+passwdfile = "/etc/passwd"
+shadowfile = "/etc/shadow"
 
 # NTP handling
 using_ntp = True
+
+# Various commands
+cpcmd = "/bin/cp"
+touchcmd = "/bin/touch"
+lscmd = "/bin/ls"
+lncmd = "/bin/ln"
+mvcmd = "/bin/mv"
+rmcmd = "/bin/rm"
+catcmd = "/bin/cat"
+datecmd = "/bin/date"
+hostnamecmd = "/bin/hostname"
+hostnamefile = "/etc/hostname"
+localtimefile = "/etc/localtime"
+timezonefile = "/etc/timezone"
+zoneinfo = "/usr/share/zoneinfo/"
+resolvconffile = "/etc/resolv.conf"
 
 # For testing, to store the files elsewhere to avoid updating the main
 # system data
@@ -62,15 +80,15 @@ class Hostname(tf.ElemOpBaseLeaf):
 
     def setvalue(self, value):
         if sysbase == "":
-            self.program_output(["/bin/hostname", value])
-        f = open(sysbase + "/etc/hostname", "w")
+            self.program_output([hostnamecmd, value])
+        f = open(sysbase + hostnamefile, "w")
         try:
             f.write(value + "\n")
         finally:
             f.close()
 
     def getvalue(self):
-        with open("/etc/hostname", "r") as file:
+        with open(hostnamefile, "r") as file:
             data = file.read().rstrip()
         return data
 
@@ -92,15 +110,15 @@ class TimeZone(tf.ElemOpBaseLeaf):
         if not self.is_name:
             raise Exception("Only name timezones are accepted")
         value = newxml.get_body()
-        if not os.path.exists(sysbase + "/usr/share/zoneinfo/" + value):
+        if not os.path.exists(sysbase + zoneinfo + value):
             raise Exception(value + " not a valid timezone")
         data.add_op(self, None, value)
 
     def commit(self, op):
         oldlocaltime = None
         try:
-            lt = self.program_output(["/bin/ls", "-l",
-                                      sysbase + "/etc/localtime"])
+            lt = self.program_output([lscmd, "-l",
+                                      sysbase + localtimefile])
             lt = lt.split("->")
             if len(lt) > 2:
                 oldlocaltime = lt[1].strip()
@@ -121,9 +139,9 @@ class TimeZone(tf.ElemOpBaseLeaf):
                     # timedatectl will not add /etc/localtime if it
                     # does not exist or is not already a symlink.
                     # Make sure it points to something.
-                    self.program_output(["/bin/ln", "-sf",
-                                         sysbase + "/usr/share/zoneinfo/GMT",
-                                         sysbase + "/etc/localtime"])
+                    self.program_output([lncmd, "-sf",
+                                         sysbase + zoneinfo + "GMT",
+                                         sysbase + localtimefile])
                 self.setvalue(op.oldvalue[1])
             except:
                 pass
@@ -136,12 +154,12 @@ class TimeZone(tf.ElemOpBaseLeaf):
             self.program_output(["/bin/timedatectl", "set-timezone",
                                  "--", value])
         else:
-            f = open(sysbase + "/etc/timezone", "w")
+            f = open(sysbase + timezonefile, "w")
             f.write(value + "\n")
             f.close()
-            self.program_output(["/bin/ln", "-sf",
-                                 sysbase + "/usr/share/zoneinfo/" + value,
-                                 sysbase + "/etc/localtime"])
+            self.program_output([lncmd, "-sf",
+                                 sysbase + zoneinfo + value,
+                                 sysbase + localtimefile])
             pass
         return
 
@@ -149,8 +167,7 @@ class TimeZone(tf.ElemOpBaseLeaf):
         if not self.is_name:
             return ""
         try:
-            s = self.program_output(["/bin/cat",
-                                     sysbase + "/etc/timezone"]).strip()
+            s = self.program_output([catcmd, sysbase + timezonefile]).strip()
         except:
             s = "GMT"
         return s
@@ -178,17 +195,17 @@ class DNSHandler(tf.ElemOpBaseCommitOnly):
     def priv(self, op):
         ddata = op.userData
         if op.revert:
-            os.remove(sysbase + "/etc/resolv.conf.tmp")
+            os.remove(sysbase + resolvconffile + ".tmp")
             pass
         elif op.done:
-            os.replace(sysbase + "/etc/resolv.conf.tmp",
-                       sysbase + "/etc/resolv.conf")
+            os.replace(sysbase + resolvconffile + ".tmp",
+                       sysbase + resolvconffile)
         else:
             # Create a file to hold the data.  We move the file over when
             # done.
             # FIXME - no handling for port or certificate in the default
             # way of doing this.
-            f = open(sysbase + "/etc/resolv.conf.tmp", "w")
+            f = open(sysbase + resolvconffile + ".tmp", "w")
             try:
                 if len(ddata.add_search) > 0:
                     f.write("search")
@@ -333,7 +350,7 @@ class DNSResolver(tf.ElemOpBase):
             return ""
 
         try:
-            f = open(sysbase + "/etc/resolv.conf", "r", encoding="utf-8")
+            f = open(sysbase + resolvconffile, "r", encoding="utf-8")
         except:
             return ""
         try:
@@ -404,7 +421,7 @@ system_dns_resolver_children = {
 # The standard pwd methods for python don't have a way to override the
 # base location.  Re-implement them with that capability.
 def getpwentry(name):
-    f = open(sysbase + "/etc/passwd", "r")
+    f = open(sysbase + passwdfile, "r")
     found = False
     for i in f:
         p = i.split(":")
@@ -420,7 +437,7 @@ def getpwentry(name):
     raise Exception("Password entry not found")
 
 def getpwentryall():
-    f = open(sysbase + "/etc/passwd", "r")
+    f = open(sysbase + passwdfile, "r")
     plist = []
     for i in f:
         p = i.split(":")
@@ -464,23 +481,23 @@ class UserData(tf.ElemOpBaseCommitOnly):
         if not self.data.oldpwfile:
             if enable_user_update:
                 self.data.oldpwfile = True
-                self.program_output(["/bin/cp", sysbase + "/etc/passwd",
-                                     sysbase + "/etc/passwd.keep"])
+                self.program_output([cpcmd, sysbase + passwdfile,
+                                     sysbase + passwdfile + ".keep"])
                 if have_shadow:
-                    self.program_output(["/bin/cp", sysbase + "/etc/shadow",
-                                         sysbase + "/etc/shadow.keep"])
+                    self.program_output([cpcmd, sysbase + shadowfile,
+                                         sysbase + shadowfile + ".keep"])
 
     def savekeyfile(self):
         if not self.oldkeyfile:
             self.home = getpwentry(self.user_name)[5]
             self.keyfile = self.home + "/.ssh/authorized_keys";
             try:
-                self.program_output(["/bin/cp", self.keyfile,
+                self.program_output([cpcmd, self.keyfile,
                                      self.keyfile + ".keep"])
                 self.oldkeyfile = True
             except:
                 self.oldkeyempty = True
-                self.program_output(["/bin/touch", self.keyfile])
+                self.program_output([touchcmd, self.keyfile])
 
     def commit(self, op):
         if self.user_name is None:
@@ -514,9 +531,9 @@ class UserData(tf.ElemOpBaseCommitOnly):
     def revert(self, op):
         if self.oldkeyfile:
             if self.oldkeyempty:
-                self.program_output(["/bin/rm", self.keyfile])
+                self.program_output([rmcmd, self.keyfile])
             else:
-                self.program_output(["/bin/mv", "-f", self.keyfile + ".keep",
+                self.program_output([mvcmd, "-f", self.keyfile + ".keep",
                                      self.keyfile])
                 pass
             pass
@@ -908,7 +925,7 @@ class SystemStatePlatform(tf.ElemOpBaseValueOnly):
 # /system-state/clock/*
 class SystemStateClock(tf.ElemOpBaseValueOnly):
     def getvalue(self):
-        date = self.program_output(["/bin/date","--rfc-3339=seconds"]).strip()
+        date = self.program_output([datecmd, "--rfc-3339=seconds"]).strip()
         date = date.split(" ")
         if len(date) < 2:
             raise Exception("Invalid date output: " + str(date))
@@ -969,22 +986,23 @@ class Handler(tf.TopElemHandler, tf.ProgOut):
     def end(self, t):
         data = t.get_userdata()
         if data.oldpwfile:
-            self.program_output(["/bin/rm", "-f",
-                                 sysbase + "/etc/passwd.keep"])
+            self.program_output([rmcmd, "-f",
+                                 sysbase + passwdfile + ".keep"])
             if have_shadow:
-                self.program_output(["/bin/rm", "-f",
-                                     sysbase + "/etc/shadow.keep"])
+                self.program_output([rmcmd, "-f",
+                                     sysbase + shadowfile + ".keep"])
         return 0
 
     def abort(self, t):
         data = t.get_userdata()
         if data.oldpwfile:
-            self.program_output(["/bin/mv", "-f", sysbase + "/etc/passwd.keep",
-                                 sysbase + "/etc/passwd"])
+            self.program_output([mvcmd, "-f",
+                                 sysbase + passwdfile + ".keep",
+                                 sysbase + passwdfile])
             if have_shadow:
-                self.program_output(["/bin/rm", "-f",
-                                     sysbase + "/etc/shadow.keep",
-                                     sysbase + "/etc/shadow"])
+                self.program_output([rmcmd, "-f",
+                                     sysbase + shadowfile + ".keep",
+                                     sysbase + shadowfile])
         return 0
 
     def statedata(self, nsc, xpath):
@@ -1016,7 +1034,7 @@ class SetTimeHandler(tf.RPC):
         return (0, s)
 
     def priv(self, op):
-        self.program_output(["/bin/date", "-s", op])
+        self.program_output([datecmd, "-s", op])
 
 clixon_beh.add_rpc_callback("set-current-datetime",
                             "urn:ietf:params:xml:ns:yang:ietf-system",
