@@ -266,23 +266,56 @@ class DNSSearch(tf.ElemOpBaseValidateOnlyLeaf):
         ddata = dns_get_opdata(data)
         ddata.add_search.append(xml.get_body())
 
+    def fetch_index(self, indexname, index, vdata):
+        for i in vdata["search"]:
+            if i == index:
+                return i
+            pass
+        return None
+
+    def getonevalue(self, vdata):
+        return vdata
+
+    def fetch_full_index(self, vdata):
+        return vdata["search"]
+
+    pass
+
 # /system/dns-resolver/server/name
 class DNSServerName(tf.ElemOpBaseValidateOnlyLeaf):
     def validate_add(self, data, xml):
         ddata = dns_get_opdata(data)
         ddata.curr_server.name = xml.get_body()
+        return
+
+    def getvalue(self, vdata=None):
+        return vdata["name"]
+
+    pass
 
 # /system/dns-resolver/server/address
 class DNSServerAddress(tf.ElemOpBaseValidateOnlyLeaf):
     def validate_add(self, data, xml):
         ddata = dns_get_opdata(data)
         ddata.curr_server.address = xml.get_body()
+        return
+
+    def getvalue(self, vdata=None):
+        return vdata["address"]
+
+    pass
 
 # /system/dns-resolver/server/port
 class DNSServerPort(tf.ElemOpBaseValidateOnlyLeaf):
     def validate_add(self, data, xml):
         ddata = dns_get_opdata(data)
         ddata.curr_server.port = xml.get_body()
+        return
+
+    def getvalue(self, vdata=None):
+        return vdata["port"]
+
+    pass
 
 # /system/dns-resolver/server/udp-and-tcp
 system_dns_server_ip_children = {
@@ -295,13 +328,16 @@ class DNSServerCertificate(tf.ElemOpBaseValidateOnlyLeaf):
     def validate_add(self, data, xml):
         ddata = dns_get_opdata(data)
         ddata.curr_server.certificate = xml.get_body()
+        return
+
+    pass
 
 # /system/dns-resolver/server
 system_dns_server_children = {
     "name": DNSServerName("name"),
-    "udp-and-tcp": tf.ElemOpBaseValidateOnly("upd-and-tcp",
-                                    children = system_dns_server_ip_children,
-                                    validate_all = True),
+    "udp-and-tcp": tf.ElemOpBaseValidateOnly("udp-and-tcp",
+                                    children=system_dns_server_ip_children,
+                                    validate_all=True),
     "certificate": DNSServerCertificate("certificate"),
     # FIXME - Add encrypted DNS support, and possibly DNSSEC.
 }
@@ -313,27 +349,62 @@ class DNSServer(tf.ElemOpBaseValidateOnly):
         ddata.curr_server = DNSServerData()
         ddata.add_server.append(ddata.curr_server)
         super().validate_add(data, xml)
+        return
 
     def validate(self, data, origxml, newxml):
         self.validate_add(data, newxml)
+        return
+
+    def fetch_index(self, indexname, index, vdata):
+        for i in vdata["nameservers"]:
+            if i["name"] == index:
+                return i
+            pass
+        return None
+
+    def fetch_full_index(self, vdata):
+        return vdata["nameservers"]
+
+    pass
 
 # /system/dns-resolver/options/timeout
 class DNSTimeout(tf.ElemOpBaseValidateOnlyLeaf):
     def validate_add(self, data, xml):
         ddata = dns_get_opdata(data)
         ddata.timeout = xml.get_body()
+        return
+
+    def getvalue(self, vdata=None):
+        return vdata["timeout"]
+
+    pass
 
 # /system/dns-resolver/options/attempts
 class DNSAttempts(tf.ElemOpBaseValidateOnlyLeaf):
     def validate_add(self, data, xml):
         ddata = dns_get_opdata(data)
         ddata.attempts = xml.get_body()
+        return
+
+    def getvalue(self, vdata=None):
+        return vdata["attempts"]
+
+    pass
 
 # /system/dns-resolver/options/use-vc - augment in linux-system
 class DNSUseVC(tf.ElemOpBaseValidateOnlyLeaf):
     def validate_add(self, data, xml):
         ddata = dns_get_opdata(data)
         ddata.use_vc = xml.get_body().lower() == "true"
+        return
+
+    def getvalue(self, vdata=None):
+        # We have to add our own namespace, so set wrapxml to false for
+        # this class and do it ourself.
+        return ("<use-vc xmlns=\"" + MY_NAMESPACE + "\">" +
+                vdata["use-vc"] + "</use-vc>")
+
+    pass
 
 # /system/dns-resolver
 class DNSResolver(tf.ElemOpBase):
@@ -354,68 +425,77 @@ class DNSResolver(tf.ElemOpBase):
         except:
             return ""
         try:
-            s = ""
+            # Construct a map of all the data and then pass it to super().
             srvnum = 1
             srvstr = str(srvnum)
+            vdata = { "search": [],
+                      "nameservers": [],
+                      "timeout": "",
+                      "attempts": "",
+                      "use-vc": "false" }
             for l in f:
                 if l.startswith("search "):
-                    for i in l.split()[1:]:
-                        s += "<search>" + tf.xmlescape(i) + "</search>"
+                    vdata["search"] += l.split()[1:]
                 elif l.startswith("#name: "):
                     ts = l.split()
                     if len(ts) > 1:
                         srvstr = ts[1]
+                        pass
+                    pass
                 elif l.startswith("nameserver "):
                     ts = l.split()
                     if len(ts) > 1:
-                        s += "<server>"
-                        s += "<name>" + tf.xmlescape(srvstr) + "</name>"
-                        s += "<udp-and-tcp>"
-                        s += "<address>" + tf.xmlescape(ts[1]) + "</address>"
-                        s += "<port>53</port>"
-                        s += "</udp-and-tcp>"
-                        s += "</server>"
+                        v = { "name": srvstr,
+                              "address": ts[1],
+                              "port": "53" }
+                        vdata["nameservers"].append(v)
                         srvnum = srvnum + 1
                         srvstr = str(srvnum)
+                        pass
+                    pass
                 elif l.startswith("options"):
                     use_vc_found = "false"
-                    s += "<options>"
                     for i in l.split()[1:]:
                         if i.startswith("timeout:"):
                             ts = i.split(":")
                             if len(ts) > 1:
-                                to = tf.xmlescape(ts[1])
-                                s += "<timeout>" + to + "</timeout>"
+                                vdata["timeout"] = ts[1]
+                                pass
+                            pass
                         elif i.startswith("attempts:"):
                             ts = i.split(":")
                             if len(ts) > 1:
-                                at = tf.xmlescape(ts[1])
-                                s += "<attempts>" + at + "</attempts>"
+                                vdata["attempts"] = ts[1]
+                                pass
+                            pass
                         elif i == "use-vc":
-                            use_vc_found = "true"
-                    s += ("<use-vc xmlns=\"" + MY_NAMESPACE
-                          + "\">" + use_vc_found + "</use-vc>")
-                    s += "</options>"
+                            vdata["use-vc"] = "true"
+                            pass
+                        pass
+                    pass
+                pass
+            pass
         except:
             f.close()
             return ""
         f.close()
-        return s
+        return super().getvalue(vdata=vdata)
 
 # /system/dns-resolver/options
 system_dns_options_children = {
     "timeout": DNSTimeout("timeout"),
     "attempts": DNSAttempts("attempts"),
-    "use-vc": DNSUseVC("use-vc"),
+    "use-vc": DNSUseVC("use-vc", wrapxml=False, xmlprocvalue=False),
 }
 
 # /system/dns-resolver
 system_dns_resolver_children = {
-    "search": DNSSearch("search"),
-    "server": DNSServer("server", children = system_dns_server_children,
-                        validate_all = True),
-    "options": tf.ElemOpBase("options", children = system_dns_options_children,
-                             validate_all = True),
+    "search": DNSSearch("search", indexed=True, wrapxml=False,
+                        xmlprocvalue=False),
+    "server": DNSServer("server", children=system_dns_server_children,
+                        validate_all=True, indexed=True),
+    "options": tf.ElemOpBase("options", children=system_dns_options_children,
+                             validate_all=True),
 }
 
 # The standard pwd methods for python don't have a way to override the
@@ -553,16 +633,22 @@ class UserName(tf.ElemOpBaseValidateOnlyLeaf):
         if data.userCurrU.user_op == "add" and data.userCurrU.user_exists():
             raise Exception("User " + data.userCurrU.user_name
                             + " already exists")
+        return
 
     def validate_del(self, data, xml):
         data.userCurrU.user_name = xml.get_body()
         if not data.userCurrU.user_exists():
             raise Exception("User " + data.userCurrU.user_name + " not present")
+        return
 
     def validate(self, data, origxml, newxml):
         data.userCurrU.user_name = newxml.get_body()
         if not data.userCurrU.user_exists():
             raise Exception("User " + data.userCurrU.user_name + " not present")
+        return
+
+    def getvalue(self, vdata=None):
+        return vdata[0]
 
 # /system/authentication/user/password
 class UserPassword(tf.ElemOpBaseValidateOnlyLeaf):
@@ -571,11 +657,13 @@ class UserPassword(tf.ElemOpBaseValidateOnlyLeaf):
             raise Exception("User password change not allowed")
         data.userCurrU.user_password_op = "add"
         data.userCurrU.user_password = xml.get_body()
+        return
 
     def validate_del(self, data, xml):
         if data.userCurrU.user_op != "del":
             raise Exception("User password delete not allowed")
         data.userCurrU.user_password_op = "del"
+        return
 
     def validate(self, data, origxml, newxml):
         # Don't have to worry about the password on a delete.
@@ -584,34 +672,55 @@ class UserPassword(tf.ElemOpBaseValidateOnlyLeaf):
                 raise Exception("User password change not allowed")
             data.userCurrU.user_password_op = "add" # Add and change are same
             data.userCurrU.user_password = xml.get_body()
+            pass
+        return
+
+    def getvalue(self, vdata=None):
+        return "x" # Never return actual password data.
 
 # /system/authentication/user/authorized-key/name
 class UserAuthkeyName(tf.ElemOpBaseValidateOnlyLeaf):
     def validate_add(self, data, xml):
         data.userCurrU.user_curr_key.name = xml.get_body()
+        return
+
+    def getvalue(self, vdata=None):
+        return vdata[2]
 
 # /system/authentication/user/authorized-key/algorithm
 class UserAuthkeyAlgo(tf.ElemOpBaseValidateOnlyLeaf):
     def validate_add(self, data, xml):
         data.userCurrU.user_curr_key.algorithm = xml.get_body()
+        return
 
     def validate(self, data, origxml, newxml):
         if newxml.get_flags(clixon_beh.XMLOBJ_FLAG_CHANGE):
             data.userCurrU.user_curr_key.algorithm = xml.get_body()
             data.userCurrU.user_curr_key.change_algorithm = True
+            pass
+        return
+
+    def getvalue(self, vdata=None):
+        return vdata[0]
 
 # /system/authentication/user/authorized-key/key-data
 class UserAuthkeyKeyData(tf.ElemOpBaseValidateOnlyLeaf):
     def validate_add(self, data, xml):
         data.userCurrU.user_curr_key.keydata = xml.get_body()
+        return
 
     def validate(self, data, origxml, newxml):
         if newxml.get_flags(clixon_beh.XMLOBJ_FLAG_CHANGE):
             data.userCurrU.user_curr_key.keydata = xml.get_body()
             data.userCurrU.user_curr_key.change_keydata = True
+            pass
+        return
+
+    def getvalue(self, vdata=None):
+        return "x" # Never return actual key data.
 
 # /system/authentication/user/authorized-key
-class UserAuthkey(tf.ElemOpBaseValidateOnly):
+class UserAuthkey(tf.ElemOpBase):
     """This handles the user authorized key."""
     def validate_add(self, data, xml):
         if not allow_user_key_change:
@@ -620,6 +729,7 @@ class UserAuthkey(tf.ElemOpBaseValidateOnly):
         data.userCurrU.user_keys.append(data.userCurrU.user_curr_key)
         data.userCurrU.user_curr_key.op = "add"
         super().validate_add(data, xml)
+        return
 
     def validate_del(self, data, xml):
         if not allow_user_key_change:
@@ -628,6 +738,28 @@ class UserAuthkey(tf.ElemOpBaseValidateOnly):
         data.userCurrU.user_keys.append(data.userCurrU.user_curr_key)
         data.userCurrU.user_curr_key.op = "del"
         data.userCurrU.user_keys.append(data.userCurrU.user_curr_key)
+        return
+
+    def fetch_index(self, indexname, index, vdata):
+        for i in self.fetch_full_index(vdata):
+            if i[2] == index:
+                return i
+            pass
+        return None
+
+    def fetch_full_index(self, vdata):
+        try:
+            f = open(vdata[5] + "/.ssh/authorized_keys", "r")
+        except:
+            return []
+        idx = []
+        for i in f:
+            if len(i) >= 3:
+                idx.append(i)
+                pass
+            pass
+        f.close()
+        return idx
 
 # /system/authentication/user/authorized-key
 system_user_authkey_children = {
@@ -637,7 +769,7 @@ system_user_authkey_children = {
 }
 
 # /system/authentication/user
-class User(tf.ElemOpBaseValidateOnly):
+class User(tf.ElemOpBase):
     def start(self, data, op):
         data.userCurrU = UserData("user", data)
         data.add_op(data.userCurrU, "user", None)
@@ -658,57 +790,15 @@ class User(tf.ElemOpBaseValidateOnly):
     def validate(self, data, origxml, newxml):
         self.start(data, None)
         super().validate(data, origxml, newxml)
+        return
 
-    def getxml(self, path, namespace=None, indexname=None, index=None,
-               value=None):
-        if index is None:
-            raise Exception("getxml for user with no index")
-        try:
-            p = getpwentry(index)
-        except:
-            return ""
-        if len(path) == 0:
-            return self.getoneuser(p)
-        (name, indexname, index) = self.parsepathentry(path[0])
-        if name == "name":
-            xml = "<user><name>" + tf.xmlescape(p[0]) + "</name></user>"
-        elif name == "authorized-key":
-            if index is None:
-                xml = self.getkey(p[5])
-            else:
-                xml = self.getkey(p[5], keyname=index)
-        return xml
+    def fetch_index(self, indexname, index, vdata):
+        return getpwentry(index)
 
-    def getkey(self, keypath, keyname=None):
-        f = open(keypath + "/.ssh/authorized_keys", "r")
-        s = ""
-        for j in f:
-            k = j.split()
-            if len(k) >= 3 and (keyname is None or keyname == k[2]):
-                s += "<authorized-key>"
-                s += "<name>" + tf.xmlescape(k[2]) + "</name>"
-                s += "<algorithm>" + tf.xmlescape(k[0]) + "</algorithm>"
-                s += "<key-data>x</key-data>"
-                s += "</authorized-key>"
-        return s
-        
-    def getoneuser(self, p):
-        s = "<user><name>" + tf.xmlescape(p[0]) + "</name>"
-        f = None
-        try:
-            s += self.getkey(p[5])
-        except:
-            pass
-        if f is not None:
-            f.close()
-        s += "</user>"
-        return s
-        
-    def getvalue(self, vdata=None):
-        s = ""
-        for i in getpwentryall():
-            s += self.getoneuser(i)
-        return s
+    def fetch_full_index(self, vdata):
+        return getpwentryall()
+
+    pass
 
 # /system/authentication/user
 system_user_children = {
@@ -716,13 +806,13 @@ system_user_children = {
     "password": UserPassword("password"),
     "authorized-key": UserAuthkey("authorized-key",
                                   children = system_user_authkey_children,
-                                  validate_all = True),
+                                  validate_all=True, indexed=True),
 }
 
 # /system/authentication
 system_authentication_children = {
     "user-authentication-order": tf.ElemOpBaseConfigOnly("user-authentication-order"),
-    "user": User("user", children = system_user_children, wrapxml = False),
+    "user": User("user", children = system_user_children, indexed=True),
 }
 
 class NTPServerData:
@@ -825,18 +915,24 @@ class NTPServer(tf.ElemOpBaseValidateOnly):
         data.userNTP.curr_server = NTPServerData()
         data.userNTP.curr_server.op = op
         data.userNTP.servers.append(data.userNTP.curr_server)
+        return
 
     def validate_add(self, data, xml):
         self.start(data, "add")
         super().validate_add(data, xml)
+        return
 
     def validate_del(self, data, xml):
         self.start(data, "del")
         super().validate_del(data, xml)
+        return
 
     def validate(self, data, origxml, newxml):
         self.start(data, "change")
         super().validate(data, origxml, newxml)
+        return
+
+    pass
 
 # /system/ntp/server/udp
 system_ntp_server_udp_children = {
@@ -870,10 +966,12 @@ class NTP(tf.ElemOpBaseValidateOnly):
     def start(self, data):
         data.userNTP = NTPData("ntp")
         data.add_op(data.userNTP, "ntp", None)
+        return
 
     def validate_add(self, data, xml):
         self.start(data)
         super().validate_add(data, xml)
+        return
 
     def validate_del(self, data, xml):
         raise Exception("Cannot delete NTP data.")
@@ -881,10 +979,13 @@ class NTP(tf.ElemOpBaseValidateOnly):
     def validate(self, data, origxml, newxml):
         self.start(data)
         super().validate(data, origxml, newxml)
+        return
 
     # FIXME - implement this
     def getvalue(self, vdata=None):
         return ""
+
+    pass
 
 # /system/ntp
 system_ntp_children = {
@@ -903,7 +1004,7 @@ system_children = {
                xmlprocvalue = True),
     "dns-resolver": DNSResolver("dns-resolver",
                                 children = system_dns_resolver_children,
-                                validate_all = True, xmlprocvalue = False),
+                                validate_all = True),
     "authentication": tf.ElemOpBase("authentication",
                                     children = system_authentication_children),
 }
@@ -1072,10 +1173,12 @@ clixon_beh.add_rpc_callback("system-shutdown",
 
 class AuthStatedata:
     def stateonly(self):
-        rv = children["system"].getvalue()
+        rv = children["system"].getonevalue()
         if rv and len(rv) > 0:
             rv = ("<system xmlns=\"urn:ietf:params:xml:ns:yang:ietf-system\">"
                   + rv + "</system>")
+            pass
+        print("Returning: " + str(rv))
         return (0, rv)
 
 clixon_beh.add_stateonly("<system xmlns=\"urn:ietf:params:xml:ns:yang:ietf-system\"></system>",
