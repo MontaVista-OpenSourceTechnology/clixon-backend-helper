@@ -43,7 +43,7 @@ resolvconffile = "/etc/resolv.conf"
 
 # For testing, to store the files elsewhere to avoid updating the main
 # system data
-sysbase = ""
+sysbase = "/home/cminyard/tmp/clixon"
 
 # /system/hostname
 class Hostname(tf.ElemOpBaseLeaf):
@@ -87,7 +87,7 @@ class Hostname(tf.ElemOpBaseLeaf):
         finally:
             f.close()
 
-    def getvalue(self):
+    def getvalue(self, vdata=None):
         with open(hostnamefile, "r") as file:
             data = file.read().rstrip()
         return data
@@ -163,7 +163,7 @@ class TimeZone(tf.ElemOpBaseLeaf):
             pass
         return
 
-    def getvalue(self):
+    def getvalue(self, vdata=None):
         if not self.is_name:
             return ""
         try:
@@ -341,7 +341,7 @@ class DNSResolver(tf.ElemOpBase):
         # FIXME - maybe delete /etc/resolv.conf?  or fix the YANG?
         raise Exception("Cannot delete main DNS data")
 
-    def getvalue(self):
+    def getvalue(self, vdata=None):
         """We fetch the resolv.conf file and process it here ourselves.  None
         of the children will need to handle it.
 
@@ -659,7 +659,8 @@ class User(tf.ElemOpBaseValidateOnly):
         self.start(data, None)
         super().validate(data, origxml, newxml)
 
-    def getxml(self, path, namespace=None, indexname=None, index=None):
+    def getxml(self, path, namespace=None, indexname=None, index=None,
+               value=None):
         if index is None:
             raise Exception("getxml for user with no index")
         try:
@@ -703,7 +704,7 @@ class User(tf.ElemOpBaseValidateOnly):
         s += "</user>"
         return s
         
-    def getvalue(self):
+    def getvalue(self, vdata=None):
         s = ""
         for i in getpwentryall():
             s += self.getoneuser(i)
@@ -882,7 +883,7 @@ class NTP(tf.ElemOpBaseValidateOnly):
         super().validate(data, origxml, newxml)
 
     # FIXME - implement this
-    def getvalue(self):
+    def getvalue(self, vdata=None):
         return ""
 
 # /system/ntp
@@ -908,8 +909,8 @@ system_children = {
 }
 
 # /system-state/platform/*
-class SystemStatePlatform(tf.ElemOpBaseValueOnly):
-    def getvalue(self):
+class SystemStatePlatform(tf.ElemOpBaseValueOnlyLeaf):
+    def getvalue(self, vdata=None):
         if self.name == "os-name":
             opt = "-s"
         elif self.name == "os-release":
@@ -923,8 +924,8 @@ class SystemStatePlatform(tf.ElemOpBaseValueOnly):
         return self.program_output(["/bin/uname", opt]).strip()
 
 # /system-state/clock/*
-class SystemStateClock(tf.ElemOpBaseValueOnly):
-    def getvalue(self):
+class SystemStateClock(tf.ElemOpBaseValueOnlyLeaf):
+    def getvalue(self, vdata=None):
         date = self.program_output([datecmd, "--rfc-3339=seconds"]).strip()
         date = date.split(" ")
         if len(date) < 2:

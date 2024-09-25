@@ -169,7 +169,8 @@ class PrivOp:
         return
 
 class ProgOut:
-    def program_output(self, args, timeout=1000):
+    def program_output(self, args, timeout=1000,
+                       decoder = lambda x : x.decode("utf-8")):
         """Call a program with the given arguments and return the stdout.
         If it errors, generate an exception with stderr output."""
         p = subprocess.Popen(args, stdout=subprocess.PIPE,
@@ -178,7 +179,7 @@ class ProgOut:
         rc = p.wait()
         if rc != 0:
             raise Exception(args[0] + " error(" + str(rc) + "): " + err.decode("utf-8"))
-        return out.decode("utf-8")
+        return decoder(out)
 
 class ElemOpBase(PrivOp, ProgOut):
     """The base class for operation handler (what goes into an "Op" class
@@ -194,7 +195,7 @@ class ElemOpBase(PrivOp, ProgOut):
 
     """
     def __init__(self, name, children = {}, validate_all = False,
-                 xmlprocvalue = False, wrapxml = True):
+                 xmlprocvalue = False, wrapxml = True, indexed = False):
         """name should be the xml tag name for this operations.  children, if
         set, should be a map of the xml elements that can occur in
         this xml element, and their handlers.  If validate_all is set,
@@ -220,6 +221,7 @@ class ElemOpBase(PrivOp, ProgOut):
         self.validate_all = validate_all
         self.xmlprocvalue = xmlprocvalue
         self.wrapxml = wrapxml
+        self.indexed = indexed
 
     def validate_add(self, data, xml):
         """Validate add of an element list.  Leaf elements should override
@@ -320,16 +322,29 @@ class ElemOpBase(PrivOp, ProgOut):
             name = name[1]
         return (name, indexname, index)
 
-    def getxml(self, path, namespace=None, indexname=None, index=None):
+    def fetch_index(self, indexname, index, value):
+        raise Exception("No index function for " + self.name)
+
+    def getxml(self, path, namespace=None, indexname=None, index=None,
+               vdata=None):
         """Process a get operation before the path has ended.  We are just
         parsing down the path until we hit then end.  indexname and
         index are for lists, they provide the index name and the index
         for a list entry.  This code doesn't handle those, you must
         override this function for nodes that are lists.
         """
-        if indexname is not None:
+        if self.indexed:
+            if index is None:
+                raise Exception("No index is set for " + self.name)
+            value = self.fetch_index(indexname, index, vdata)
+            if value is None:
+                return ""
+            pass
+        elif indexname is not None:
             raise Exception("Index is set for " + self.name +
                             " which doesn't support indexes")
+
+        xml = ""
         if self.wrapxml:
             xml = "<" + self.name
             if namespace is not None:
@@ -337,7 +352,7 @@ class ElemOpBase(PrivOp, ProgOut):
             else:
                 xml += ">"
         if len(path) == 0:
-            value = self.getvalue()
+            value = self.getvalue(vdata=vdata)
             if self.xmlprocvalue:
                 value = xmlescape(value)
             xml += value
@@ -346,17 +361,19 @@ class ElemOpBase(PrivOp, ProgOut):
             if name in self.children:
                 xml += self.children[name].getxml(path[1:],
                                                   indexname=indexname,
-                                                  index=index)
+                                                  index=index,
+                                                  vdata=vdata)
             else:
                 raise Exception("Unknown name " + name + " in " + self.name)
         if self.wrapxml:
             xml += "</" + self.name + ">"
-        print("getxml for {}: {}".format(self.name, xml))
         return xml
 
-    def getvalue(self):
+    def getvalue(self, vdata=None):
         """Return the xml strings for this node.  Leaf nodes should override
         this and return the value."""
+        if vdata is not None:
+            raise Exception("vdata set for " + self.name)
         xml = ""
         for name in self.children:
             s = self.children[name].getvalue()
@@ -396,10 +413,11 @@ class ElemOpBaseConfigOnly(ElemOpBaseLeaf):
     def validate(self, data, origxml, newxml):
         return
 
-    def getxml(self, path, namespace=None, indexname=None, index=None):
+    def getxml(self, path, namespace=None, indexname=None, index=None,
+               value=None):
         return ""
 
-    def getvalue(self):
+    def getvalue(self, vdata=None):
         return ""
 
 class ElemOpBaseCommitOnly(ElemOpBase):
@@ -420,7 +438,7 @@ class ElemOpBaseCommitOnly(ElemOpBase):
     def validate(self, data, origxml, newxml):
         raise Exception("abort")
 
-    def getvalue(self):
+    def getvalue(self, vdata=None):
         raise Exception("abort")
 
 class ElemOpBaseValidateOnly(ElemOpBase):
@@ -436,11 +454,12 @@ class ElemOpBaseValidateOnly(ElemOpBase):
 
     """
     def __init__(self, name, children = {}, validate_all = True,
-                 xmlprocvalue = False, wrapxml = True):
+                 xmlprocvalue = False, wrapxml = True, indexed = False):
         super().__init__(name, children, validate_all = validate_all,
-                         xmlprocvalue = xmlprocvalue, wrapxml = wrapxml)
+                         xmlprocvalue = xmlprocvalue, wrapxml = wrapxml,
+                         indexed = indexed)
 
-    def getvalue(self):
+    def getvalue(self, vdata=None):
         # We assume a higher-level handler builds the entire value, so
         # this should never get hit.  Override if not so.
         raise Exception("abort")
@@ -479,7 +498,53 @@ class ElemOpBaseValidateOnlyLeaf(ElemOpBaseValidateOnly):
         # is the same as an add.  Override if not so.
         self.validate_add(data, newxml)
 
-class ElemOpBaseValueOnly(ElemOpBaseLeaf):
+class ElemOpBaseValueOnly(ElemOpBase):
+    """This is used for operations that are only registered as system
+    state values, no validate, no commit.  The user should override
+    getvalue.  For non-lists there should be nothing to override.
+    Lists will need to implement getvalue() that takes a value and
+    fetch_index and be allocated with indexed=True to properly handle
+    the index.
+
+    """
+    def __init__(self, name, children, validate_all = True, wrapxml = True,
+                 indexed = False):
+        super().__init__(name, children, validate_all = validate_all,
+                         xmlprocvalue = True,
+                         wrapxml = wrapxml, indexed = indexed)
+
+    def validate_add(self, data, xml):
+        raise Exception("Cannot modify system state")
+
+    def validate_del(self, data, xml):
+        raise Exception("Cannot modify system state")
+
+    def validate(self, data, origxml, newxml):
+        raise Exception("Cannot modify system state")
+
+    def commit(self, op):
+        raise Exception("abort")
+
+    def revert(self, data, xml):
+        raise Exception("abort")
+
+    def getvalue(self, vdata=None):
+        """Return the xml strings for this node.  Leaf nodes should override
+        this and return the value."""
+        xml = ""
+        for name in self.children:
+            s = self.children[name].getvalue(vdata)
+            if self.children[name].xmlprocvalue:
+                s = xmlescape(s)
+            if self.children[name].wrapxml and s and len(s) > 0:
+                xml += "<" + name + ">" + s + "</" + name + ">"
+            else:
+                xml += s
+                pass
+            pass
+        return xml
+
+class ElemOpBaseValueOnlyLeaf(ElemOpBaseLeaf):
     """This is used for operations that are only registered as
     leaf system state values, no validate, no commit.  The user should
     override getvalue.
@@ -504,10 +569,11 @@ class ElemOpBaseValueOnly(ElemOpBaseLeaf):
     def revert(self, data, xml):
         raise Exception("abort")
 
-    def getxml(self, path, namespace=None, indexname=None, index=None):
+    def getxml(self, path, namespace=None, indexname=None, index=None,
+               value=None):
         return ""
 
-    def getvalue(self):
+    def getvalue(self, vdata=None):
         return ""
 
 class TopElemHandler:
