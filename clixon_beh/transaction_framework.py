@@ -250,6 +250,7 @@ class YangElem(PrivOp, ProgOut):
         """
         self.etype = etype
         self.wrapgvxml = True
+        self.xmlgvprocvalue = False
         if etype == YangType.CONTAINER:
             self.indexed = False
             self.xmlprocvalue = False
@@ -263,9 +264,6 @@ class YangElem(PrivOp, ProgOut):
             self.xmlprocvalue = False
             self.wrapxml = False
         elif etype == YangType.LEAFLIST:
-            # Leaf lists work a little different, we use the xml wrapping
-            # in getonevalue(), not the one in getvalue().
-            self.wrapgvxml = False
             self.indexed = True
             self.xmlprocvalue = True
             self.wrapxml = True
@@ -280,6 +278,14 @@ class YangElem(PrivOp, ProgOut):
             pass
         if wrapxml is not None:
             self.wrapxml = wrapxml
+            pass
+        if etype == YangType.LEAFLIST:
+            # Leaf lists work a little different, we use the xml wrapping
+            # in getvalue(), not the one in getonevalue().
+            self.wrapgvxml = self.wrapxml
+            self.wrapxml = False
+            self.xmlgvprocvalue = self.xmlprocvalue
+            self.xmlprocvalue = False
             pass
         return
 
@@ -485,7 +491,11 @@ class YangElem(PrivOp, ProgOut):
                 if self.wrapgvxml:
                     xml += "<" + self.name + ">"
                     pass
-                xml += self.getonevalue(vdata=i)
+                if self.xmlgvprocvalue:
+                    xml += xmlescape(self.getonevalue(vdata=i))
+                else:
+                    xml += self.getonevalue(vdata=i)
+                    pass
                 if self.wrapgvxml:
                     xml += "</" + self.name + ">"
                     pass
