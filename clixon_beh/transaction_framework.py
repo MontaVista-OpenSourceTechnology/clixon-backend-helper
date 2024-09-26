@@ -97,6 +97,7 @@ class Op:
         self.revert = False
         self.done = False
         self.oldvalue = None
+        return
 
     def commit(self):
         """Commit the operation, basically apply it to the system.  If you
@@ -105,6 +106,7 @@ class Op:
 
         """
         self.handler.commit(self)
+        return
 
     def commit_done(self):
         """Commit the operation, basically apply it to the system.  If you
@@ -114,6 +116,7 @@ class Op:
         """
         self.done = True
         self.handler.commit_done(self)
+        return
 
     def revert(self):
         """Revert the operation.  The "revert" member of this is set to True
@@ -122,6 +125,9 @@ class Op:
         """
         self.revert = True
         self.handler.revert(self)
+        return
+
+    pass
 
 class Data:
     """This is data about a transaction.  It holds the list of operations
@@ -180,6 +186,8 @@ class PrivOp:
         """Subclasses must override this function for privileged operations."""
         return
 
+    pass
+
 class ProgOut:
     def program_output(self, args, timeout=1000,
                        decoder = lambda x : x.decode("utf-8")):
@@ -202,6 +210,8 @@ class YangType(Enum):
     LEAF = 2
     LIST = 3
     LEAFLIST = 4
+
+    pass
 
 class YangElem(PrivOp, ProgOut):
     """The base class for operation handler (what goes into an "Op" class
@@ -281,6 +291,8 @@ class YangElem(PrivOp, ProgOut):
             name = c.get_name()
             if name in self.children:
                 self.children[name].validate_add(data, c)
+                pass
+            pass
         return
 
     def validate_del(self, data, xml):
@@ -291,6 +303,8 @@ class YangElem(PrivOp, ProgOut):
             name = c.get_name()
             if name in self.children:
                 self.children[name].validate_del(data, c)
+                pass
+            pass
         return
 
     def validate(self, data, origxml, newxml):
@@ -300,45 +314,55 @@ class YangElem(PrivOp, ProgOut):
             oxml = origxml.child_i(oi)
         else:
             oxml = None
+            pass
         ni = 0
         if newxml:
             nxml = newxml.child_i(ni)
         else:
             nxml = None
+            pass
         while oxml or nxml:
             oxmlf = 0
             if oxml:
                 oxmlf = oxml.get_flags(clixon_beh.XMLOBJ_FLAG_FULL_MASK)
+                pass
             nxmlf = 0
             if nxml:
                 nxmlf = nxml.get_flags(clixon_beh.XMLOBJ_FLAG_FULL_MASK)
+                pass
             if oxmlf & clixon_beh.XMLOBJ_FLAG_DEL:
                 c = oxml.get_name()
                 if c in self.children:
                     self.children[c].validate_del(data, oxml)
+                    pass
                 oi += 1
                 oxml = origxml.child_i(oi)
-                pass
             elif nxmlf & clixon_beh.XMLOBJ_FLAG_ADD:
                 c = nxml.get_name()
                 if c in self.children:
                     self.children[c].validate_add(data, nxml)
+                    pass
                 ni += 1
                 nxml = newxml.child_i(ni)
-                pass
             else:
                 if (self.validate_all or
-                         nxmlf & clixon_beh.XMLOBJ_FLAG_CHANGE or
-                         oxmlf & clixon_beh.XMLOBJ_FLAG_CHANGE):
+                    nxmlf & clixon_beh.XMLOBJ_FLAG_CHANGE or
+                    oxmlf & clixon_beh.XMLOBJ_FLAG_CHANGE):
                     c = nxml.get_name()
                     if c in self.children:
                         self.children[c].validate(data, oxml, nxml)
+                        pass
+                    pass
                 if oxml:
                     oi += 1
                     oxml = origxml.child_i(oi)
+                    pass
                 if nxml:
                     ni += 1
                     nxml = newxml.child_i(ni)
+                    pass
+                pass
+            pass
         return
 
     def commit(self, op):
@@ -364,12 +388,15 @@ class YangElem(PrivOp, ProgOut):
             index = index[:-1] # Remove the ']' at the end
             if ':' in name:
                 name = name.split(":")[1]
+                pass
             (indexname, index) = index.split("=", 1)
             if ':' in indexname:
                 indexname = indexname.split(":")[1]
+                pass
             index = index[1:-1] # remove the quotes
         else:
             name = name[1]
+            pass
         return (name, indexname, index)
 
     def fetch_index(self, indexname, index, vdata):
@@ -417,6 +444,7 @@ class YangElem(PrivOp, ProgOut):
             value = self.getonevalue(vdata=vdata)
             if self.xmlprocvalue:
                 value = xmlescape(value)
+                pass
             xml += value
         else:
             (name, index, indexname) = self.parsepathentry(path[0])
@@ -443,6 +471,7 @@ class YangElem(PrivOp, ProgOut):
                     xml += "<" + name + ">" + s + "</" + name + ">"
                 else:
                     xml += s
+                    pass
                 pass
             pass
         return xml
@@ -635,6 +664,8 @@ class TopElemHandler:
         if False: # For debugging
             print(str(t.orig_str()))
             print(str(t.new_str()))
+            pass
+
         data = t.get_userdata()
 
         # Handle the top-level name.  There can only be one, and it has to
@@ -645,6 +676,7 @@ class TopElemHandler:
             name = origxml.get_name()
         else:
             name = newxml.get_name()
+            pass
         if name in self.xmlroot.children:
             self.xmlroot.children[name].validate(data, origxml, newxml)
         else:
@@ -678,6 +710,7 @@ class TopElemHandler:
             name = name[0]
         else:
             name = name[1]
+            pass
         if name in self.xmlroot.children:
             xml = self.xmlroot.children[name].getxml(path[2:],
                                                      namespace=self.namespace)
