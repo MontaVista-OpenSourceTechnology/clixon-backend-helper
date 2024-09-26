@@ -304,7 +304,9 @@ handler for that XML element.  So if you had some XML that looked like:
 you would have some code like:
 
 ```
-class Hostname(tf.ElemOpBaseLeaf):
+import clixon_beh.transaction_framework as tf
+
+class Hostname(tf.YangElem):
     def validate_add(self, data, xml):
         self.validate(data, None, xml)
 
@@ -347,12 +349,11 @@ class Hostname(tf.ElemOpBaseLeaf):
     def getvalue(self):
         return self.program_output(["/bin/hostname"]).strip()
 
-import clixon_beh.transaction_framework as tf
 system_children = {
-   "hostname": Hostname("hostname")
+   "hostname": Hostname("hostname", tf.YangType.LEAF)
 }
 children = {
-   "system": tf.ElemOpBase("system", system_children)
+   "system": tf.YangElem("system", tf.YangType.CONTAINER, system_children)
 }
 
 handler = tf.TopElemHandler("ietf-system",
@@ -374,10 +375,10 @@ create some basic data for the transaction.  `validate` will look at
 the top XML element's name.  If it matches something in the registered
 map (`children` is the map, it will match "system" in this case), it
 will call the handler registered in the map for that name, In this
-case `ElemOpBase`.
+case `YangElem`.
 
 The `validate`, `validate_add`, or `validate_del` method of
-`ElemOpBase` will be called, depending of if this is a change, add or
+`YangElem` will be called, depending of if this is a change, add or
 delete operation.  It will go through the child elements of the XML
 object passed to it and call handlers in its children.  In this case,
 it will see "hostname" and call the validate method of the `Hostname`
@@ -404,16 +405,25 @@ an `oldvalue` element which is set by default to None.  The user can
 set the value in the commit call at the beginning to the original
 value so it can know how to restore the data.
 
-### ElemOpBase and Children
+### YangElem and Children
 
-`ElemOpBase` is the main class for handling of elements and commit
+`YangElem` is the main class for handling of elements and commit
 operations.  All classes that handle XML and/or commits should descend
 from this type.
 
 The basic operation was described in the previous section.
 
-When allocating one of these, the `name` and `children` values have
-already been discussed.  It has two more options:
+The second parameter for the `__init__` call, `etype` is one of:
+
+* YangType.CONTAINER
+* YangType.LEAF
+* YangType.LIST
+* YangType.LEAFLIST
+
+That corresponds to the Yang element types.
+
+When allocating one of these, the `name`, `etype`, and `children`
+values have already been discussed.  It has two more options:
 
 * `validate_all` - Normally when processing a validate() call, it will
   only call children validate calls on only XML elements that have
@@ -423,17 +433,19 @@ already been discussed.  It has two more options:
   still be useful to have the netmask, gateway, etc. from the XML
   data, even if it hasn't hanged.
   
-* `xmlprocvalue` - By default no processing is done on strings
-  returned from `getvalue`.  This causes XML escaping to be done on
-  the value returned from `getvalue`.  This is mostly useful on leaf
-  classes, and is set by default on all leaf classes in the framework,
-  but may be useful for a higher-level class that aggregates all the
-  data for something (like getting all the IP address information in
-  one shot above the IP address, netmask, etc. XML elements) and
-  returns the string.  The user may also call `xmlescape` on their own
-  to do this, if that is more convenient.
+* `xmlprocvalue` - If true, the string returned from `getvalue` will
+  be processed by `xmlescape`.  This should only be set on leaf types.
+  The default is False for non-leaf values and True for leaf values.
+  The user may also call `xmlescape` on their own to do this, if that
+  is more convenient.
   
-`ElemOpBase` has the following methods:
+* `wrapxml` - If true, the value returned from `getvalue` will be in
+  wrapped the xml name of the class.  This should only be set on leaf
+  types.  If you have a leaf type where you need to do your own XML
+  processing (like it's in a different namespace) you need to set this
+  to False.
+
+`YangElem` has the following methods:
 
 * `validate_add(self, data, xml)` - This is called when an added
   element is seen, and is called on all its children.  A leaf element
@@ -488,34 +500,27 @@ already been discussed.  It has two more options:
   the stderr output of the program.  If the return value is 0, then
   the stdout of the program is returned.
   
-`ElemOpBaseLeaf` is `ElemOpBase` but with `xmlprocval` set to True by
-default.
-
-`ElemOpBaseConfigOnly` is `ElemOpBaseLeaf` with everything default to
+`YangElemConfigOnly` is `YangElem` with everything default to
 do nothing.  This is for an XML leaf element that is for the
 configuration database only, that doesn't do anything in the backend.
 
-`ElemOpBaseCommitOnly` is `ElemOpBase` with all the validate and value
+`YangElemCommitOnly` is `YangElem` with all the validate and value
 calls exceptions, and only take a name at creation time.  This is only
 for use as an operation class for `add_op()`.
 
-`ElemOpValidateOnly` is `ElemOpBase` with commit, revert, and getvalue
+`YangElemValidateOnly` is `YangElem` with commit, revert, and getvalue
 causing exceptions.  This is for things that are only used for
 validation and not for committing.  This sets `validate_all` to True
 by default.  This would be used for elements that collect data, but a
 higher-level element is used for the commit.  For instance, if you had
-an IP address, you could use the `ElemOpValidateOnlyLeaf` class for
-the individual IP, netmask, and gateway addresses and store the values
-in the data parameter.  In the class that's the parent of those use
-`ElemValidateOnly` as the class but override `getvalue` to get all the
-values together, and have the commit set all the values together from
-what was set in the data value.
+an IP address, you could use the `YangElemValidateOnly` class with type
+set to LEAF for the individual IP, netmask, and gateway addresses and
+store the values in the data parameter.  In the class that's the
+parent of those use `YangElemValidateOnly` as the class but override
+`getvalue` to get all the values together, and have the commit set all
+the values together from what was set in the data value.
 
-`ElemOpValidateOnlyLeaf` is `ElemOpValidateOnly` with `xmlprocvalue`
-set to True.  `validate_del` doesn't do anything, and `validate` calls
-`validate_add`.
-
-`ElemOpBaseValueOnly` is `ElemOpBaseLeaf` with all validation and
+`YangElemValueOnly` is `YangElem` with all validation and
 commit operations raising exception.  The only thing this can be used
 for is fetching the value.  This is useful for "config false" items in
 the YANG.
