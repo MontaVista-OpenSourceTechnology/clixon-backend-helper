@@ -31,6 +31,7 @@
 
 import subprocess
 import clixon_beh
+from enum import Enum
 
 """This is a package that helps with clixon backends.  It provides a
 frameowrk that allows users to provide just the low-level pieces they
@@ -192,7 +193,17 @@ class ProgOut:
             raise Exception(args[0] + " error(" + str(rc) + "): " + err.decode("utf-8"))
         return decoder(out)
 
-class ElemOpBase(PrivOp, ProgOut):
+    pass
+
+class YangType(Enum):
+    # Types of elements, etype in the init method
+    NOTYPE = 0
+    CONTAINER = 1
+    LEAF = 2
+    LIST = 3
+    LEAFLIST = 4
+
+class YangElem(PrivOp, ProgOut):
     """The base class for operation handler (what goes into an "Op" class
     handler) and an element handler (what gets called from the clixon
     validate call for handling XML elments).  Any operation should
@@ -205,8 +216,8 @@ class ElemOpBase(PrivOp, ProgOut):
     probably need to override getxml.
 
     """
-    def __init__(self, name, children = {}, validate_all = False,
-                 xmlprocvalue = False, wrapxml = False, indexed = False):
+    def __init__(self, name, etype, children = {}, validate_all = False,
+                 xmlprocvalue = None, wrapxml = None):
         """name should be the xml tag name for this operations.  children, if
         set, should be a map of the xml elements that can occur in
         this xml element, and their handlers.  If validate_all is set,
@@ -227,12 +238,39 @@ class ElemOpBase(PrivOp, ProgOut):
         True.
 
         """
+        self.etype = etype
+        self.wrapgvxml = True
+        if etype == YangType.CONTAINER:
+            self.indexed = False
+            self.xmlprocvalue = False
+            self.wrapxml = False
+        elif etype == YangType.LEAF:
+            self.indexed = False
+            self.xmlprocvalue = True
+            self.wrapxml = True
+        elif etype == YangType.LIST:
+            self.indexed = True
+            self.xmlprocvalue = False
+            self.wrapxml = False
+        elif etype == YangType.LEAFLIST:
+            # Leaf lists work a little different, we use the xml wrapping
+            # in getonevalue(), not the one in getvalue().
+            self.wrapgvxml = False
+            self.indexed = True
+            self.xmlprocvalue = True
+            self.wrapxml = True
+        else:
+            raise Exception("Invalid etype: " + str(etype))
+
         self.name = name
         self.children = children
         self.validate_all = validate_all
-        self.xmlprocvalue = xmlprocvalue
-        self.wrapxml = wrapxml
-        self.indexed = indexed
+        if xmlprocvalue is not None:
+            self.xmlprocvalue = xmlprocvalue
+            pass
+        if wrapxml is not None:
+            self.wrapxml = wrapxml
+            pass
         return
 
     def validate_add(self, data, xml):
@@ -336,14 +374,14 @@ class ElemOpBase(PrivOp, ProgOut):
 
     def fetch_index(self, indexname, index, vdata):
         """Fetch the value data (vdata) for the given index.  You must
-        override this method if you set indexed to True.
+        override this method if you are a list.
 
         """
         raise Exception("No index function for " + self.name)
 
     def fetch_full_index(self, vdata):
         """Fetch all values for this list.  You must override this method
-        if you set indexed to True.
+        if you are a list.
 
         """
         raise Exception("No full index function for " + self.name)
@@ -353,9 +391,9 @@ class ElemOpBase(PrivOp, ProgOut):
         """Process a get operation before the path has ended.  We are
         just parsing down the path until we hit then end.  indexname
         and index are for lists, they provide the index name and the
-        index for a list entry.  In that case indexed must be set on
-        this and it will call the fetch_index() method on this class
-        to get the vdata.
+        index for a list entry.  In that case this must be a list and
+        it will call the fetch_index() method on this class to get the
+        vdata.
 
         """
         if self.indexed:
@@ -396,7 +434,6 @@ class ElemOpBase(PrivOp, ProgOut):
     def getonevalue(self, vdata=None):
         xml = ""
         for name in self.children:
-            print("getonevalue for " + name)
             s = self.children[name].getvalue(vdata)
             if len(s) > 0:
                 if self.children[name].xmlprocvalue:
@@ -414,44 +451,34 @@ class ElemOpBase(PrivOp, ProgOut):
         """Return the xml strings for this node.  Leaf nodes should override
         this and return the value."""
         xml = ""
-        print("getvalue for " + self.name)
         if self.indexed:
             for i in self.fetch_full_index(vdata):
-                xml += "<" + self.name + ">"
+                if self.wrapgvxml:
+                    xml += "<" + self.name + ">"
+                    pass
                 xml += self.getonevalue(vdata=i)
-                xml += "</" + self.name + ">"
+                if self.wrapgvxml:
+                    xml += "</" + self.name + ">"
+                    pass
                 pass
             pass
         else:
             s = self.getonevalue(vdata=vdata)
-            if len(s) > 0:
+            if len(s) > 0 and self.wrapgvxml:
                 xml += "<" + self.name + ">" + s + "</" + self.name + ">"
             pass
         return xml
 
     pass
 
-class ElemOpBaseLeaf(ElemOpBase):
-    """An Op that is a leaf, set up for such.  Just sets the XML processing
-    flag on by default for now.  Mostly for documentation.
-
-    """
-    def __init__(self, name, validate_all = False, xmlprocvalue = True,
-                 wrapxml = True):
-        super().__init__(name, validate_all = validate_all,
-                         xmlprocvalue = xmlprocvalue, wrapxml = wrapxml)
-        return
-
-    pass
-
-class ElemOpBaseConfigOnly(ElemOpBaseLeaf):
+class YangElemConfigOnly(YangElem):
     """If a leaf element is config only, there's no need to do much, it's
     stored in the main database only.
 
     """
 
     def __init__(self, name):
-        super().__init__(name)
+        super().__init__(name, YangType.LEAF)
         return
 
     def validate_add(self, data, xml):
@@ -467,19 +494,23 @@ class ElemOpBaseConfigOnly(ElemOpBaseLeaf):
                value=None):
         return ""
 
+    def getonevalue(self, vdata=None):
+        return ""
+
     def getvalue(self, vdata=None):
         return ""
 
     pass
 
-class ElemOpBaseCommitOnly(ElemOpBase):
+class YangElemCommitOnly(YangElem):
     """This is used for operations that just are added to the op queue and
     not registered as a child.  Thus they need no validation or getvalue.
     User should override commit and revert.
 
     """
     def __init__(self, name):
-        super().__init__(name)
+        self.name = name
+        self.etype = YangType.NOTYPE
         return
 
     def validate_add(self, data, xml):
@@ -491,12 +522,15 @@ class ElemOpBaseCommitOnly(ElemOpBase):
     def validate(self, data, origxml, newxml):
         raise Exception("abort")
 
+    def getonevalue(self, vdata=None):
+        raise Exception("abort")
+
     def getvalue(self, vdata=None):
         raise Exception("abort")
 
     pass
 
-class ElemOpBaseValidateOnly(ElemOpBase):
+class YangElemValidateOnly(YangElem):
     """This is used for operations that are only registered as
     children and never added to a commit queue.  Thus they need no
     commit or revert.  User should override the validate call.
@@ -507,12 +541,22 @@ class ElemOpBaseValidateOnly(ElemOpBase):
     validate_add.  This can be overriden, of course.
 
     """
-    def __init__(self, name, children = {}, validate_all = True,
-                 xmlprocvalue = False, wrapxml = False, indexed = False):
-        super().__init__(name, children, validate_all = validate_all,
-                         xmlprocvalue = xmlprocvalue, wrapxml = wrapxml,
-                         indexed = indexed)
-        return
+
+    def validate_del(self, data, xml):
+        if self.etype == YangType.LEAF:
+            # We assume in this case that the user is doing a full rebuild of
+            # the data, so deletes can just be ignored.  If not, the user
+            # should override this.
+            return
+        return super().validate_del(data, xml)
+
+    def validate(self, data, origxml, newxml):
+        if self.etype == YangType.LEAF:
+            # Again, assuming a full rebuild of the data, so a validate
+            # is the same as an add.  Override if not so.
+            self.validate_add(data, newxml)
+            return
+        return super().validate(data, origxml, newxml)
 
     def commit(self, op):
         raise Exception("abort")
@@ -522,81 +566,12 @@ class ElemOpBaseValidateOnly(ElemOpBase):
 
     pass
 
-class ElemOpBaseValidateOnlyLeaf(ElemOpBaseValidateOnly):
-    """This is used for operations that just are only registered as
-    children and never added to a commit queue.  Thus they need no
-    commit or revert.  User should override validate and getvalue
-    calls.
-
-    This also assumes that the user will rebuild the whole thing they
-    are working on, so it ignores deletes and translates validate to
-    validate_add by default.  So the user only needs to provide
-    validate_add.  This can be overriden, of course.
-
-    """
-    def __init__(self, name, children = {}, validate_all = True,
-                 wrapxml = True, indexed=False, xmlprocvalue=True):
-        super().__init__(name, children, validate_all = validate_all,
-                         xmlprocvalue = xmlprocvalue, wrapxml = wrapxml,
-                         indexed = indexed)
-
-    def validate_del(self, data, xml):
-        # We assume in this case that the user is doing a full rebuild of
-        # the data, so deletes can just be ignored.  If not, the user
-        # should override this.
-        return
-
-    def validate(self, data, origxml, newxml):
-        # Again, assuming a full rebuild of the data, so a validate
-        # is the same as an add.  Override if not so.
-        self.validate_add(data, newxml)
-        return
-
-    pass
-
-class ElemOpBaseValueOnly(ElemOpBase):
-    """This is used for operations that are only registered as system
-    state values, no validate, no commit.  The user should override
-    getvalue.  For non-lists there should be nothing to override.
-    Lists will need to implement getvalue() that takes a value and
-    fetch_index and be allocated with indexed=True to properly handle
-    the index.
-
-    """
-    def __init__(self, name, children, validate_all = True, wrapxml = True,
-                 indexed = False):
-        super().__init__(name, children, validate_all = validate_all,
-                         xmlprocvalue = True,
-                         wrapxml = wrapxml, indexed = indexed)
-        return
-
-    def validate_add(self, data, xml):
-        raise Exception("Cannot modify system state")
-
-    def validate_del(self, data, xml):
-        raise Exception("Cannot modify system state")
-
-    def validate(self, data, origxml, newxml):
-        raise Exception("Cannot modify system state")
-
-    def commit(self, op):
-        raise Exception("abort")
-
-    def revert(self, data, xml):
-        raise Exception("abort")
-
-    pass
-
-class ElemOpBaseValueOnlyLeaf(ElemOpBaseLeaf):
+class YangElemValueOnly(YangElem):
     """This is used for operations that are only registered as
     leaf system state values, no validate, no commit.  The user should
     override getvalue.
 
     """
-    def __init__(self, name, validate_all = True, wrapxml = True):
-        super().__init__(name, validate_all = validate_all, xmlprocvalue = True,
-                         wrapxml = wrapxml)
-        return
 
     def validate_add(self, data, xml):
         raise Exception("Cannot modify system state")
@@ -633,12 +608,12 @@ class TopElemHandler:
 
     def __init__(self, name, namespace, children):
         """children is a map of elements that may be in the top level, see
-        ElemOpBase for details.
+        YangElem for details.
 
         """
         self.name = name
         self.namespace = namespace
-        self.xmlroot = ElemOpBase("TopLevel", children)
+        self.xmlroot = YangElem("TopLevel", YangType.CONTAINER, children)
         return
 
     # Not implemented, will just default to doing nothing:

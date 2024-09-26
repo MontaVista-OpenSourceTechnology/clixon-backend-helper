@@ -43,10 +43,10 @@ resolvconffile = "/etc/resolv.conf"
 
 # For testing, to store the files elsewhere to avoid updating the main
 # system data
-sysbase = "/home/cminyard/tmp/clixon"
+sysbase = ""
 
 # /system/hostname
-class Hostname(tf.ElemOpBaseLeaf):
+class Hostname(tf.YangElem):
     def validate_add(self, data, xml):
         self.validate(data, None, xml)
 
@@ -93,9 +93,9 @@ class Hostname(tf.ElemOpBaseLeaf):
         return data
 
 # /system/clock/timezone-*
-class TimeZone(tf.ElemOpBaseLeaf):
+class TimeZone(tf.YangElem):
     def __init__(self, name, is_name=True):
-        super().__init__(name)
+        super().__init__(name, tf.YangType.LEAF)
         self.is_name = is_name
 
     def validate_add(self, data, xml):
@@ -182,7 +182,7 @@ system_clock_children = {
 # for old-style DNS.  If you are using resolvconf, disable it in the
 # yang file and handle it in the IP address handling.
 
-class DNSHandler(tf.ElemOpBaseCommitOnly):
+class DNSHandler(tf.YangElemCommitOnly):
     """This handles the full commit operation for DNS updates.
     """
     def commit(self, op):
@@ -261,7 +261,7 @@ def dns_get_opdata(data):
     return data.userDNSOp.userData
 
 # /system/dns-resolver/search
-class DNSSearch(tf.ElemOpBaseValidateOnlyLeaf):
+class DNSSearch(tf.YangElemValidateOnly):
     def validate_add(self, data, xml):
         ddata = dns_get_opdata(data)
         ddata.add_search.append(xml.get_body())
@@ -282,7 +282,7 @@ class DNSSearch(tf.ElemOpBaseValidateOnlyLeaf):
     pass
 
 # /system/dns-resolver/server/name
-class DNSServerName(tf.ElemOpBaseValidateOnlyLeaf):
+class DNSServerName(tf.YangElemValidateOnly):
     def validate_add(self, data, xml):
         ddata = dns_get_opdata(data)
         ddata.curr_server.name = xml.get_body()
@@ -294,7 +294,7 @@ class DNSServerName(tf.ElemOpBaseValidateOnlyLeaf):
     pass
 
 # /system/dns-resolver/server/address
-class DNSServerAddress(tf.ElemOpBaseValidateOnlyLeaf):
+class DNSServerAddress(tf.YangElemValidateOnly):
     def validate_add(self, data, xml):
         ddata = dns_get_opdata(data)
         ddata.curr_server.address = xml.get_body()
@@ -306,7 +306,7 @@ class DNSServerAddress(tf.ElemOpBaseValidateOnlyLeaf):
     pass
 
 # /system/dns-resolver/server/port
-class DNSServerPort(tf.ElemOpBaseValidateOnlyLeaf):
+class DNSServerPort(tf.YangElemValidateOnly):
     def validate_add(self, data, xml):
         ddata = dns_get_opdata(data)
         ddata.curr_server.port = xml.get_body()
@@ -319,12 +319,12 @@ class DNSServerPort(tf.ElemOpBaseValidateOnlyLeaf):
 
 # /system/dns-resolver/server/udp-and-tcp
 system_dns_server_ip_children = {
-    "address": DNSServerAddress("address"),
-    "port": DNSServerPort("port"),
+    "address": DNSServerAddress("address", tf.YangType.LEAF),
+    "port": DNSServerPort("port", tf.YangType.LEAF),
 }
 
 # /system/dns-resolver/server/certificate
-class DNSServerCertificate(tf.ElemOpBaseValidateOnlyLeaf):
+class DNSServerCertificate(tf.YangElemValidateOnly):
     def validate_add(self, data, xml):
         ddata = dns_get_opdata(data)
         ddata.curr_server.certificate = xml.get_body()
@@ -334,16 +334,16 @@ class DNSServerCertificate(tf.ElemOpBaseValidateOnlyLeaf):
 
 # /system/dns-resolver/server
 system_dns_server_children = {
-    "name": DNSServerName("name"),
-    "udp-and-tcp": tf.ElemOpBaseValidateOnly("udp-and-tcp",
+    "name": DNSServerName("name", tf.YangType.LEAF),
+    "udp-and-tcp": tf.YangElemValidateOnly("udp-and-tcp", tf.YangType.CONTAINER,
                                     children=system_dns_server_ip_children,
                                     validate_all=True),
-    "certificate": DNSServerCertificate("certificate"),
+    "certificate": DNSServerCertificate("certificate", tf.YangType.LEAF),
     # FIXME - Add encrypted DNS support, and possibly DNSSEC.
 }
 
 # /system/dns-resolver/server
-class DNSServer(tf.ElemOpBaseValidateOnly):
+class DNSServer(tf.YangElemValidateOnly):
     def validate_add(self, data, xml):
         ddata = dns_get_opdata(data)
         ddata.curr_server = DNSServerData()
@@ -368,7 +368,7 @@ class DNSServer(tf.ElemOpBaseValidateOnly):
     pass
 
 # /system/dns-resolver/options/timeout
-class DNSTimeout(tf.ElemOpBaseValidateOnlyLeaf):
+class DNSTimeout(tf.YangElemValidateOnly):
     def validate_add(self, data, xml):
         ddata = dns_get_opdata(data)
         ddata.timeout = xml.get_body()
@@ -380,7 +380,7 @@ class DNSTimeout(tf.ElemOpBaseValidateOnlyLeaf):
     pass
 
 # /system/dns-resolver/options/attempts
-class DNSAttempts(tf.ElemOpBaseValidateOnlyLeaf):
+class DNSAttempts(tf.YangElemValidateOnly):
     def validate_add(self, data, xml):
         ddata = dns_get_opdata(data)
         ddata.attempts = xml.get_body()
@@ -392,7 +392,7 @@ class DNSAttempts(tf.ElemOpBaseValidateOnlyLeaf):
     pass
 
 # /system/dns-resolver/options/use-vc - augment in linux-system
-class DNSUseVC(tf.ElemOpBaseValidateOnlyLeaf):
+class DNSUseVC(tf.YangElemValidateOnly):
     def validate_add(self, data, xml):
         ddata = dns_get_opdata(data)
         ddata.use_vc = xml.get_body().lower() == "true"
@@ -407,7 +407,7 @@ class DNSUseVC(tf.ElemOpBaseValidateOnlyLeaf):
     pass
 
 # /system/dns-resolver
-class DNSResolver(tf.ElemOpBase):
+class DNSResolver(tf.YangElem):
     def validate_del(self, data, xml):
         # FIXME - maybe delete /etc/resolv.conf?  or fix the YANG?
         raise Exception("Cannot delete main DNS data")
@@ -483,19 +483,21 @@ class DNSResolver(tf.ElemOpBase):
 
 # /system/dns-resolver/options
 system_dns_options_children = {
-    "timeout": DNSTimeout("timeout"),
-    "attempts": DNSAttempts("attempts"),
-    "use-vc": DNSUseVC("use-vc", wrapxml=False, xmlprocvalue=False),
+    "timeout": DNSTimeout("timeout", tf.YangType.LEAF),
+    "attempts": DNSAttempts("attempts", tf.YangType.LEAF),
+    "use-vc": DNSUseVC("use-vc", tf.YangType.LEAF,
+                       wrapxml=False, xmlprocvalue=False),
 }
 
 # /system/dns-resolver
 system_dns_resolver_children = {
-    "search": DNSSearch("search", indexed=True, wrapxml=False,
-                        xmlprocvalue=False),
-    "server": DNSServer("server", children=system_dns_server_children,
-                        validate_all=True, indexed=True),
-    "options": tf.ElemOpBase("options", children=system_dns_options_children,
-                             validate_all=True),
+    "search": DNSSearch("search", tf.YangType.LEAFLIST, validate_all=True),
+    "server": DNSServer("server", tf.YangType.LIST,
+                        children=system_dns_server_children,
+                        validate_all=True),
+    "options": tf.YangElem("options", tf.YangType.CONTAINER,
+                           children=system_dns_options_children,
+                           validate_all=True),
 }
 
 # The standard pwd methods for python don't have a way to override the
@@ -543,7 +545,7 @@ class UserKey:
         self.change_keydata = False
         self.keydata = None
 
-class UserData(tf.ElemOpBaseCommitOnly):
+class UserData(tf.YangElemCommitOnly):
     """This handles the user operation."""
     def __init__(self, name, data):
         super().__init__(name)
@@ -627,7 +629,7 @@ class UserData(tf.ElemOpBaseCommitOnly):
         return True
 
 # /system/authentication/user/name
-class UserName(tf.ElemOpBaseValidateOnlyLeaf):
+class UserName(tf.YangElemValidateOnly):
     def validate_add(self, data, xml):
         data.userCurrU.user_name = xml.get_body()
         if data.userCurrU.user_op == "add" and data.userCurrU.user_exists():
@@ -651,7 +653,7 @@ class UserName(tf.ElemOpBaseValidateOnlyLeaf):
         return vdata[0]
 
 # /system/authentication/user/password
-class UserPassword(tf.ElemOpBaseValidateOnlyLeaf):
+class UserPassword(tf.YangElemValidateOnly):
     def validate_add(self, data, xml):
         if not allow_user_key_change:
             raise Exception("User password change not allowed")
@@ -679,7 +681,7 @@ class UserPassword(tf.ElemOpBaseValidateOnlyLeaf):
         return "x" # Never return actual password data.
 
 # /system/authentication/user/authorized-key/name
-class UserAuthkeyName(tf.ElemOpBaseValidateOnlyLeaf):
+class UserAuthkeyName(tf.YangElemValidateOnly):
     def validate_add(self, data, xml):
         data.userCurrU.user_curr_key.name = xml.get_body()
         return
@@ -688,7 +690,7 @@ class UserAuthkeyName(tf.ElemOpBaseValidateOnlyLeaf):
         return vdata[2]
 
 # /system/authentication/user/authorized-key/algorithm
-class UserAuthkeyAlgo(tf.ElemOpBaseValidateOnlyLeaf):
+class UserAuthkeyAlgo(tf.YangElemValidateOnly):
     def validate_add(self, data, xml):
         data.userCurrU.user_curr_key.algorithm = xml.get_body()
         return
@@ -704,7 +706,7 @@ class UserAuthkeyAlgo(tf.ElemOpBaseValidateOnlyLeaf):
         return vdata[0]
 
 # /system/authentication/user/authorized-key/key-data
-class UserAuthkeyKeyData(tf.ElemOpBaseValidateOnlyLeaf):
+class UserAuthkeyKeyData(tf.YangElemValidateOnly):
     def validate_add(self, data, xml):
         data.userCurrU.user_curr_key.keydata = xml.get_body()
         return
@@ -720,7 +722,7 @@ class UserAuthkeyKeyData(tf.ElemOpBaseValidateOnlyLeaf):
         return "x" # Never return actual key data.
 
 # /system/authentication/user/authorized-key
-class UserAuthkey(tf.ElemOpBase):
+class UserAuthkey(tf.YangElem):
     """This handles the user authorized key."""
     def validate_add(self, data, xml):
         if not allow_user_key_change:
@@ -754,6 +756,7 @@ class UserAuthkey(tf.ElemOpBase):
             return []
         idx = []
         for i in f:
+            i = i.split()
             if len(i) >= 3:
                 idx.append(i)
                 pass
@@ -763,13 +766,13 @@ class UserAuthkey(tf.ElemOpBase):
 
 # /system/authentication/user/authorized-key
 system_user_authkey_children = {
-    "name": UserAuthkeyName("name"),
-    "algorithm": UserAuthkeyAlgo("algorithm"),
-    "key-data": UserAuthkeyKeyData("key-data"),
+    "name": UserAuthkeyName("name", tf.YangType.LEAF),
+    "algorithm": UserAuthkeyAlgo("algorithm", tf.YangType.LEAF),
+    "key-data": UserAuthkeyKeyData("key-data", tf.YangType.LEAF),
 }
 
 # /system/authentication/user
-class User(tf.ElemOpBase):
+class User(tf.YangElem):
     def start(self, data, op):
         data.userCurrU = UserData("user", data)
         data.add_op(data.userCurrU, "user", None)
@@ -802,17 +805,17 @@ class User(tf.ElemOpBase):
 
 # /system/authentication/user
 system_user_children = {
-    "name": UserName("name"),
-    "password": UserPassword("password"),
-    "authorized-key": UserAuthkey("authorized-key",
+    "name": UserName("name", tf.YangType.LEAF),
+    "password": UserPassword("password", tf.YangType.LEAF),
+    "authorized-key": UserAuthkey("authorized-key", tf.YangType.LIST,
                                   children = system_user_authkey_children,
-                                  validate_all=True, indexed=True),
+                                  validate_all=True),
 }
 
 # /system/authentication
 system_authentication_children = {
-    "user-authentication-order": tf.ElemOpBaseConfigOnly("user-authentication-order"),
-    "user": User("user", children = system_user_children, indexed=True),
+    "user-authentication-order": tf.YangElemConfigOnly("user-authentication-order"),
+    "user": User("user", tf.YangType.LIST, children = system_user_children),
 }
 
 class NTPServerData:
@@ -828,7 +831,7 @@ class NTPServerData:
         self.is_udp = True
         self.certificate = None
 
-class NTPData(tf.ElemOpBaseCommitOnly):
+class NTPData(tf.YangElemCommitOnly):
     def __init__(self, name):
         super().__init__(name)
         self.enabled = True
@@ -853,28 +856,28 @@ class NTPData(tf.ElemOpBaseCommitOnly):
         return
 
 # /system/ntp/enabled
-class NTPEnabled(tf.ElemOpBaseValidateOnlyLeaf):
+class NTPEnabled(tf.YangElemValidateOnly):
     def validate_add(self, data, xml):
         data.userNTP.enabled = xml.get_body()
 
 # /system/ntp/server/name
-class NTPServerName(tf.ElemOpBaseValidateOnlyLeaf):
+class NTPServerName(tf.YangElemValidateOnly):
     def validate_add(self, data, xml):
         data.userNTP.curr_server.name = xml.get_body()
 
 # /system/ntp/server/udp/address
-class NTPServerUDPAddress(tf.ElemOpBaseValidateOnlyLeaf):
+class NTPServerUDPAddress(tf.YangElemValidateOnly):
     def validate_add(self, data, xml):
         data.userNTP.curr_server.address = xml.get_body()
 
 # /system/ntp/server/udp/port
-class NTPServerUDPPort(tf.ElemOpBaseValidateOnlyLeaf):
+class NTPServerUDPPort(tf.YangElemValidateOnly):
     def validate_add(self, data, xml):
         data.userNTP.curr_server.port = xml.get_body()
         data.userNTP.curr_server.port_set = True
 
 # /system/ntp/server/tcp/address
-class NTPServerNTSAddress(tf.ElemOpBaseValidateOnlyLeaf):
+class NTPServerNTSAddress(tf.YangElemValidateOnly):
     def validate_add(self, data, xml):
         data.userNTP.curr_server.is_udp = False
         data.userNTP.curr_server.address = xml.get_body()
@@ -882,35 +885,35 @@ class NTPServerNTSAddress(tf.ElemOpBaseValidateOnlyLeaf):
             data.userNTP.curr_server.port = 4460
 
 # /system/ntp/server/tcp/port
-class NTPServerNTSPort(tf.ElemOpBaseValidateOnlyLeaf):
+class NTPServerNTSPort(tf.YangElemValidateOnly):
     def validate_add(self, data, xml):
         data.userNTP.curr_server.is_udp = False
         data.userNTP.curr_server.port = xml.get_body()
         data.userNTP.curr_server.port_set = True
 
 # /system/ntp/server/tcp/certificate
-class NTPServerNTSCertificate(tf.ElemOpBaseValidateOnlyLeaf):
+class NTPServerNTSCertificate(tf.YangElemValidateOnly):
     def validate_add(self, data, xml):
         data.userNTP.curr_server.is_udp = False
         data.userNTP.curr_server.certificate = xml.get_body()
 
 # /system/ntp/server/association-type
-class NTPServerAsocType(tf.ElemOpBaseValidateOnlyLeaf):
+class NTPServerAsocType(tf.YangElemValidateOnly):
     def validate_add(self, data, xml):
         data.userNTP.curr_server.asoc_type = xml.get_body()
 
 # /system/ntp/server/iburst
-class NTPServerIBurst(tf.ElemOpBaseValidateOnlyLeaf):
+class NTPServerIBurst(tf.YangElemValidateOnly):
     def validate_add(self, data, xml):
         data.userNTP.curr_server.iburst = xml.get_body()
 
 # /system/ntp/server/prever
-class NTPServerPrefer(tf.ElemOpBaseValidateOnlyLeaf):
+class NTPServerPrefer(tf.YangElemValidateOnly):
     def validate_add(self, data, xml):
         data.userNTP.curr_server.prefer = xml.get_body()
 
 # /system/ntp/server
-class NTPServer(tf.ElemOpBaseValidateOnly):
+class NTPServer(tf.YangElemValidateOnly):
     def start(self, data, op):
         data.userNTP.curr_server = NTPServerData()
         data.userNTP.curr_server.op = op
@@ -936,33 +939,33 @@ class NTPServer(tf.ElemOpBaseValidateOnly):
 
 # /system/ntp/server/udp
 system_ntp_server_udp_children = {
-    "address": NTPServerUDPAddress("address"),
-    "port": NTPServerUDPPort("port"),
+    "address": NTPServerUDPAddress("address", tf.YangType.LEAF),
+    "port": NTPServerUDPPort("port", tf.YangType.LEAF),
 }
 
 # /system/ntp/server/nts
 system_ntp_server_nts_children = {
-    "address": NTPServerNTSAddress("address"),
-    "port": NTPServerNTSPort("port"),
-    "certificate": NTPServerNTSCertificate("certificate"),
+    "address": NTPServerNTSAddress("address", tf.YangType.LEAF),
+    "port": NTPServerNTSPort("port", tf.YangType.LEAF),
+    "certificate": NTPServerNTSCertificate("certificate", tf.YangType.LEAF),
 }
 
 # /system/ntp/server
 system_ntp_server_children = {
-    "name": NTPServerName("name"),
-    "udp": tf.ElemOpBaseValidateOnly("udp",
-                                     children = system_ntp_server_udp_children,
-                                     validate_all = True),
-    "nts": tf.ElemOpBaseValidateOnly("nts",
-                                     children = system_ntp_server_nts_children,
-                                     validate_all = True),
-    "association-type": NTPServerAsocType("association-type"),
-    "iburst": NTPServerIBurst("iburst"),
-    "prefer": NTPServerPrefer("prefer"),
+    "name": NTPServerName("name", tf.YangType.LEAF),
+    "udp": tf.YangElemValidateOnly("udp", tf.YangType.CONTAINER,
+                                   children = system_ntp_server_udp_children,
+                                   validate_all = True),
+    "nts": tf.YangElemValidateOnly("nts", tf.YangType.CONTAINER,
+                                   children = system_ntp_server_nts_children,
+                                   validate_all = True),
+    "association-type": NTPServerAsocType("association-type", tf.YangType.LEAF),
+    "iburst": NTPServerIBurst("iburst", tf.YangType.LEAF),
+    "prefer": NTPServerPrefer("prefer", tf.YangType.LEAF),
 }
 
 # /system/ntp
-class NTP(tf.ElemOpBaseValidateOnly):
+class NTP(tf.YangElemValidateOnly):
     def start(self, data):
         data.userNTP = NTPData("ntp")
         data.add_op(data.userNTP, "ntp", None)
@@ -989,28 +992,29 @@ class NTP(tf.ElemOpBaseValidateOnly):
 
 # /system/ntp
 system_ntp_children = {
-    "enabled": NTPEnabled("enabled"),
-    "server": NTPServer("server", children = system_ntp_server_children,
+    "enabled": NTPEnabled("enabled", tf.YangType.LEAF),
+    "server": NTPServer("server", tf.YangType.CONTAINER,
+                        children = system_ntp_server_children,
                         validate_all = True)
 }
 
 # /system
 system_children = {
-    "contact": tf.ElemOpBaseConfigOnly("contact"),
-    "hostname": Hostname("hostname"),
-    "location": tf.ElemOpBaseConfigOnly("location"),
-    "clock": tf.ElemOpBase("clock", system_clock_children),
-    "ntp": NTP("ntp", children = system_ntp_children, validate_all = True,
-               xmlprocvalue = True),
-    "dns-resolver": DNSResolver("dns-resolver",
+    "contact": tf.YangElemConfigOnly("contact"),
+    "hostname": Hostname("hostname", tf.YangType.LEAF),
+    "location": tf.YangElemConfigOnly("location"),
+    "clock": tf.YangElem("clock", tf.YangType.CONTAINER, system_clock_children),
+    "ntp": NTP("ntp", tf.YangType.CONTAINER, children = system_ntp_children,
+               validate_all = True),
+    "dns-resolver": DNSResolver("dns-resolver", tf.YangType.CONTAINER,
                                 children = system_dns_resolver_children,
                                 validate_all = True),
-    "authentication": tf.ElemOpBase("authentication",
-                                    children = system_authentication_children),
+    "authentication": tf.YangElem("authentication", tf.YangType.CONTAINER,
+                                  children = system_authentication_children),
 }
 
 # /system-state/platform/*
-class SystemStatePlatform(tf.ElemOpBaseValueOnlyLeaf):
+class SystemStatePlatform(tf.YangElemValueOnly):
     def getvalue(self, vdata=None):
         if self.name == "os-name":
             opt = "-s"
@@ -1025,7 +1029,7 @@ class SystemStatePlatform(tf.ElemOpBaseValueOnlyLeaf):
         return self.program_output(["/bin/uname", opt]).strip()
 
 # /system-state/clock/*
-class SystemStateClock(tf.ElemOpBaseValueOnlyLeaf):
+class SystemStateClock(tf.YangElemValueOnly):
     def getvalue(self, vdata=None):
         date = self.program_output([datecmd, "--rfc-3339=seconds"]).strip()
         date = date.split(" ")
@@ -1051,22 +1055,24 @@ class SystemStateClock(tf.ElemOpBaseValueOnlyLeaf):
 
 # /system-state/platform
 system_state_platform_children = {
-    "os-name": SystemStatePlatform("os-name"),
-    "os-release": SystemStatePlatform("os-release"),
-    "os-version": SystemStatePlatform("os-version"),
-    "machine": SystemStatePlatform("machine")
+    "os-name": SystemStatePlatform("os-name", tf.YangType.LEAF),
+    "os-release": SystemStatePlatform("os-release", tf.YangType.LEAF),
+    "os-version": SystemStatePlatform("os-version", tf.YangType.LEAF),
+    "machine": SystemStatePlatform("machine", tf.YangType.LEAF)
 }
 
 # /system-state/clock
 system_state_clock_children = {
-    "current-datetime": SystemStateClock("current-datetime"),
-    "boot-datetime": SystemStateClock("boot-datetime")
+    "current-datetime": SystemStateClock("current-datetime", tf.YangType.LEAF),
+    "boot-datetime": SystemStateClock("boot-datetime", tf.YangType.LEAF)
 }
 
 # /system-state
 system_state_children = {
-    "platform": tf.ElemOpBase("platform", system_state_platform_children),
-    "clock": tf.ElemOpBase("clock", system_state_clock_children)
+    "platform": tf.YangElem("platform", tf.YangType.CONTAINER,
+                            system_state_platform_children),
+    "clock": tf.YangElem("clock", tf.YangType.CONTAINER,
+                         system_state_clock_children)
 }
 
 class Handler(tf.TopElemHandler, tf.ProgOut):
@@ -1111,8 +1117,9 @@ class Handler(tf.TopElemHandler, tf.ProgOut):
         return super().statedata(nsc, xpath)
 
 children = {
-    "system": tf.ElemOpBase("system", system_children),
-    "system-state": tf.ElemOpBase("system-state", system_state_children),
+    "system": tf.YangElem("system", tf.YangType.CONTAINER, system_children),
+    "system-state": tf.YangElem("system-state", tf.YangType.CONTAINER,
+                                system_state_children),
 }
 handler = Handler("linux-system", "urn:ietf:params:xml:ns:yang:ietf-system",
                   children)
@@ -1178,7 +1185,6 @@ class AuthStatedata:
             rv = ("<system xmlns=\"urn:ietf:params:xml:ns:yang:ietf-system\">"
                   + rv + "</system>")
             pass
-        print("Returning: " + str(rv))
         return (0, rv)
 
 clixon_beh.add_stateonly("<system xmlns=\"urn:ietf:params:xml:ns:yang:ietf-system\"></system>",
