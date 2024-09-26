@@ -359,6 +359,13 @@ class DNSServerCertificate(tf.YangElemValidateOnly):
         ddata.curr_server.certificate = xml.get_body()
         return
 
+    def getvalue(self, vdata=None):
+        # We have to add our own namespace, so set wrapxml to false for
+        # this class and do it ourself.  However, we don't actually
+        # return any data.
+        return ("<certificate xmlns=\"" + tf.xmlescape(MY_NAMESPACE) + "\">" +
+                "x" + "</certificate>")
+
     pass
 
 # /system/dns-resolver/server
@@ -367,7 +374,8 @@ system_dns_server_children = {
     "udp-and-tcp": tf.YangElemValidateOnly("udp-and-tcp", tf.YangType.CONTAINER,
                                            children=system_dns_server_ip_children,
                                            validate_all=True),
-    "certificate": DNSServerCertificate("certificate", tf.YangType.LEAF),
+    "certificate": DNSServerCertificate("certificate", tf.YangType.LEAF,
+                                        wrapxml = False, xmlprocvalue = False),
     # FIXME - Add encrypted DNS support, and possibly DNSSEC.
 }
 
@@ -1283,6 +1291,8 @@ class AuthStatedata:
             rv = ("<system xmlns=\"" + IETF_SYSTEM_NAMESPACE + "\">"
                   + rv + "</system>")
             pass
+        # Uncomment to print the return data
+        #print("Return: " + str(rv))
         return (0, rv)
 
     pass
