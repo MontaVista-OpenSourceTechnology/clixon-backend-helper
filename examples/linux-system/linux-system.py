@@ -5,6 +5,7 @@ import clixon_beh
 import clixon_beh.transaction_framework as tf
 
 MY_NAMESPACE = "http://linux.org"
+IETF_SYSTEM_NAMESPACE = "urn:ietf:params:xml:ns:yang:ietf-system"
 
 # This must match the commenting out or not of the dns-resolver deviation
 # in linux-system.yang.
@@ -49,6 +50,7 @@ sysbase = ""
 class Hostname(tf.YangElem):
     def validate_add(self, data, xml):
         self.validate(data, None, xml)
+        return
 
     def validate_del(self, data, xml):
         raise Exception("Delete of hostname not allowed")
@@ -58,13 +60,16 @@ class Hostname(tf.YangElem):
         if len(value) > 64: # Linux only allow 64 characters
             raise Exception("Host name too long, 64-character max.")
         data.add_op(self, None, value)
+        return
 
     def commit(self, op):
         op.oldvalue = self.getvalue()
         self.do_priv(op)
+        return
 
     def revert(self, op):
         self.do_priv(op)
+        return
 
     def priv(self, op):
         if op.revert:
@@ -81,15 +86,19 @@ class Hostname(tf.YangElem):
     def setvalue(self, value):
         if sysbase == "":
             self.program_output([hostnamecmd, value])
+            pass
         f = open(sysbase + hostnamefile, "w")
         try:
             f.write(value + "\n")
         finally:
             f.close()
+            pass
+        return
 
     def getvalue(self, vdata=None):
         with open(hostnamefile, "r") as file:
             data = file.read().rstrip()
+            pass
         return data
 
 # /system/clock/timezone-*
@@ -97,9 +106,11 @@ class TimeZone(tf.YangElem):
     def __init__(self, name, is_name=True):
         super().__init__(name, tf.YangType.LEAF)
         self.is_name = is_name
+        return
 
     def validate_add(self, data, xml):
         self.validate(data, None, xml)
+        return
 
     def validate_del(self, data, xml):
         # We just ignore this, it can happen when changing between
@@ -113,6 +124,7 @@ class TimeZone(tf.YangElem):
         if not os.path.exists(sysbase + zoneinfodir + value):
             raise Exception(value + " not a valid timezone")
         data.add_op(self, None, value)
+        return
 
     def commit(self, op):
         oldlocaltime = None
@@ -126,9 +138,11 @@ class TimeZone(tf.YangElem):
             pass
         op.oldvalue = [oldlocaltime, self.getvalue()]
         self.do_priv(op)
+        return
 
     def revert(self, op):
         self.do_priv(op)
+        return
 
     def priv(self, op):
         if op.revert:
@@ -142,6 +156,7 @@ class TimeZone(tf.YangElem):
                     self.program_output([lncmd, "-sf",
                                          sysbase + zoneinfodir + "GMT",
                                          sysbase + localtimefile])
+                    pass
                 self.setvalue(op.oldvalue[1])
             except:
                 pass
@@ -170,6 +185,7 @@ class TimeZone(tf.YangElem):
             s = self.program_output([catcmd, sysbase + timezonefile]).strip()
         except:
             s = "GMT"
+            pass
         return s
 
 # /system/clock
@@ -187,6 +203,7 @@ class DNSHandler(tf.YangElemCommitOnly):
     """
     def commit(self, op):
         self.do_priv(op)
+        return
 
     def commit_done(self, op):
         self.do_priv(op)
@@ -196,7 +213,6 @@ class DNSHandler(tf.YangElemCommitOnly):
         ddata = op.userData
         if op.revert:
             os.remove(sysbase + resolvconffile + ".tmp")
-            pass
         elif op.done:
             os.replace(sysbase + resolvconffile + ".tmp",
                        sysbase + resolvconffile)
@@ -211,22 +227,30 @@ class DNSHandler(tf.YangElemCommitOnly):
                     f.write("search")
                     for i in ddata.add_search:
                         f.write(" " + str(i))
+                        pass
                     f.write("\n")
+                    pass
                 for i in ddata.add_server:
                     f.write("#name: " + str(i.name) + "\n")
                     f.write("nameserver " + str(i.address) + "\n")
+                    pass
                 f.write("options timeout:" + ddata.timeout + " attempts:"
                         + ddata.attempts)
                 if ddata.use_vc:
                     f.write(" use-vc")
+                    pass
                 f.write("\n")
             finally:
                 f.close()
+                pass
+            pass
         return
 
     def revert(self, op):
         self.do_priv(op)
         return
+
+    pass
 
 class DNSServerData:
     """Information about a single DNS server."""
@@ -239,6 +263,8 @@ class DNSServerData:
     def __str__(self):
         return f'({self.name}, {self.address}:{self.port})'
 
+    pass
+
 class DNSData:
     """All DNS data will be parsed into this structure."""
     def __init__(self):
@@ -248,6 +274,9 @@ class DNSData:
         self.timeout = None
         self.attempts = None
         self.use_vc = False
+        return
+
+    pass
 
 def dns_get_opdata(data):
     """If a DNS operation is already registered in the op queue, just
@@ -336,8 +365,8 @@ class DNSServerCertificate(tf.YangElemValidateOnly):
 system_dns_server_children = {
     "name": DNSServerName("name", tf.YangType.LEAF),
     "udp-and-tcp": tf.YangElemValidateOnly("udp-and-tcp", tf.YangType.CONTAINER,
-                                    children=system_dns_server_ip_children,
-                                    validate_all=True),
+                                           children=system_dns_server_ip_children,
+                                           validate_all=True),
     "certificate": DNSServerCertificate("certificate", tf.YangType.LEAF),
     # FIXME - Add encrypted DNS support, and possibly DNSSEC.
 }
@@ -481,6 +510,8 @@ class DNSResolver(tf.YangElem):
         f.close()
         return super().getvalue(vdata=vdata)
 
+    pass
+
 # /system/dns-resolver/options
 system_dns_options_children = {
     "timeout": DNSTimeout("timeout", tf.YangType.LEAF),
@@ -544,6 +575,7 @@ class UserKey:
         self.algorithm = None
         self.change_keydata = False
         self.keydata = None
+        return
 
 class UserData(tf.YangElemCommitOnly):
     """This handles the user operation."""
@@ -558,6 +590,7 @@ class UserData(tf.YangElemCommitOnly):
         self.user_keys = []
         self.oldkeyfile = False
         self.oldkeyempty = False
+        return
 
     def savepwfile(self):
         if not self.data.oldpwfile:
@@ -568,6 +601,10 @@ class UserData(tf.YangElemCommitOnly):
                 if have_shadow:
                     self.program_output([cpcmd, sysbase + shadowfile,
                                          sysbase + shadowfile + ".keep"])
+                    pass
+                pass
+            pass
+        return
 
     def savekeyfile(self):
         if not self.oldkeyfile:
@@ -580,6 +617,9 @@ class UserData(tf.YangElemCommitOnly):
             except:
                 self.oldkeyempty = True
                 self.program_output([touchcmd, self.keyfile])
+                pass
+            pass
+        return
 
     def commit(self, op):
         if self.user_name is None:
@@ -591,9 +631,11 @@ class UserData(tf.YangElemCommitOnly):
             if self.user_op == "add":
                 self.program_output([useradd, "-m"] + useropts +
                                     [self.user_name])
+                pass
             if self.user_password_op == "add":
                 self.program_output([usermod, "-p", self.user_password]
                                     + useropts + [self.user_name])
+                pass
             for i in self.user_keys:
                 self.savekeyfile()
                 # Always delete the old key
@@ -764,6 +806,8 @@ class UserAuthkey(tf.YangElem):
         f.close()
         return idx
 
+    pass
+
 # /system/authentication/user/authorized-key
 system_user_authkey_children = {
     "name": UserAuthkeyName("name", tf.YangType.LEAF),
@@ -777,18 +821,21 @@ class User(tf.YangElem):
         data.userCurrU = UserData("user", data)
         data.add_op(data.userCurrU, "user", None)
         data.userCurrU.user_op = op
+        return
 
     def validate_add(self, data, xml):
         if not allow_user_add_del:
             raise Exception("User addition not allowed")
         self.start(data, "add")
         super().validate_add(data, xml)
+        return
 
     def validate_del(self, data, xml):
         if not allow_user_add_del:
             raise Exception("User deletion not allowed")
         self.start(data, "del")
         super().validate_del(data, xml)
+        return
 
     def validate(self, data, origxml, newxml):
         self.start(data, None)
@@ -830,12 +877,16 @@ class NTPServerData:
         self.prefer = False
         self.is_udp = True
         self.certificate = None
+        return
+
+    pass
 
 class NTPData(tf.YangElemCommitOnly):
     def __init__(self, name):
         super().__init__(name)
         self.enabled = True
         self.servers = []
+        return
 
     # FIXME - really implement this
     def commit(self, op):
@@ -855,26 +906,40 @@ class NTPData(tf.YangElemCommitOnly):
     def revert(self, op):
         return
 
+    pass
+
 # /system/ntp/enabled
 class NTPEnabled(tf.YangElemValidateOnly):
     def validate_add(self, data, xml):
         data.userNTP.enabled = xml.get_body()
+        return
+
+    pass
 
 # /system/ntp/server/name
 class NTPServerName(tf.YangElemValidateOnly):
     def validate_add(self, data, xml):
         data.userNTP.curr_server.name = xml.get_body()
+        return
+
+    pass
 
 # /system/ntp/server/udp/address
 class NTPServerUDPAddress(tf.YangElemValidateOnly):
     def validate_add(self, data, xml):
         data.userNTP.curr_server.address = xml.get_body()
+        return
+
+    pass
 
 # /system/ntp/server/udp/port
 class NTPServerUDPPort(tf.YangElemValidateOnly):
     def validate_add(self, data, xml):
         data.userNTP.curr_server.port = xml.get_body()
         data.userNTP.curr_server.port_set = True
+        return
+
+    pass
 
 # /system/ntp/server/tcp/address
 class NTPServerNTSAddress(tf.YangElemValidateOnly):
@@ -883,6 +948,10 @@ class NTPServerNTSAddress(tf.YangElemValidateOnly):
         data.userNTP.curr_server.address = xml.get_body()
         if not data.userNTP.curr_server.port_set:
             data.userNTP.curr_server.port = 4460
+            pass
+        return
+
+    pass
 
 # /system/ntp/server/tcp/port
 class NTPServerNTSPort(tf.YangElemValidateOnly):
@@ -890,27 +959,42 @@ class NTPServerNTSPort(tf.YangElemValidateOnly):
         data.userNTP.curr_server.is_udp = False
         data.userNTP.curr_server.port = xml.get_body()
         data.userNTP.curr_server.port_set = True
+        return
+
+    pass
 
 # /system/ntp/server/tcp/certificate
 class NTPServerNTSCertificate(tf.YangElemValidateOnly):
     def validate_add(self, data, xml):
         data.userNTP.curr_server.is_udp = False
         data.userNTP.curr_server.certificate = xml.get_body()
+        return
+
+    pass
 
 # /system/ntp/server/association-type
 class NTPServerAsocType(tf.YangElemValidateOnly):
     def validate_add(self, data, xml):
         data.userNTP.curr_server.asoc_type = xml.get_body()
+        return
+
+    pass
 
 # /system/ntp/server/iburst
 class NTPServerIBurst(tf.YangElemValidateOnly):
     def validate_add(self, data, xml):
         data.userNTP.curr_server.iburst = xml.get_body()
+        return
+
+    pass
 
 # /system/ntp/server/prever
 class NTPServerPrefer(tf.YangElemValidateOnly):
     def validate_add(self, data, xml):
         data.userNTP.curr_server.prefer = xml.get_body()
+        return
+
+    pass
 
 # /system/ntp/server
 class NTPServer(tf.YangElemValidateOnly):
@@ -1028,6 +1112,8 @@ class SystemStatePlatform(tf.YangElemValueOnly):
             raise Exception("Internal error getting uname")
         return self.program_output(["/bin/uname", opt]).strip()
 
+    pass
+
 # /system-state/clock/*
 class SystemStateClock(tf.YangElemValueOnly):
     def getvalue(self, vdata=None):
@@ -1039,6 +1125,7 @@ class SystemStateClock(tf.YangElemValueOnly):
             date[1] = date[1].replace("+", "Z+", 1)
         else:
             date[1] = date[1].replace("-", "Z-", 1)
+            pass
         date = date[0] + "T" + date[1]
 
         if self.name == "boot-datetime":
@@ -1052,6 +1139,8 @@ class SystemStateClock(tf.YangElemValueOnly):
             date = bdate[2] + "T" + bdate[3] + "Z" + zone[1]
 
         return date
+
+    pass
 
 # /system-state/platform
 system_state_platform_children = {
@@ -1116,12 +1205,14 @@ class Handler(tf.TopElemHandler, tf.ProgOut):
     def statedata(self, nsc, xpath):
         return super().statedata(nsc, xpath)
 
+    pass
+
 children = {
     "system": tf.YangElem("system", tf.YangType.CONTAINER, system_children),
     "system-state": tf.YangElem("system-state", tf.YangType.CONTAINER,
                                 system_state_children),
 }
-handler = Handler("linux-system", "urn:ietf:params:xml:ns:yang:ietf-system",
+handler = Handler("linux-system", IETF_SYSTEM_NAMESPACE,
                   children)
 handler.p = clixon_beh.add_plugin("linux-system", handler.namespace, handler)
 
@@ -1130,23 +1221,26 @@ class SetTimeHandler(tf.RPC):
         s = '<rpc-reply xmlns="' + clixon_beh.NETCONF_BASE_NAMESPACE + '">'
         if using_ntp:
             s += ("<rpc-error>"
-                 + "<error-type>application</error-type>"
-                 + "<error-tag>ntp-active</error-tag>"
-                 + "<error-severity>error</error-severity>"
-                 + "</rpc-error>")
+                  + "<error-type>application</error-type>"
+                  + "<error-tag>ntp-active</error-tag>"
+                  + "<error-severity>error</error-severity>"
+                  + "</rpc-error>")
         else:
             d = x.find("current-datetime")
             if d is None:
                 raise Exception("current-datetime not in set time rpc")
             self.do_priv(d.get_body())
+            pass
         s += '</rpc-reply>'
         return (0, s)
 
     def priv(self, op):
         self.program_output([datecmd, "-s", op])
+        return
 
-clixon_beh.add_rpc_callback("set-current-datetime",
-                            "urn:ietf:params:xml:ns:yang:ietf-system",
+    pass
+
+clixon_beh.add_rpc_callback("set-current-datetime", IETF_SYSTEM_NAMESPACE,
                             SetTimeHandler())
 
 class RestartHandler(tf.RPC):
@@ -1158,9 +1252,11 @@ class RestartHandler(tf.RPC):
 
     def priv(self, op):
         self.program_output(["/sbin/reboot"])
+        return
 
-clixon_beh.add_rpc_callback("system-restart",
-                            "urn:ietf:params:xml:ns:yang:ietf-system",
+    pass
+
+clixon_beh.add_rpc_callback("system-restart", IETF_SYSTEM_NAMESPACE,
                             RestartHandler())
 
 
@@ -1173,19 +1269,23 @@ class ShutdownHandler(tf.RPC):
 
     def priv(self, op):
         self.program_output(["/sbin/shutdown", "now"])
+        return
 
-clixon_beh.add_rpc_callback("system-shutdown",
-                            "urn:ietf:params:xml:ns:yang:ietf-system",
+    pass
+
+clixon_beh.add_rpc_callback("system-shutdown", IETF_SYSTEM_NAMESPACE,
                             ShutdownHandler())
 
 class AuthStatedata:
     def stateonly(self):
         rv = children["system"].getonevalue()
         if rv and len(rv) > 0:
-            rv = ("<system xmlns=\"urn:ietf:params:xml:ns:yang:ietf-system\">"
+            rv = ("<system xmlns=\"" + IETF_SYSTEM_NAMESPACE + "\">"
                   + rv + "</system>")
             pass
         return (0, rv)
 
-clixon_beh.add_stateonly("<system xmlns=\"urn:ietf:params:xml:ns:yang:ietf-system\"></system>",
+    pass
+
+clixon_beh.add_stateonly("<system xmlns=\"" + IETF_SYSTEM_NAMESPACE + "\"></system>",
                          AuthStatedata())
