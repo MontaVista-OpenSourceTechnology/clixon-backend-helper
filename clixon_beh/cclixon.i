@@ -771,6 +771,15 @@ void clixon_logt(int logtype, char *str)
     struct clixon_beh *beh = clixon_beh_get_global_beh();
     clixon_beh_log(beh, logtype, "%s", str);
 }
+
+void plugin_rpc_errt(char *ns, char *type, char *tag, char *info,
+		     char *severity, char *message)
+{
+    struct clixon_beh *beh = clixon_beh_get_global_beh();
+    struct clixon_handle *h = clixon_beh_get_handle(beh);
+
+    plugin_rpc_err(h, ns, type, tag, info, severity, message);
+}
 %}
 
 %constant int LOG_TYPE_LOG = LOG_TYPE_LOG;
@@ -1253,5 +1262,9 @@ void clixon_errt(int oe, int ev, char *str);
 
 %rename(log) clixon_logt;
 void clixon_logt(int logtype, char *str);
+
+%rename(rpc_err) plugin_rpc_errt;
+void plugin_rpc_errt(char *ns, char *type, char *tag, char *info,
+		     char *severity, char *message);
 
 %constant char *NETCONF_BASE_NAMESPACE = "urn:ietf:params:xml:ns:netconf:base:1.0";
