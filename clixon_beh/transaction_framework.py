@@ -30,6 +30,8 @@
 #
 
 import subprocess
+import io
+import traceback
 import clixon_beh
 from enum import Enum
 
@@ -735,3 +737,11 @@ class RPC(PrivOp, ProgOut):
         return (0, "")
 
     pass
+
+def handle_err(exc):
+    f = io.StringIO()
+    traceback.print_exception(exc, file=f)
+    clixon_beh.err(clixon_beh.OE_PLUGIN, 0, f.getvalue())
+    return
+
+clixon_beh.set_err_handler(handle_err)
