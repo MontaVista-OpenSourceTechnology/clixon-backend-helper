@@ -80,6 +80,8 @@ struct plugin {
     PyObject *handler;
 };
 
+static PyObject *err_handler;
+
 static int
 pyclixon_call_rv(PyObject *cb, const char *method, PyObject *args,
 		 bool optional, PyObject **rv)
@@ -92,8 +94,28 @@ pyclixon_call_rv(PyObject *cb, const char *method, PyObject *args,
 	o = PyObject_CallObject(p, args);
 	Py_DECREF(p);
 	if (PyErr_Occurred()) {
-	    /* FIXME - convert to clixon_err() */
-	    PyErr_Print();
+	    if (err_handler) {
+		PyObject *eargs = PyTuple_New(1);
+		PyObject *exc = PyErr_GetRaisedException();
+		PyObject *o2 = PyErr_GetRaisedException();
+
+		if (!exc)
+		    goto nohandler;
+		PyErr_Clear();
+		PyTuple_SET_ITEM(eargs, 0, exc);
+		o2 = PyObject_CallObject(err_handler, eargs);
+		if (o2)
+		    Py_DECREF(o2);
+		if (PyErr_Occurred()) {
+		    PyErr_SetRaisedException(exc);
+		    goto nohandler;
+		}
+		Py_DECREF(eargs);
+		Py_DECREF(exc);
+	    } else {
+	    nohandler:
+		PyErr_Print();
+	    }
 	    if (o)
 		Py_DECREF(o);
 	    retval = -1;
@@ -810,6 +832,14 @@ struct plugin *add_plugin(const char *name,
 %rename(add_stream) add_streamt;
 %rename(stream_notify) stream_notifyt;
 %inline %{
+void set_err_handler(PyObject *handler)
+{
+    if (err_handler) {
+	Py_DECREF(err_handler);
+    }
+    err_handler = handler;
+}
+
 /* FIXME - There is no way to unregister this.  Maybe it doesn't matter. */
 void add_rpc_callback(const char *name,
 		      const char *namespace,
@@ -1215,7 +1245,7 @@ int drop_priv_temp(int euid);
 %constant int OE_FATAL = OE_FATAL;
 %constant int OE_UNDEF = OE_UNDEF;
 %constant int OE_SSL = OE_SSL;
-%constant int OE_SNMP  = OE_SNMP ;
+%constant int OE_SNMP  = OE_SNMP;
 %constant int OE_NGHTTP2 = OE_NGHTTP2;
 
 %rename(err) clixon_errt;
