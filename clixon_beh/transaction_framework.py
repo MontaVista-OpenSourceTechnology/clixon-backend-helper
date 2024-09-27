@@ -738,10 +738,28 @@ class RPC(PrivOp, ProgOut):
 
     pass
 
+class RPCError(Exception):
+    def __init__(self, rtype, tag, severity, message = None,
+                 ns = None, info = None):
+        self.rtype = rtype
+        self.tag = tag
+        self.severity = severity
+        self.message = message
+        self.ns = ns
+        self.info = info
+        return
+
+    pass
+
 def handle_err(exc):
-    f = io.StringIO()
-    traceback.print_exception(exc, file=f)
-    clixon_beh.err(clixon_beh.OE_PLUGIN, 0, f.getvalue())
+    if exc.__class__ == RPCError:
+        clixon_beh.rpc_err(exc.ns, exc.rtype, exc.tag, exc.info, exc.severity,
+                           exc.message)
+    else:
+        f = io.StringIO()
+        traceback.print_exception(exc, file=f)
+        clixon_beh.err(clixon_beh.OE_PLUGIN, 0, f.getvalue())
+        pass
     return
 
 clixon_beh.set_err_handler(handle_err)
