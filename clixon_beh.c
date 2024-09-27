@@ -1114,6 +1114,7 @@ clixon_plugin_init(clixon_handle h) {
         goto out_err;
     if (clixon_beh_parse_config_file(h, mycfgfile, yspec, &xconfig) < 0)
         goto out_err;
+    yspec = NULL; /* It's now owned by the module code. */
     if (xml_spec(xconfig) == NULL){
         clixon_err(OE_CFG, 0, "Config file %s: did not find corresponding Yang specification\nHint: File does not begin with: <clixon-beh-config xmlns=\"%s\"> or clixon-beh-config.yang not found?", mycfgfile, CLIXON_BEH_NAMESPACE);
         goto out_err;
