@@ -53,12 +53,14 @@ class Hostname(tf.YangElem):
         return
 
     def validate_del(self, data, xml):
-        raise Exception("Delete of hostname not allowed")
+        raise tf.RPCError("application", "invalid-value", "error",
+                          "Delete of hostname not allowed")
 
     def validate(self, data, origxml, newxml):
         value = newxml.get_body()
         if len(value) > 64: # Linux only allow 64 characters
-            raise Exception("Host name too long, 64-character max.")
+            raise tf.RPCError("application", "invalid-value", "error",
+                              "Host name too long, 64-character max.")
         data.add_op(self, None, value)
         return
 
@@ -119,10 +121,12 @@ class TimeZone(tf.YangElem):
 
     def validate(self, data, origxml, newxml):
         if not self.is_name:
-            raise Exception("Only name timezones are accepted")
+            raise tf.RPCError("application", "invalid-value", "error",
+                              "Only name timezones are accepted")
         value = newxml.get_body()
         if not os.path.exists(sysbase + zoneinfodir + value):
-            raise Exception(value + " not a valid timezone")
+            raise tf.RPCError("application", "invalid-value", "error",
+                              value + " not a valid timezone")
         data.add_op(self, None, value)
         return
 
@@ -447,7 +451,8 @@ class DNSUseVC(tf.YangElemValidateOnly):
 class DNSResolver(tf.YangElem):
     def validate_del(self, data, xml):
         # FIXME - maybe delete /etc/resolv.conf?  or fix the YANG?
-        raise Exception("Cannot delete main DNS data")
+        raise tf.RPCError("application", "invalid-value", "error",
+                          "Cannot delete main DNS data")
 
     def getvalue(self, vdata=None):
         """We fetch the resolv.conf file and process it here ourselves.  None
@@ -683,20 +688,25 @@ class UserName(tf.YangElemValidateOnly):
     def validate_add(self, data, xml):
         data.userCurrU.user_name = xml.get_body()
         if data.userCurrU.user_op == "add" and data.userCurrU.user_exists():
-            raise Exception("User " + data.userCurrU.user_name
-                            + " already exists")
+            raise tf.RPCError("application", "invalid-value", "error",
+                              "User " + data.userCurrU.user_name +
+                              " already exists")
         return
 
     def validate_del(self, data, xml):
         data.userCurrU.user_name = xml.get_body()
         if not data.userCurrU.user_exists():
-            raise Exception("User " + data.userCurrU.user_name + " not present")
+            raise tf.RPCError("application", "invalid-value", "error",
+                              "User " + data.userCurrU.user_name +
+                              " not present")
         return
 
     def validate(self, data, origxml, newxml):
         data.userCurrU.user_name = newxml.get_body()
         if not data.userCurrU.user_exists():
-            raise Exception("User " + data.userCurrU.user_name + " not present")
+            raise tf.RPCError("application", "invalid-value", "error",
+                              "User " + data.userCurrU.user_name +
+                              " not present")
         return
 
     def getvalue(self, vdata=None):
@@ -706,14 +716,16 @@ class UserName(tf.YangElemValidateOnly):
 class UserPassword(tf.YangElemValidateOnly):
     def validate_add(self, data, xml):
         if not allow_user_key_change:
-            raise Exception("User password change not allowed")
+            raise tf.RPCError("application", "invalid-value", "error",
+                              "User password change not allowed")
         data.userCurrU.user_password_op = "add"
         data.userCurrU.user_password = xml.get_body()
         return
 
     def validate_del(self, data, xml):
         if data.userCurrU.user_op != "del":
-            raise Exception("User password delete not allowed")
+            raise tf.RPCError("application", "invalid-value", "error",
+                              "User password delete not allowed")
         data.userCurrU.user_password_op = "del"
         return
 
@@ -721,7 +733,8 @@ class UserPassword(tf.YangElemValidateOnly):
         # Don't have to worry about the password on a delete.
         if newxml.get_flags(clixon_beh.XMLOBJ_FLAG_CHANGE):
             if not allow_user_key_change:
-                raise Exception("User password change not allowed")
+                raise tf.RPCError("application", "invalid-value", "error",
+                                  "User password change not allowed")
             data.userCurrU.user_password_op = "add" # Add and change are same
             data.userCurrU.user_password = xml.get_body()
             pass
@@ -776,7 +789,8 @@ class UserAuthkey(tf.YangElem):
     """This handles the user authorized key."""
     def validate_add(self, data, xml):
         if not allow_user_key_change:
-            raise Exception("User key addition not allowed")
+            raise tf.RPCError("application", "invalid-value", "error",
+                              "User key addition not allowed")
         data.userCurrU.user_curr_key = UserKey()
         data.userCurrU.user_keys.append(data.userCurrU.user_curr_key)
         data.userCurrU.user_curr_key.op = "add"
@@ -785,7 +799,8 @@ class UserAuthkey(tf.YangElem):
 
     def validate_del(self, data, xml):
         if not allow_user_key_change:
-            raise Exception("User key deletion not allowed")
+            raise tf.RPCError("application", "invalid-value", "error",
+                              "User key deletion not allowed")
         data.userCurrU.user_curr_key = UserKey()
         data.userCurrU.user_keys.append(data.userCurrU.user_curr_key)
         data.userCurrU.user_curr_key.op = "del"
@@ -833,14 +848,16 @@ class User(tf.YangElem):
 
     def validate_add(self, data, xml):
         if not allow_user_add_del:
-            raise Exception("User addition not allowed")
+            raise tf.RPCError("application", "invalid-value", "error",
+                              "User addition not allowed")
         self.start(data, "add")
         super().validate_add(data, xml)
         return
 
     def validate_del(self, data, xml):
         if not allow_user_add_del:
-            raise Exception("User deletion not allowed")
+            raise tf.RPCError("application", "invalid-value", "error",
+                              "User deletion not allowed")
         self.start(data, "del")
         super().validate_del(data, xml)
         return
@@ -1069,7 +1086,8 @@ class NTP(tf.YangElemValidateOnly):
         return
 
     def validate_del(self, data, xml):
-        raise Exception("Cannot delete NTP data.")
+        raise tf.RPCError("application", "invalid-value", "error",
+                          "Cannot delete NTP data.")
 
     def validate(self, data, origxml, newxml):
         self.start(data)
