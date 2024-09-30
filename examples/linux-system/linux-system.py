@@ -7,10 +7,6 @@ import clixon_beh.transaction_framework as tf
 MY_NAMESPACE = "http://linux.org"
 IETF_SYSTEM_NAMESPACE = "urn:ietf:params:xml:ns:yang:ietf-system"
 
-# This must match the commenting out or not of the dns-resolver deviation
-# in linux-system.yang.
-old_dns_supported = True
-
 # Enable various password operations
 allow_user_add_del = True      # Add/delete users allowed?
 allow_user_pw_change = True    # User password changes allowed?
@@ -45,6 +41,9 @@ resolvconffile = "/etc/resolv.conf"
 # For testing, to store the files elsewhere to avoid updating the main
 # system data
 sysbase = ""
+
+# Pull the feature value from the config.
+old_dns_supported = clixon_beh.is_feature_set("linux-system", "old-dns")
 
 # /system/hostname
 class Hostname(tf.YangElem):
@@ -449,19 +448,27 @@ class DNSUseVC(tf.YangElemValidateOnly):
 
 # /system/dns-resolver
 class DNSResolver(tf.YangElem):
+    def validate_add(self, data, xml):
+        if not old_dns_supported:
+            raise tf.RPCError("application", "invalid-value", "error",
+                              "systemd DNS update not supported here")
+        super().validate_add(data, xml)
+        return
+
+    def validate(self, data, origxml, newxml):
+        if not old_dns_supported:
+            raise tf.RPCError("application", "invalid-value", "error",
+                              "systemd DNS update not supported here")
+        super().validate(data, origxml, newxml)
+        return
+
     def validate_del(self, data, xml):
         # FIXME - maybe delete /etc/resolv.conf?  or fix the YANG?
         raise tf.RPCError("application", "invalid-value", "error",
                           "Cannot delete main DNS data")
 
-    def getvalue(self, vdata=None):
-        """We fetch the resolv.conf file and process it here ourselves.  None
-        of the children will need to handle it.
-
-        """
-        if not old_dns_supported:
-            return ""
-
+    def fetch_resolv_conf(self):
+        vdata = None
         try:
             f = open(sysbase + resolvconffile, "r", encoding="utf-8")
         except:
@@ -521,6 +528,29 @@ class DNSResolver(tf.YangElem):
             f.close()
             return ""
         f.close()
+        return vdata
+
+    def getxml(self, path, namespace=None, indexname=None, index=None,
+               vdata=None):
+        if not old_dns_supported:
+            return ""
+
+        vdata = self.fetch_resolv_conf()
+        if vdata is None:
+            return ""
+        return super().getxml(path, namespace, indexname, index, vdata=vdata)
+
+    def getvalue(self, vdata=None):
+        """We fetch the resolv.conf file and process it here ourselves.  None
+        of the children will need to handle it.
+
+        """
+        if not old_dns_supported:
+            return ""
+
+        vdata = self.fetch_resolv_conf()
+        if vdata is None:
+            return ""
         return super().getvalue(vdata=vdata)
 
     pass
