@@ -4,19 +4,18 @@ appname = 'linux-system'
 
 prefix = get_option('prefix')
 if get_option('prefix') == '/usr'
-  my_sysconfdir = get_option('sysconfdir')
-  my_localstatedir = get_option('localstatedir')
+   my_sysconfdir = get_option('sysconfdir')
 else
-  my_sysconfdir = prefix + '/' + get_option('sysconfdir')
-  my_localstatedir = prefix + '/var'
+   my_sysconfdir = prefix + '/' + get_option('sysconfdir')
 endif
+my_localstatedir = get_option('localstatedir')
 my_libexecdir = prefix + '/' + get_option('libexecdir')
 my_datadir = prefix + '/' + get_option('datadir')
-my_libdir = prefix + '/lib'
+my_libdir = prefix + '/' + get_option('libdir')
 
 conf_data = configuration_data()
 conf_data.set('SYSCONFDIR', my_sysconfdir)
-conf_data.set('DATADIR', prefix + '/' + get_option('datadir'))
+conf_data.set('DATADIR', my_datadir)
 conf_data.set('LIBDIR', my_libdir)
 conf_data.set('LOCALSTATEDIR', my_localstatedir)
 conf_data.set('SBINDIR', prefix + '/' + get_option('sbindir'))
