@@ -27,4 +27,5 @@
   <CLICON_FEATURE>ietf-system:ntp-udp-port</CLICON_FEATURE>
   <CLICON_FEATURE>ietf-system:timezone-name</CLICON_FEATURE>
   <CLICON_FEATURE>ietf-system:dns-udp-tcp-port</CLICON_FEATURE>
+  <CLICON_FEATURE>linux-system:old-dns</CLICON_FEATURE>
 </clixon-config>
