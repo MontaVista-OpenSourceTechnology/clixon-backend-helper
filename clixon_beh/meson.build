@@ -29,14 +29,7 @@
 # ***** END LICENSE BLOCK *****
 #
 
-if get_option('prefix') == '/usr'
-  pyinstall = py3.get_variable('DESTLIB') + '/clixon_beh'
-  pyinstall_so = py3.get_variable('DESTSHARED')
-else
-  pyver = py3.get_variable('py_version_short')
-  pyinstall = prefix + '/lib/python' + pyver + '/dist-packages/clixon_beh'
-  pyinstall_so = pyinstall
-endif
+pyinstall = py3.get_install_dir() + '/clixon_beh'
 
 incdir = include_directories('..')
 
@@ -51,12 +44,9 @@ swig_py_gen = custom_target(
     install_dir: [pyinstall, false]
 )
 
-shared_library('_cclixon', swig_py_gen[1],
-               name_prefix: '',
-               override_options: 'b_lundef=false',
-	       include_directories: [incdir, pyinc],
-	       install: true,
-	       install_dir: pyinstall_so)
+py3.extension_module('_cclixon', swig_py_gen[1],
+                     include_directories: [incdir, pyinc],
+                     install: true)
 
 install_data('__init__.py',
              install_dir: pyinstall)
