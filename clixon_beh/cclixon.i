@@ -1033,6 +1033,48 @@ add_stateonly(char *path, PyObject *handler)
 	free(info);
     }
 }
+
+/*
+ * FIXME - there should probably be a clicon_option_feature() added to
+ * clixon for this to use.
+ */
+bool
+is_feature_set(char *module, char *name)
+{
+    struct clixon_beh *beh = clixon_beh_get_global_beh();
+    struct clixon_handle *h = clixon_beh_get_handle(beh);
+    cxobj *x = NULL;
+    unsigned int module_len;
+
+    if (!module || !name) {
+	PyErr_Format(PyExc_RuntimeError,
+		     "is_feature_set called with NULL value");
+	return false;
+    }
+    module_len = strlen(module);
+
+    x = NULL;
+    while ((x = xml_child_each(clicon_conf_xml(h), x, CX_ELMNT)) != NULL) {
+	char *v, *v2;
+	unsigned int len;
+
+        if (strcmp(xml_name(x), "CLICON_FEATURE") != 0)
+            continue;
+	v = xml_body(x);
+	if (!v)
+	    continue;
+	v2 = strchr(v, ':');
+	if (!v2)
+	    continue;
+	len = v2 - v;
+	v2++;
+	if (module_len == len && strncmp(v, module, len) == 0 &&
+		strcmp(v2, name) == 0)
+	    return true;
+    }
+    return false;
+}
+
 %}
 
 %constant int XMLOBJ_TYPE_ELEMENT = CX_ELMNT;
