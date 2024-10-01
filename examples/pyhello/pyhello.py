@@ -1,3 +1,6 @@
+
+# In this example we handle the whole thing ourself and don't use the
+# transaction framework.
 import clixon_beh
 from lxml import etree
 

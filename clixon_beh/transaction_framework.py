@@ -229,13 +229,17 @@ class YangElem(PrivOp, ProgOut):
 
     """
     def __init__(self, name, etype, children = {}, validate_all = False,
-                 xmlprocvalue = None, wrapxml = None):
+                 xmlprocvalue = None, wrapxml = None, namespace = None):
         """name should be the xml tag name for this operations.  children, if
         set, should be a map of the xml elements that can occur in
         this xml element, and their handlers.  If validate_all is set,
         then the clixon flags for add/del/change are ignored and all
         children are handled.  Otherwise handlers are only called for
         children whose XML has the clixon flags set.
+
+        The namespace value sets the namespace for the XML node.  If
+        None, no namespace will be added.  Otherwise the namespace
+        will be added to the node when generated.
 
         If xmlprocvalue is true, calls to getvalue() will be run
         through the xml escaping code.  Generally leaf classes would
@@ -253,6 +257,7 @@ class YangElem(PrivOp, ProgOut):
         self.etype = etype
         self.wrapgvxml = True
         self.xmlgvprocvalue = False
+        self.namespace = namespace
         if etype == YangType.CONTAINER:
             self.indexed = False
             self.xmlprocvalue = False
@@ -421,8 +426,14 @@ class YangElem(PrivOp, ProgOut):
         """
         raise Exception("No full index function for " + self.name)
 
-    def getxml(self, path, namespace=None, indexname=None, index=None,
-               vdata=None):
+    def xmlheader(self, name, namespace):
+        if namespace is not None:
+            return "<" + name + " xmlns=\"" + namespace + "\">"
+        else:
+            return "<" + name + ">"
+        return
+
+    def getxml(self, path, indexname=None, index=None, vdata=None):
         """Process a get operation before the path has ended.  We are
         just parsing down the path until we hit then end.  indexname
         and index are for lists, they provide the index name and the
@@ -442,12 +453,7 @@ class YangElem(PrivOp, ProgOut):
             raise Exception("Index is set for " + self.name +
                             " which doesn't support indexes")
 
-        xml = "<" + self.name
-        if namespace is not None:
-            xml += " xmlns=\"" + namespace + "\">"
-        else:
-            xml += ">"
-            pass
+        xml = self.xmlheader(self.name, self.namespace)
         if len(path) == 0:
             value = self.getonevalue(vdata=vdata)
             if self.xmlprocvalue:
@@ -476,7 +482,9 @@ class YangElem(PrivOp, ProgOut):
                     s = xmlescape(s)
                     pass
                 if self.children[name].wrapxml:
-                    xml += "<" + name + ">" + s + "</" + name + ">"
+                    namespace = self.children[name].namespace
+                    xml += (self.xmlheader(name, namespace) +
+                            s + "</" + name + ">")
                 else:
                     xml += s
                     pass
@@ -491,7 +499,7 @@ class YangElem(PrivOp, ProgOut):
         if self.indexed:
             for i in self.fetch_full_index(vdata):
                 if self.wrapgvxml:
-                    xml += "<" + self.name + ">"
+                    xml += self.xmlheader(self.name, self.namespace)
                     pass
                 if self.xmlgvprocvalue:
                     xml += xmlescape(self.getonevalue(vdata=i))
@@ -504,9 +512,10 @@ class YangElem(PrivOp, ProgOut):
                 pass
             pass
         else:
-            s = self.getonevalue(vdata=vdata)
-            if len(s) > 0 and self.wrapgvxml:
-                xml += "<" + self.name + ">" + s + "</" + self.name + ">"
+            xml = self.getonevalue(vdata=vdata)
+            if len(xml) > 0 and self.wrapgvxml:
+                xml = (self.xmlheader(self.name, self.namespace) +
+                       xml + "</" + self.name + ">")
             pass
         return xml
 
@@ -531,8 +540,7 @@ class YangElemConfigOnly(YangElem):
     def validate(self, data, origxml, newxml):
         return
 
-    def getxml(self, path, namespace=None, indexname=None, index=None,
-               value=None):
+    def getxml(self, path, indexname=None, index=None, value=None):
         return ""
 
     def getonevalue(self, vdata=None):
@@ -615,13 +623,16 @@ class YangElemValueOnly(YangElem):
     """
 
     def validate_add(self, data, xml):
-        raise Exception("Cannot modify system state")
+        raise tf.RPCError("application", "invalid-value", "error",
+                          "Could not modify state for " + self.name)
 
     def validate_del(self, data, xml):
-        raise Exception("Cannot modify system state")
+        raise tf.RPCError("application", "invalid-value", "error",
+                          "Could not modify state for " + self.name)
 
     def validate(self, data, origxml, newxml):
-        raise Exception("Cannot modify system state")
+        raise tf.RPCError("application", "invalid-value", "error",
+                          "Could not modify state for " + self.name)
 
     def commit(self, op):
         raise Exception("abort")
@@ -629,8 +640,7 @@ class YangElemValueOnly(YangElem):
     def revert(self, data, xml):
         raise Exception("abort")
 
-    def getxml(self, path, namespace=None, indexname=None, index=None,
-               value=None):
+    def getxml(self, path, indexname=None, index=None, value=None):
         return ""
 
     def getvalue(self, vdata=None):
@@ -647,13 +657,12 @@ class TopElemHandler:
 
     """
 
-    def __init__(self, name, namespace, children):
+    def __init__(self, name, children):
         """children is a map of elements that may be in the top level, see
         YangElem for details.
 
         """
         self.name = name
-        self.namespace = namespace
         self.xmlroot = YangElem("TopLevel", YangType.CONTAINER, children)
         return
 
@@ -724,8 +733,7 @@ class TopElemHandler:
             name = name[1]
             pass
         if name in self.xmlroot.children:
-            xml = self.xmlroot.children[name].getxml(path[2:],
-                                                     namespace=self.namespace)
+            xml = self.xmlroot.children[name].getxml(path[2:])
         else:
             raise Exception("Unknown name " + name + " in " + self.name)
         return (0, xml)
