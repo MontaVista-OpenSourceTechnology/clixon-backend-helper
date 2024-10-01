@@ -282,10 +282,10 @@ the boilerplate and parsing of the XML.  It uses the XML objects from
 a transaction, not the string interface.
 
 The first class you deal with is TopElemHandler.  This is a handler
-for the top element of an XML tree from clixon, what you get from
-registering with `clixon_beh.add_plugin()`.  You can descend from this
-class and override things you might need, like begin, daemon, etc.  Or
-if it meets your needs, you can use it directly.
+for the top element of an XML tree from clixon, what you register with
+`clixon_beh.add_plugin()`.  You can derive from this class and
+override things you might need, like begin, daemon, etc.  Or if it
+meets your needs, you can use it directly.
 
 You register a namespace and a map with this.  You should really
 register a namespace; this interface isn't really designed to handle a
@@ -293,7 +293,23 @@ full XML tree, though you could override some of the methods if you
 really wanted to do this.
 
 The map is the key here.  It is a map from the XML element name to a
-handler for that XML element.  So if you had some XML that looked like:
+handler for that XML element.  So if you had some YANG that looked like:
+
+```
+module sysinfo {
+    yang-version 1.1;
+    namespace "my-namespace";
+    prefix sys;
+	container system {
+        leaf hostname {
+            type string;
+	        description "The host name";
+	    }
+	}
+}
+```
+
+the XML for it might be:
 
 ```
 <system xmlns="my-namespace">
@@ -311,12 +327,14 @@ class Hostname(tf.YangElem):
         self.validate(data, None, xml)
 
     def validate_del(self, data, xml):
-        raise Exception("Delete of hostname not allowed")
+        raise tf.RPCError("application", "invalid-value", "error",
+                          "Delete of hostname not allowed")
 
     def validate(self, data, origxml, newxml):
         value = newxml.get_body()
         if len(value) > 64: # Linux only allow 64 characters
-            raise Exception("Host name too long, 64-character max.")
+            raise tf.RPCError("application", "invalid-value", "error",
+                              "Host name too long, 64-character max.")
         data.add_op(self, None, value)
 
     def commit(self, op):
@@ -346,7 +364,7 @@ class Hostname(tf.YangElem):
         finally:
             f.close()
 
-    def getvalue(self):
+    def getvalue(self, vdata=None):
         return self.program_output(["/bin/hostname"]).strip()
 
 system_children = {
@@ -377,6 +395,14 @@ map (`children` is the map, it will match "system" in this case), it
 will call the handler registered in the map for that name, In this
 case `YangElem`.
 
+The `begin` call in `TopElemHandler` will create an item of the class
+`Data` that you can use to store data about the transaction as you
+work on it.  The general scheme is that in the validation call you
+store data about the transaction in the `Data` object.  You generally
+do this with the `add_op` call to the `Data` class; it adds an
+operation to a queue with a handler and some data you provide.  That
+handler gets run when commit happens.
+
 The `validate`, `validate_add`, or `validate_del` method of
 `YangElem` will be called, depending of if this is a change, add or
 delete operation.  It will go through the child elements of the XML
@@ -388,8 +414,8 @@ operation queue.
 One all validation completes successfully, it returns back to clixon.
 clixon will call the `complete` method (which does nothing in
 `TopElemHandler`) then the `commit` method where the real work
-happens.  In this case, it pulls the operation registered in the
-queue, which will call the commit method in `Hostname` which then
+happens.  In this case, it pulls the operations registered in the
+queue, which will call the `commit` method in `Hostname` which then
 calls the `hostname` program to set the hostname, and sets the value
 in `/etc/hostname`.
 
@@ -402,8 +428,8 @@ If commit fails, then the `revert` method will be called to return the
 contents to its original state.  The `op` object has a boolean named
 `revert`, if it is true then a revert is in process.  It also contains
 an `oldvalue` element which is set by default to None.  The user can
-set the value in the commit call at the beginning to the original
-value so it can know how to restore the data.
+save the old value in the commit call at the beginning so the it can
+set it back to the original value if a `revert` happens.
 
 ### YangElem and Children
 
@@ -475,24 +501,40 @@ values have already been discussed.  It has two more options:
   original privilege clixon was run at, generally root.  This will
   call the `priv(self, op)` method on the class at privilege.
   
-* `getxml(self, path, namespace=None)` - Return an XML string for
-  class or some child.  If the path is empty, that means return the
-  value for this class.  In that case, getvalue() for the class is
-  called, escaped if that is set, and returned wrapped in the XML
-  name.  If the path is not empty, that means we are not returning the
-  full XML for this path, we are just wrapping it and returning it for
-  a child.  In that case pull the first item off the patch (which
-  should be this class) and call `getxml` on the child with that name,
-  still wrapping it in the XML name.
+* `getxml(self, path, namespace=None, indexname=None, index=None,
+  vdata=None)` - Return an XML string for class or some child.  If the
+  path is empty, that means return the value for this class.  In that
+  case, getvalue() for the class is called, escaped if that is set,
+  and returned wrapped in the XML name.  If the path is not empty,
+  that means we are not returning the full XML for this path, we are
+  just wrapping it and returning it for a child.  In that case pull
+  the first item off the path (which should be this class) and call
+  `getxml` on the child with that name, still wrapping it in the XML
+  name.
+  
+  If processing a list, indexname and index will be set to the index
+  to fetch.
   
   If `namespace` is not None, then it should be a string and the
   `xmlns` value is set in this elements XML tag.
   
-* `getvalue(self)` - Return the string for this value.  By default
-  this goes through the children of the class and calls `getvalue` on
-  them, wrapping it with the child's XML name.  Leaf children, or
-  children that are handling the final assembly of the string for a
-  tree, must override this.
+* `getonevalue(self, vdata=None)` - Called to fetch an individual
+  value.  For non-lists, this is basically the same as
+  getvalue().  For lists, this is for getting data from the list
+  element (from the item returned by `fetch_index` or iterated from
+  the list returned by `fetch_full_index`.
+  
+* `getvalue(self, vdata=None)` - Return the string for this value.  By
+  default this goes through the children of the class and calls
+  `getvalue` on them, wrapping it with the child's XML name.  Leaf
+  children, or children that are handling the final assembly of the
+  string for a tree, must override this.
+  
+* `fetch_index(self, indexname, index, vdata)` - Return the list item for
+  the element with the name indexname and the value index.
+
+* `fetch_full_index(self, vdata)` - Return the full list of items in
+  an iterable object.
 
 * `program_output(self, args, timeout=1000)` - This is a convenience
   method that calls a program and gets its stdout, stderr, and return
@@ -524,3 +566,438 @@ the values together from what was set in the data value.
 commit operations raising exception.  The only thing this can be used
 for is fetching the value.  This is useful for "config false" items in
 the YANG.
+
+### Containers
+
+We have only shown a top-level container, YANG specifies a
+tree-structured model for the system.  Let's assume we have to change
+the YANG to add a boot time, and we want that combined with the
+
+```
+module sysinfo {
+    yang-version 1.1;
+    namespace "my-namespace";
+    prefix sys;
+	container system {
+	    container hostinfo {
+            leaf hostname {
+                type string;
+	            description "The host name";
+			}
+            leaf boot-datetime {
+			    config false;
+                type yang:date-and-time;
+	            description "The time the host booted";
+            }
+            leaf current-datetime {
+			    config false;
+                type yang:date-and-time;
+	            description "The time ont the host now";
+            }
+        }
+	}
+}
+```
+
+So we have added a new container name `hostinfo` that has the
+hostname, a boot time that is read-only, and a current time that is
+read-only.  We create another level of mapping:
+
+```
+class SystemStateClock(tf.YangElemValueOnly):
+    def getvalue(self, vdata=None):
+        date = self.program_output([datecmd, "--rfc-3339=seconds"]).strip()
+        date = date.split(" ")
+        if len(date) < 2:
+            raise Exception("Invalid date output: " + str(date))
+        if "+" in date[1]:
+            date[1] = date[1].replace("+", "Z+", 1)
+        else:
+            date[1] = date[1].replace("-", "Z-", 1)
+            pass
+        date = date[0] + "T" + date[1]
+
+        if self.name == "boot-datetime":
+            bdate = shlex.split(self.program_output(["/bin/who","-b"]))
+            if len(bdate) < 4:
+                raise Exception("Invalid who -b output: " + str(bdate))
+            # Steal the time zone from the main date.
+            zone = date.split("Z")
+            if len(zone) < 2:
+                raise Exception("Invalid zone in date: " + date)
+            date = bdate[2] + "T" + bdate[3] + "Z" + zone[1]
+
+        return date
+
+    pass
+
+system_hostinfo_children = {
+   "hostname": Hostname("hostname", tf.YangType.LEAF)
+   "boot-datetime": SystemStateClock("boot-datetime", tf.YangType.LEAF)
+   "current-datetime": SystemStateClock("current-datetime", tf.YangType.LEAF)
+}
+system_children = {
+   "hostinfo": tf.YangElem("hostinfo", tf.YangType.CONTAINER,
+                           system_hostinfo_children)
+}
+```
+
+Notice that you can re-use classes with some sort of differentiator.
+If there are containers in containers in containers, you can continue
+to create new maps; building a tree-structure of maps.
+
+### Lists
+
+In addition to containers, there are also lists, which hold lists of
+containers and/or leafs, and leaf lists, which is a list of single leaf
+items.  These are both handled in a similar manner.
+
+#### Leaf Lists
+
+If we had a weird system that had a list of hostnames, the YANG for
+that might be:
+```
+        leaf-list hostname {
+            type string;
+	        description "The host name";
+	    }
+```
+
+The class to handle this might be:
+
+```
+class Hostname(tf.YangElem):
+    def validate_add(self, data, xml):
+        self.validate(data, None, xml)
+
+    def validate_del(self, data, xml):
+        raise tf.RPCError("application", "invalid-value", "error",
+                          "Delete of hostname not allowed")
+
+    def validate(self, data, origxml, newxml):
+	    if data.hostname_op is None:
+		    data.hostname_op = data.add_op(self, None, [])
+
+        value = newxml.get_body()
+        if len(value) > 64: # Linux only allow 64 characters
+            raise tf.RPCError("application", "invalid-value", "error",
+			                  "Host name too long, 64-character max.")
+        data.hostname_op.value.append(value)
+
+    def commit(self, op):
+        op.oldvalue = method_to_get_the_current_list_of_values()
+        self.do_priv(op)
+
+    def revert(self, op):
+        self.do_priv(op)
+
+    def priv(self, op):
+        if op.revert:
+            if op.oldvalue is None:
+                return # We didn't set it, nothing to do
+            try:
+                self.setvalue(op.oldvalue)
+            except:
+                pass
+        else:
+            self.setvalue(op.value)
+        return
+
+    def setvalue(self, value):
+		set_the_list_of_values(value)
+		
+	def fetch_full_index(self, vdata):
+		return method_to_get_the_current_list_of_values()
+
+    def getonevalue(self, vdata):
+        return vdata
+```
+
+You see a number of new things here.  First of all, there is a
+`hostname_op` member added in the data.  It's added in the begin
+method of the top level handler; More on that in the next section.  We
+use that member to hold data for the hostnames until they are all
+collected and can be committed.  The validate call will create a list
+and add to it for each new validate call.
+
+That covers the validation side, next we move to fetching the values.
+
+You see the `fetch_full_index` method.  (Ignore `vdata` for now, we
+will discuss this later).  This will fetch all the data items into a
+list (or some iterable object) and is called once for a transaction.
+The code will then call `getonevalue` with each item in the list as
+`vdata`.  As usual, the framework handles all the XML wrapping and
+such.
+
+#### Normal Lists
+
+In another weird system, we have a list of hostinfo items, so the
+container becomes a list and it's indexed by hostname.  Instead of
+using `tf.YangElem`, we must now create our own class:
+
+```
+class HostData:
+    def __init__(self):
+        self.hostname = None
+
+class HostInfo(tf.YangElem):
+    def validate_add(self, data, xml):
+	    if data.hostinfo_op is None:
+		    data.hostinfo_op = data.add_op(self, None, [])
+		data.hostinfo_data = HostData()
+		data.hostinfo_op.value.append(data.hostinfo_data)
+
+		super().validate_add(data, xml)
+        return
+
+    def validate(self, data, origxml, newxml):
+        self.validate_add(data, newxml)
+        return
+		
+    def commit(self, op):
+        op.oldvalue = get_all_hostinfo_in_a_list()
+        self.do_priv(op)
+
+    def revert(self, op):
+        self.do_priv(op)
+
+    def priv(self, op):
+        if op.revert:
+            if op.oldvalue is None:
+                return # We didn't set it, nothing to do
+            try:
+                self.setvalue(op.oldvalue)
+            except:
+                pass
+        else:
+            self.setvalue(op.value)
+        return
+
+    def setvalue(self, value):
+		set_the_list_of_values(value)
+		
+    def fetch_index(self, indexname, index, vdata):
+        mydata = get_all_hostinfo_in_a_list()
+        for i in vdata:
+            if i.hostname == index:
+                return i
+            pass
+        return None
+
+    def fetch_full_index(self, vdata):
+	    # Returns a list of HostData items.
+        return get_all_hostinfo_in_a_list()
+
+system_children = {
+   "hostinfo": HostInfo("hostinfo", tf.YangType.CONTAINER,
+                        system_hostinfo_children,
+						validate_all = True)
+}
+```
+
+This is something like a leaf list, but instead, the
+`fetch_full_index` method returns all the items.  The transaction
+framework will call this when it's fetching the full list of hostinfo,
+and will then call the children's `getvalue` calls.
+
+We might also get a query where just a single list item is being set.
+In this case thetransaction framework will call `fetch_index` returns
+a single one of these items.
+
+For query, the children will be called with the `vdata` item set to
+their element's data.  They can fetch the data they need from it.
+
+For validation, we create an operation and then fill in the individual
+items.  Each child will will need to fill in their piece of the data.
+Here's the hostname child in this case:
+
+```
+class Hostname(tf.YangElemValidateOnly):
+    def validate_add(self, data, xml):
+        self.validate(data, None, xml)
+
+    def validate_del(self, data, xml):
+        raise tf.RPCError("application", "invalid-value", "error",
+                          "Delete of hostname not allowed")
+
+    def validate(self, data, origxml, newxml):
+        value = newxml.get_body()
+        if len(value) > 64: # Linux only allow 64 characters
+            raise tf.RPCError("application", "invalid-value", "error",
+                              "Host name too long, 64-character max.")
+	    data.hostinfo_data.hostname = value
+
+    def getvalue(self, vdata=None):
+        return vdata.hostname
+```
+
+The data has already been fetched for query and set up for validation,
+this just needs to either set its element or get its element.  The
+parent handles the commit here, too.  The ```YangElemValidateOnly```
+is for this case, the commit and revert are errored out there if they
+ever get called.
+
+### Higher Level Containers Handling Data For Lower Level Items
+
+It is often better to fetch all the data for an operation at once.
+The following examples fetches data from /etc/resolv.conf.  Instead of
+fetching data for each data item from resolv.conf, it's better to just
+fetch it all at once and provide it in a data structure to the
+lower-level items.
+
+In the same way, when committing, it is better to collect up all the
+data in a data structure and write resolv.conf all at once.  That's
+safer and easier to recover from.
+
+The YANG for this is in the standard ietf-system.yang file under
+dns-resolver, you can look at that yourself; I won't include it here.
+
+To implement this, we first must add a data item to the main data
+object:
+
+```
+class Handler(tf.TopElemHandler, tf.ProgOut):
+    def exit(self):
+        self.p = None # Break circular dependency
+        return 0;
+
+    def begin(self, t):
+        rv = super().begin(t)
+        if rv < 0:
+            return rv
+        data = t.get_userdata()
+        data.userDNSOp = None # Replaced when DNS operations are done.
+        return 0
+
+    pass
+
+handler = Handler("itef-system", IETF_SYSTEM_NAMESPACE, children)
+handler.p = clixon_beh.add_plugin(handler.name, handler.namespace, handler)
+```
+
+Notice that we have added an `exit` override; since we store `p` in
+the handler, and `p` has a pointer to the handler, we have a circular
+reference and we need to break it so Python will garbage collect it.
+
+In the `begin` method we have added a `useDataOp` item.  When processing
+DNS data, this will hold the current operation being done.
+
+Now we add dns-resolver to the system map:
+
+```
+class DNSResolver(tf.YangElem):
+    def validate_del(self, data, xml):
+        # FIXME - maybe delete /etc/resolv.conf?  or fix the YANG?
+        raise tf.RPCError("application", "invalid-value", "error",
+                          "Cannot delete main DNS data")
+
+	def fetch_resolv_conf(self):
+	    # Read resolve.conf into vdata.  vdata will be a map holding
+		# the search values in "search", a list of servers in "server",
+		# and the options in a map in "options".
+		return vdata
+
+	def getxml(self, path, namespace=None, indexname=None, index=None,
+               vdata=None):
+        vdata = self.fetch_resolv_conf()
+        if vdata is None:
+            return ""
+        return super().getxml(path, namespace, indexname, index, vdata=vdata)
+
+    def getvalue(self, vdata=None):
+        vdata = self.fetch_resolv_conf()
+        if vdata is None:
+            return ""
+        return super().getvalue(vdata=vdata)
+
+system_children = {
+    "dns-resolver": DNSResolver("dns-resolver", tf.YangType.CONTAINER,
+                                children = system_dns_resolver_children,
+                                validate_all = True),
+}
+```
+
+We have `validate_all` set to true; this will cause the framework to
+call the validation calls for all items in the tree, even if they
+haven't changed.  This is important because we must collect all the
+data for resolv.conf to do a full write of it.
+
+The `DNSResolver` class overrides `getxml` and `setvalue` to fetch the
+vdata value, all the data from resolv.conf, and pass it to super().
+
+Now for the children:
+
+```
+system_dns_resolver_children = {
+    "search": DNSSearch("search", tf.YangType.LEAFLIST, validate_all=True),
+    "server": DNSServer("server", tf.YangType.LIST,
+                        children=system_dns_server_children,
+                        validate_all=True),
+    "options": tf.YangElem("options", tf.YangType.CONTAINER,
+                           children=system_dns_options_children,
+                           validate_all=True),
+}
+```
+
+These children will all get `vdata` as the full data read from
+resolv.conf and they must process that.  For instance, here is the
+options handling:
+
+```
+class DNSTimeout(tf.YangElemValidateOnly):
+    def validate_add(self, data, xml):
+        ddata = dns_get_opdata(data)
+        ddata.timeout = xml.get_body()
+        return
+
+    def getvalue(self, vdata=None):
+        return vdata["timeout"]
+
+    pass
+
+class DNSAttempts(tf.YangElemValidateOnly):
+    def validate_add(self, data, xml):
+        ddata = dns_get_opdata(data)
+        ddata.attempts = xml.get_body()
+        return
+
+    def getvalue(self, vdata=None):
+        return vdata["attempts"]
+
+    pass
+
+class DNSUseVC(tf.YangElemValidateOnly):
+    def validate_add(self, data, xml):
+        ddata = dns_get_opdata(data)
+        ddata.use_vc = xml.get_body().lower() == "true"
+        return
+
+    def getvalue(self, vdata=None):
+        # We have to add our own namespace, so set wrapxml to false for
+        # this class and do it ourself.
+        return ("<use-vc xmlns=\"" + MY_NAMESPACE + "\">" +
+                vdata["use-vc"] + "</use-vc>")
+
+    pass
+
+system_dns_options_children = {
+    "timeout": DNSTimeout("timeout", tf.YangType.LEAF),
+    "attempts": DNSAttempts("attempts", tf.YangType.LEAF),
+    "use-vc": DNSUseVC("use-vc", tf.YangType.LEAF,
+                       wrapxml=False, xmlprocvalue=False),
+}
+```
+
+Note that what is passed into the super() calls is passed into the
+"options" `tf.YangElem` and is then passed into its children.
+
+Notice also the user of `wrapxml` and `xmlprocvalue` for "use-vc".
+This is because this particular item is in a different namespace, so
+the namespace must be inserted.  You could also set the namespace on
+DNSUseVC to do this, too.  Other reason may exist that require
+hand-formatting the returned data, that's what these are for.
+
+Note that the value of vdata, both here and what's returned from
+`fetch_index` and `fetch_full_index` need not be the full data.  They
+could just be indexes into a database, or filenames, or whatever.  But
+whatever is passed in is given to the children for their use.
