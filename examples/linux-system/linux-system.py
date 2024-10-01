@@ -213,7 +213,7 @@ class DNSHandler(tf.YangElemCommitOnly):
         return
 
     def priv(self, op):
-        ddata = op.userData
+        ddata = op.value
         if op.revert:
             os.remove(sysbase + resolvconffile + ".tmp")
         elif op.done:
@@ -288,9 +288,8 @@ def dns_get_opdata(data):
 
     """
     if data.userDNSOp is None:
-        data.userDNSOp = data.add_op(DNSHandler("dns"), "dns", None)
-        data.userDNSOp.userData = DNSData()
-    return data.userDNSOp.userData
+        data.userDNSOp = data.add_op(DNSHandler("dns"), "dns", DNSData())
+    return data.userDNSOp.value
 
 # /system/dns-resolver/search
 class DNSSearch(tf.YangElemValidateOnly):
@@ -363,11 +362,8 @@ class DNSServerCertificate(tf.YangElemValidateOnly):
         return
 
     def getvalue(self, vdata=None):
-        # We have to add our own namespace, so set wrapxml to false for
-        # this class and do it ourself.  However, we don't actually
-        # return any data.
-        return ("<certificate xmlns=\"" + tf.xmlescape(MY_NAMESPACE) + "\">" +
-                "x" + "</certificate>")
+        # Don't actually return any data
+        return "x"
 
     pass
 
@@ -378,7 +374,7 @@ system_dns_server_children = {
                                            children=system_dns_server_ip_children,
                                            validate_all=True),
     "certificate": DNSServerCertificate("certificate", tf.YangType.LEAF,
-                                        wrapxml = False, xmlprocvalue = False),
+                                        namespace=MY_NAMESPACE),
     # FIXME - Add encrypted DNS support, and possibly DNSSEC.
 }
 
@@ -439,10 +435,7 @@ class DNSUseVC(tf.YangElemValidateOnly):
         return
 
     def getvalue(self, vdata=None):
-        # We have to add our own namespace, so set wrapxml to false for
-        # this class and do it ourself.
-        return ("<use-vc xmlns=\"" + MY_NAMESPACE + "\">" +
-                vdata["use-vc"] + "</use-vc>")
+        return vdata["use-vc"]
 
     pass
 
@@ -530,15 +523,14 @@ class DNSResolver(tf.YangElem):
         f.close()
         return vdata
 
-    def getxml(self, path, namespace=None, indexname=None, index=None,
-               vdata=None):
+    def getxml(self, path, indexname=None, index=None, vdata=None):
         if not old_dns_supported:
             return ""
 
         vdata = self.fetch_resolv_conf()
         if vdata is None:
             return ""
-        return super().getxml(path, namespace, indexname, index, vdata=vdata)
+        return super().getxml(path, indexname, index, vdata=vdata)
 
     def getvalue(self, vdata=None):
         """We fetch the resolv.conf file and process it here ourselves.  None
@@ -559,8 +551,7 @@ class DNSResolver(tf.YangElem):
 system_dns_options_children = {
     "timeout": DNSTimeout("timeout", tf.YangType.LEAF),
     "attempts": DNSAttempts("attempts", tf.YangType.LEAF),
-    "use-vc": DNSUseVC("use-vc", tf.YangType.LEAF,
-                       wrapxml=False, xmlprocvalue=False),
+    "use-vc": DNSUseVC("use-vc", tf.YangType.LEAF, namespace=MY_NAMESPACE)
 }
 
 # /system/dns-resolver
@@ -871,8 +862,8 @@ system_user_authkey_children = {
 # /system/authentication/user
 class User(tf.YangElem):
     def start(self, data, op):
-        data.userCurrU = UserData("user", data)
-        data.add_op(data.userCurrU, "user", None)
+        new_op = data.add_op(data.userCurrU, "user", UserData("user", data))
+        data.userCurrU = new_op.value
         data.userCurrU.user_op = op
         return
 
@@ -1106,8 +1097,8 @@ system_ntp_server_children = {
 # /system/ntp
 class NTP(tf.YangElemValidateOnly):
     def start(self, data):
-        data.userNTP = NTPData("ntp")
-        data.add_op(data.userNTP, "ntp", None)
+        new_op = data.add_op(data.userNTP, "ntp", NTPData("ntp"))
+        data.userNTP = new_op.value
         return
 
     def validate_add(self, data, xml):
@@ -1264,13 +1255,14 @@ class Handler(tf.TopElemHandler, tf.ProgOut):
     pass
 
 children = {
-    "system": tf.YangElem("system", tf.YangType.CONTAINER, system_children),
+    "system": tf.YangElem("system", tf.YangType.CONTAINER, system_children,
+                          namespace = IETF_SYSTEM_NAMESPACE),
     "system-state": tf.YangElem("system-state", tf.YangType.CONTAINER,
-                                system_state_children),
+                                system_state_children,
+                                namespace = IETF_SYSTEM_NAMESPACE),
 }
-handler = Handler("linux-system", IETF_SYSTEM_NAMESPACE,
-                  children)
-handler.p = clixon_beh.add_plugin("linux-system", handler.namespace, handler)
+handler = Handler("linux-system", children)
+handler.p = clixon_beh.add_plugin(handler.name, IETF_SYSTEM_NAMESPACE, handler)
 
 class SetTimeHandler(tf.RPC):
     def rpc(self, x, username):

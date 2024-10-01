@@ -14,7 +14,7 @@ To use this, you create a handler class and register it
 ```
 class ClixonHelloOp:
     def __init__(self):
-	    # setup data.
+        # setup data.
 
 class ClixonHelloHandler:
     def __init__(self):
@@ -25,11 +25,11 @@ class ClixonHelloHandler:
         return 0
 
     def validate(self, t):
-	    data = t.get_userdata()
+        data = t.get_userdata()
         return 0
 
     def commit(self, t):
-	    data = t.get_userdata()
+        data = t.get_userdata()
         origxml = t.orig_str()
         newxml = t.new_str()
         return 0
@@ -77,25 +77,25 @@ class Handler(tf.Elem:
     def validate(self, t):
         return 0
 
-	def complete(self, t):
-		return 0
+    def complete(self, t):
+        return 0
 
     def commit(self, t):
         return 0
 
     def commit_done(self, t):
-		return 0
+        return 0
 
     def revert(self, t):
-		return 0
+        return 0
 
     def end(self, t):
-		return 0
+        return 0
 
     def abort(self, t):
-		return 0
+        return 0
 
-	def statedata(self, nsc, xpath):
+    def statedata(self, nsc, xpath):
         return (0, "<xml data>")
 ```
 
@@ -210,8 +210,8 @@ if you had something like:
 ```
 notification event {
     leave event-type {
-	    type string;
-	}
+        type string;
+    }
 }
 ```
 then your `xmlstr` would be something like:
@@ -264,11 +264,11 @@ OE_XML
 OE_JSON
 OE_RESTCONF
 OE_PLUGIN
-OE_YANG 
+OE_YANG
 OE_FATAL
 OE_UNDEF
 OE_SSL
-OE_SNMP 
+OE_SNMP
 OE_NGHTTP2
 ```
 
@@ -300,12 +300,12 @@ module sysinfo {
     yang-version 1.1;
     namespace "my-namespace";
     prefix sys;
-	container system {
+    container system {
         leaf hostname {
             type string;
-	        description "The host name";
-	    }
-	}
+            description "The host name";
+        }
+    }
 }
 ```
 
@@ -321,6 +321,8 @@ you would have some code like:
 
 ```
 import clixon_beh.transaction_framework as tf
+
+MY_NAMESPACE = "my-namespace"
 
 class Hostname(tf.YangElem):
     def validate_add(self, data, xml):
@@ -371,14 +373,12 @@ system_children = {
    "hostname": Hostname("hostname", tf.YangType.LEAF)
 }
 children = {
-   "system": tf.YangElem("system", tf.YangType.CONTAINER, system_children)
+   "system": tf.YangElem("system", tf.YangType.CONTAINER, system_children,
+                         namespace=MY_NAMESPACE)
 }
 
-handler = tf.TopElemHandler("ietf-system",
-                            "my-namespace",
-                            children)
-handler.p = clixon_beh.add_plugin("system-handler",
-                                  handler.namespace, handler)
+handler = tf.TopElemHandler("ietf-system", children)
+handler.p = clixon_beh.add_plugin("system-handler", MY_NAMESPACE, handler)
 ```
 
 This code shows a number of things about the transaction framework.
@@ -394,6 +394,8 @@ the top XML element's name.  If it matches something in the registered
 map (`children` is the map, it will match "system" in this case), it
 will call the handler registered in the map for that name, In this
 case `YangElem`.
+
+The top-level children must set the namespace for all the elements.
 
 The `begin` call in `TopElemHandler` will create an item of the class
 `Data` that you can use to store data about the transaction as you
@@ -458,13 +460,13 @@ values have already been discussed.  It has two more options:
   instance, if you are changing the IP address of an interface, it may
   still be useful to have the netmask, gateway, etc. from the XML
   data, even if it hasn't hanged.
-  
+
 * `xmlprocvalue` - If true, the string returned from `getvalue` will
   be processed by `xmlescape`.  This should only be set on leaf types.
   The default is False for non-leaf values and True for leaf values.
   The user may also call `xmlescape` on their own to do this, if that
   is more convenient.
-  
+
 * `wrapxml` - If true, the value returned from `getvalue` will be in
   wrapped the xml name of the class.  This should only be set on leaf
   types.  If you have a leaf type where you need to do your own XML
@@ -480,7 +482,7 @@ values have already been discussed.  It has two more options:
   transaction.  Users may add their own data to this; in this case the
   name must begin with "user".  Operations would be added to the data
   object with the `data.add_op()` method.
-  
+
 * `validate_del(self, data, xml)` - This is called when a deleted element is
   seen, and is called on all its children.  Again, leaf elements would
   override this.
@@ -492,44 +494,44 @@ values have already been discussed.  It has two more options:
 * `commit(self, op)` - When the commit phase runs, the operations
   added with `add_op()` have their commit methods called in order.
   This should actually cause the operation to occur on the system.
-  
+
 * `revert(self, op)` - If a commit fails, then this method is called
   on all operations in the queue in reverse order to undo what they
   have done.
-  
+
 * `do_priv(self, op)` - Called to perform the operation at the
   original privilege clixon was run at, generally root.  This will
   call the `priv(self, op)` method on the class at privilege.
-  
-* `getxml(self, path, namespace=None, indexname=None, index=None,
-  vdata=None)` - Return an XML string for class or some child.  If the
-  path is empty, that means return the value for this class.  In that
-  case, getvalue() for the class is called, escaped if that is set,
-  and returned wrapped in the XML name.  If the path is not empty,
-  that means we are not returning the full XML for this path, we are
-  just wrapping it and returning it for a child.  In that case pull
-  the first item off the path (which should be this class) and call
+
+* `getxml(self, path, indexname=None, index=None, vdata=None)` -
+  Return an XML string for class or some child.  If the path is empty,
+  that means return the value for this class.  In that case,
+  getvalue() for the class is called, escaped if that is set, and
+  returned wrapped in the XML name.  If the path is not empty, that
+  means we are not returning the full XML for this path, we are just
+  wrapping it and returning it for a child.  In that case pull the
+  first item off the path (which should be this class) and call
   `getxml` on the child with that name, still wrapping it in the XML
   name.
-  
+
   If processing a list, indexname and index will be set to the index
   to fetch.
-  
+
   If `namespace` is not None, then it should be a string and the
   `xmlns` value is set in this elements XML tag.
-  
+
 * `getonevalue(self, vdata=None)` - Called to fetch an individual
   value.  For non-lists, this is basically the same as
   getvalue().  For lists, this is for getting data from the list
   element (from the item returned by `fetch_index` or iterated from
   the list returned by `fetch_full_index`.
-  
+
 * `getvalue(self, vdata=None)` - Return the string for this value.  By
   default this goes through the children of the class and calls
   `getvalue` on them, wrapping it with the child's XML name.  Leaf
   children, or children that are handling the final assembly of the
   string for a tree, must override this.
-  
+
 * `fetch_index(self, indexname, index, vdata)` - Return the list item for
   the element with the name indexname and the value index.
 
@@ -541,7 +543,7 @@ values have already been discussed.  It has two more options:
   value.  If the return value is not 0, an exception is raised with
   the stderr output of the program.  If the return value is 0, then
   the stdout of the program is returned.
-  
+
 `YangElemConfigOnly` is `YangElem` with everything default to
 do nothing.  This is for an XML leaf element that is for the
 configuration database only, that doesn't do anything in the backend.
@@ -578,24 +580,24 @@ module sysinfo {
     yang-version 1.1;
     namespace "my-namespace";
     prefix sys;
-	container system {
-	    container hostinfo {
+    container system {
+        container hostinfo {
             leaf hostname {
                 type string;
-	            description "The host name";
-			}
+                description "The host name";
+            }
             leaf boot-datetime {
-			    config false;
+                config false;
                 type yang:date-and-time;
-	            description "The time the host booted";
+                description "The time the host booted";
             }
             leaf current-datetime {
-			    config false;
+                config false;
                 type yang:date-and-time;
-	            description "The time ont the host now";
+                description "The time ont the host now";
             }
         }
-	}
+    }
 }
 ```
 
@@ -659,8 +661,8 @@ that might be:
 ```
         leaf-list hostname {
             type string;
-	        description "The host name";
-	    }
+            description "The host name";
+        }
 ```
 
 The class to handle this might be:
@@ -675,13 +677,13 @@ class Hostname(tf.YangElem):
                           "Delete of hostname not allowed")
 
     def validate(self, data, origxml, newxml):
-	    if data.hostname_op is None:
-		    data.hostname_op = data.add_op(self, None, [])
+        if data.hostname_op is None:
+            data.hostname_op = data.add_op(self, None, [])
 
         value = newxml.get_body()
         if len(value) > 64: # Linux only allow 64 characters
             raise tf.RPCError("application", "invalid-value", "error",
-			                  "Host name too long, 64-character max.")
+                              "Host name too long, 64-character max.")
         data.hostname_op.value.append(value)
 
     def commit(self, op):
@@ -704,13 +706,17 @@ class Hostname(tf.YangElem):
         return
 
     def setvalue(self, value):
-		set_the_list_of_values(value)
-		
-	def fetch_full_index(self, vdata):
-		return method_to_get_the_current_list_of_values()
+        set_the_list_of_values(value)
+
+    def fetch_full_index(self, vdata):
+        return method_to_get_the_current_list_of_values()
 
     def getonevalue(self, vdata):
         return vdata
+
+system_children = {
+   "hostname": Hostname("hostname", tf.YangType.LIST)
+}
 ```
 
 You see a number of new things here.  First of all, there is a
@@ -742,18 +748,18 @@ class HostData:
 
 class HostInfo(tf.YangElem):
     def validate_add(self, data, xml):
-	    if data.hostinfo_op is None:
-		    data.hostinfo_op = data.add_op(self, None, [])
-		data.hostinfo_data = HostData()
-		data.hostinfo_op.value.append(data.hostinfo_data)
+        if data.hostinfo_op is None:
+            data.hostinfo_op = data.add_op(self, None, [])
+        data.hostinfo_data = HostData()
+        data.hostinfo_op.value.append(data.hostinfo_data)
 
-		super().validate_add(data, xml)
+        super().validate_add(data, xml)
         return
 
     def validate(self, data, origxml, newxml):
         self.validate_add(data, newxml)
         return
-		
+
     def commit(self, op):
         op.oldvalue = get_all_hostinfo_in_a_list()
         self.do_priv(op)
@@ -774,8 +780,8 @@ class HostInfo(tf.YangElem):
         return
 
     def setvalue(self, value):
-		set_the_list_of_values(value)
-		
+        set_the_list_of_values(value)
+
     def fetch_index(self, indexname, index, vdata):
         mydata = get_all_hostinfo_in_a_list()
         for i in vdata:
@@ -785,13 +791,13 @@ class HostInfo(tf.YangElem):
         return None
 
     def fetch_full_index(self, vdata):
-	    # Returns a list of HostData items.
+        # Returns a list of HostData items.
         return get_all_hostinfo_in_a_list()
 
 system_children = {
-   "hostinfo": HostInfo("hostinfo", tf.YangType.CONTAINER,
+   "hostinfo": HostInfo("hostinfo", tf.YangType.LIST,
                         system_hostinfo_children,
-						validate_all = True)
+                        validate_all = True)
 }
 ```
 
@@ -825,7 +831,7 @@ class Hostname(tf.YangElemValidateOnly):
         if len(value) > 64: # Linux only allow 64 characters
             raise tf.RPCError("application", "invalid-value", "error",
                               "Host name too long, 64-character max.")
-	    data.hostinfo_data.hostname = value
+        data.hostinfo_data.hostname = value
 
     def getvalue(self, vdata=None):
         return vdata.hostname
@@ -871,7 +877,7 @@ class Handler(tf.TopElemHandler, tf.ProgOut):
 
     pass
 
-handler = Handler("itef-system", IETF_SYSTEM_NAMESPACE, children)
+handler = Handler("itef-system", children)
 handler.p = clixon_beh.add_plugin(handler.name, handler.namespace, handler)
 ```
 
@@ -891,18 +897,17 @@ class DNSResolver(tf.YangElem):
         raise tf.RPCError("application", "invalid-value", "error",
                           "Cannot delete main DNS data")
 
-	def fetch_resolv_conf(self):
-	    # Read resolve.conf into vdata.  vdata will be a map holding
-		# the search values in "search", a list of servers in "server",
-		# and the options in a map in "options".
-		return vdata
+    def fetch_resolv_conf(self):
+        # Read resolve.conf into vdata.  vdata will be a map holding
+        # the search values in "search", a list of servers in "server",
+        # and the options in a map in "options".
+        return vdata
 
-	def getxml(self, path, namespace=None, indexname=None, index=None,
-               vdata=None):
+    def getxml(self, path, indexname=None, index=None, vdata=None):
         vdata = self.fetch_resolv_conf()
         if vdata is None:
             return ""
-        return super().getxml(path, namespace, indexname, index, vdata=vdata)
+        return super().getxml(path, indexname, index, vdata=vdata)
 
     def getvalue(self, vdata=None):
         vdata = self.fetch_resolv_conf()
