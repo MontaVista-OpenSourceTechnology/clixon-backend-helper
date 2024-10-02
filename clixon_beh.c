@@ -1122,6 +1122,7 @@ clixon_plugin_init(clixon_handle h) {
         goto out_err;
     }
 
+    global_beh = beh;
     x = NULL;
     while ((x = xml_child_each(xconfig, x, CX_ELMNT)) != NULL) {
 	char *name = xml_name(x);
@@ -1130,6 +1131,11 @@ clixon_plugin_init(clixon_handle h) {
 	    plugin_dir = xml_body(x);
 	    if (!plugin_dir) {
 		clixon_err(OE_CFG, 0, "CLIXON_BEH_PLUGIN_DIR didn't have body");
+		global_beh = NULL;
+		goto out_err;
+	    }
+	    if (clixon_beh_load_plugins(beh, plugin_dir) <= 0) {
+		global_beh = NULL;
 		goto out_err;
 	    }
 	} else {
@@ -1138,11 +1144,6 @@ clixon_plugin_init(clixon_handle h) {
     }
     if (!plugin_dir) {
 	clixon_err(OE_CFG, 0, "CLIXON_BEH_PLUGIN_DIR not present");
-	goto out_err;
-    }
-
-    global_beh = beh;
-    if (clixon_beh_load_plugins(beh, plugin_dir) <= 0) {
 	global_beh = NULL;
 	goto out_err;
     }
