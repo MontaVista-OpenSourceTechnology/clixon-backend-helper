@@ -19,9 +19,6 @@ have_shadow = True
 passwdfile = "/etc/passwd"
 shadowfile = "/etc/shadow"
 
-# NTP handling
-using_ntp = True
-
 # Various commands
 cpcmd = "/bin/cp"
 touchcmd = "/bin/touch"
@@ -36,14 +33,31 @@ hostnamefile = "/etc/hostname"
 localtimefile = "/etc/localtime"
 timezonefile = "/etc/timezone"
 zoneinfodir = "/usr/share/zoneinfo/"
+
 resolvconffile = "/etc/resolv.conf"
+
+# dnsproxy configuration depends on systemd setup.  We have a file in
+# /etc/sysconfig in the form:
+#   SSL_CERT_FILE=/etc/dnsproxy/dnsserv-up-54.crt
+#   SERVER_one=-u tls://192.168.91.1:853
+#   dnsconf=-l 127.0.0.1 -p 8054 -u tls://192.168.91.1:853
+# where the name above is "one".  This allows us to store the name in
+# the file.  Unfortunately, systemd won't let us use ${SERVER_one} :(.
+dnsproxyconf = "/etc/sysconfig/dnsproxy-client-54"
+dnsproxycert = "/etc/dnsproxy/dnsserv-up-54.crt"
+dnsproxylistenport = "8054"
+dnsproxylistenaddr = "127.0.0.1"
 
 # For testing, to store the files elsewhere to avoid updating the main
 # system data
-sysbase = ""
+sysbase = "/home/cminyard/tmp/clixon"
 
-# Pull the feature value from the config.
+# Pull the feature values from the config.
 old_dns_supported = clixon_beh.is_feature_set("linux-system", "old-dns")
+dnsproxy_supported = clixon_beh.is_feature_set("linux-system", "dnsproxy")
+using_ntp = clixon_beh.is_feature_set("ietf-system", "ntp")
+
+do_dns = old_dns_supported or dnsproxy_supported
 
 # /system/hostname
 class Hostname(tf.YangElem):
@@ -212,7 +226,7 @@ class DNSHandler(tf.YangElemCommitOnly):
         self.do_priv(op)
         return
 
-    def priv(self, op):
+    def priv_old_dns(self, op):
         ddata = op.value
         if op.revert:
             os.remove(sysbase + resolvconffile + ".tmp")
@@ -249,6 +263,91 @@ class DNSHandler(tf.YangElemCommitOnly):
             pass
         return
 
+    def priv_dnsproxy(self, op):
+        ddata = op.value
+        if op.revert:
+            os.remove(sysbase + dnsproxyconf + ".tmp")
+            try:
+                os.remove(sysbase + dnsproxycert + ".tmp")
+            except:
+                pass
+            os.remove(sysbase + resolvconffile + ".tmp")
+            return
+
+        if op.done:
+            os.replace(sysbase + dnsproxyconf + ".tmp",
+                       sysbase + dnsproxyconf)
+            if ddata.certificate is not None:
+                os.replace(sysbase + dnsproxycert + ".tmp",
+                           sysbase + dnsproxycert)
+            os.replace(sysbase + resolvconffile + ".tmp",
+                       sysbase + resolvconffile)
+            return
+
+
+        f = open(sysbase + dnsproxyconf + ".tmp", "w")
+        try:
+            if ddata.certificate is not None:
+                f.write("SSL_CERT_FILE=" + dnsproxycert + "\n")
+                fcert = open(sysbase + dnsproxycert + ".tmp", "w")
+                try:
+                    fcert.write(ddata.certificate + "\n")
+                finally:
+                    fcert.close()
+                    pass
+                pass
+            servers=""
+            for i in ddata.add_server:
+                serverstr = "-u tls://" + i.address + ":" + i.port
+                f.write("SERVER_" + str(i.name) + "=" + serverstr + "\n")
+                # Stupid systemd doesn't let us reference ${SERVER_xxx}.
+                servers += " " + serverstr
+                pass
+            f.write("dnsconf=-l " + dnsproxylistenaddr +
+                    " -p " + dnsproxylistenport +
+                    servers + "\n")
+        finally:
+            f.close()
+            pass
+
+        # Update options and search in the resolv.conf file
+        fin = open(sysbase + resolvconffile, "r")
+        f = open(sysbase + resolvconffile + ".tmp", "w")
+        try:
+            for i in fin:
+                if i.startswith("search "):
+                    continue
+                if i.startswith("options "):
+                    continue
+                f.write(i)
+                pass
+            if len(ddata.add_search) > 0:
+                f.write("search")
+                for i in ddata.add_search:
+                    f.write(" " + str(i))
+                    pass
+                f.write("\n")
+                pass
+            f.write("options timeout:" + ddata.timeout + " attempts:"
+                    + ddata.attempts)
+            if ddata.use_vc:
+                f.write(" use-vc")
+                pass
+            f.write("\n")
+        finally:
+            fin.close()
+            f.close()
+            pass
+        return
+
+    def priv(self, op):
+        if dnsproxy_supported:
+            self.priv_dnsproxy(op)
+        else:
+            self.priv_old_dns(op)
+            pass
+        return
+
     def revert(self, op):
         self.do_priv(op)
         return
@@ -261,7 +360,6 @@ class DNSServerData:
         self.name = None
         self.address = None
         self.port = None
-        self.certificate = None
 
     def __str__(self):
         return f'({self.name}, {self.address}:{self.port})'
@@ -277,6 +375,7 @@ class DNSData:
         self.timeout = None
         self.attempts = None
         self.use_vc = False
+        self.certificate = None
         return
 
     pass
@@ -358,7 +457,7 @@ system_dns_server_ip_children = {
 class DNSServerCertificate(tf.YangElemValidateOnly):
     def validate_add(self, data, xml):
         ddata = dns_get_opdata(data)
-        ddata.curr_server.certificate = xml.get_body()
+        ddata.certificate = xml.get_body()
         return
 
     def getvalue(self, vdata=None):
@@ -373,8 +472,6 @@ system_dns_server_children = {
     "udp-and-tcp": tf.YangElemValidateOnly("udp-and-tcp", tf.YangType.CONTAINER,
                                            children=system_dns_server_ip_children,
                                            validate_all=True),
-    "certificate": DNSServerCertificate("certificate", tf.YangType.LEAF,
-                                        namespace=MY_NAMESPACE),
     # FIXME - Add encrypted DNS support, and possibly DNSSEC.
 }
 
@@ -442,14 +539,14 @@ class DNSUseVC(tf.YangElemValidateOnly):
 # /system/dns-resolver
 class DNSResolver(tf.YangElem):
     def validate_add(self, data, xml):
-        if not old_dns_supported:
+        if not do_dns:
             raise tf.RPCError("application", "invalid-value", "error",
                               "systemd DNS update not supported here")
         super().validate_add(data, xml)
         return
 
     def validate(self, data, origxml, newxml):
-        if not old_dns_supported:
+        if not do_dns:
             raise tf.RPCError("application", "invalid-value", "error",
                               "systemd DNS update not supported here")
         super().validate(data, origxml, newxml)
@@ -461,20 +558,19 @@ class DNSResolver(tf.YangElem):
                           "Cannot delete main DNS data")
 
     def fetch_resolv_conf(self):
-        vdata = None
         try:
             f = open(sysbase + resolvconffile, "r", encoding="utf-8")
         except:
-            return ""
+            return None
+        srvnum = 1
+        srvstr = str(srvnum)
+        vdata = { "search": [],
+                  "nameservers": [],
+                  "timeout": "",
+                  "attempts": "",
+                  "use-vc": "false" }
         try:
             # Construct a map of all the data and then pass it to super().
-            srvnum = 1
-            srvstr = str(srvnum)
-            vdata = { "search": [],
-                      "nameservers": [],
-                      "timeout": "",
-                      "attempts": "",
-                      "use-vc": "false" }
             for l in f:
                 if l.startswith("search "):
                     vdata["search"] += l.split()[1:]
@@ -516,15 +612,44 @@ class DNSResolver(tf.YangElem):
                         pass
                     pass
                 pass
+
+            if dnsproxy_supported:
+                vdata["nameservers"] = []
+                fdnsp = open(sysbase + dnsproxyconf, "r")
+                try:
+                    for i in fdnsp:
+                        if i.startswith("SERVER_"):
+                            s = i.split("=")
+                            if len(s) != 2:
+                                continue
+                            name = s[0][7:]
+                            s = s[1].split()
+                            if len(s) != 2:
+                                continue
+                            s = s[1].split(":")
+                            if len(s) != 3:
+                                continue
+                            if len(s[1]) < 3:
+                                continue
+                            vdata["nameservers"].append({"name": name,
+                                                         "address": s[1][2:],
+                                                         "port": s[2]})
+                            pass
+                        pass
+                    pass
+                finally:
+                    fdnsp.close()
+                    pass
+                pass
             pass
-        except:
+        except Exception as e:
             f.close()
-            return ""
+            return None
         f.close()
         return vdata
 
     def getxml(self, path, indexname=None, index=None, vdata=None):
-        if not old_dns_supported:
+        if not do_dns:
             return ""
 
         vdata = self.fetch_resolv_conf()
@@ -537,7 +662,7 @@ class DNSResolver(tf.YangElem):
         of the children will need to handle it.
 
         """
-        if not old_dns_supported:
+        if not do_dns:
             return ""
 
         vdata = self.fetch_resolv_conf()
@@ -563,6 +688,8 @@ system_dns_resolver_children = {
     "options": tf.YangElem("options", tf.YangType.CONTAINER,
                            children=system_dns_options_children,
                            validate_all=True),
+    "certificate": DNSServerCertificate("certificate", tf.YangType.LEAF,
+                                        namespace=MY_NAMESPACE),
 }
 
 # The standard pwd methods for python don't have a way to override the
