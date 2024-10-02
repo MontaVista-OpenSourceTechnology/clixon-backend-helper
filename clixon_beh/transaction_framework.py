@@ -228,7 +228,7 @@ class YangElem(PrivOp, ProgOut):
     probably need to override getxml.
 
     """
-    def __init__(self, name, etype, children = {}, validate_all = False,
+    def __init__(self, name, etype, children = None, validate_all = False,
                  xmlprocvalue = None, wrapxml = None, namespace = None):
         """name should be the xml tag name for this operations.  children, if
         set, should be a map of the xml elements that can occur in
@@ -476,7 +476,7 @@ class YangElem(PrivOp, ProgOut):
     def getonevalue(self, vdata=None):
         xml = ""
         for name in self.children:
-            s = self.children[name].getvalue(vdata)
+            s = str(self.children[name].getvalue(vdata))
             if len(s) > 0:
                 if self.children[name].xmlprocvalue:
                     s = xmlescape(s)
@@ -504,7 +504,7 @@ class YangElem(PrivOp, ProgOut):
                 if self.xmlgvprocvalue:
                     xml += xmlescape(self.getonevalue(vdata=i))
                 else:
-                    xml += self.getonevalue(vdata=i)
+                    xml += str(self.getonevalue(vdata=i))
                     pass
                 if self.wrapgvxml:
                     xml += "</" + self.name + ">"
@@ -512,7 +512,7 @@ class YangElem(PrivOp, ProgOut):
                 pass
             pass
         else:
-            xml = self.getonevalue(vdata=vdata)
+            xml = str(self.getonevalue(vdata=vdata))
             if len(xml) > 0 and self.wrapgvxml:
                 xml = (self.xmlheader(self.name, self.namespace) +
                        xml + "</" + self.name + ">")
@@ -617,7 +617,7 @@ class YangElemValidateOnly(YangElem):
 
 class YangElemValueOnly(YangElem):
     """This is used for operations that are only registered as
-    leaf system state values, no validate, no commit.  The user should
+    system state values, no validate, no commit.  The leaf users should
     override getvalue.
 
     """
@@ -639,12 +639,6 @@ class YangElemValueOnly(YangElem):
 
     def revert(self, data, xml):
         raise Exception("abort")
-
-    def getxml(self, path, indexname=None, index=None, value=None):
-        return ""
-
-    def getvalue(self, vdata=None):
-        return ""
 
     pass
 
