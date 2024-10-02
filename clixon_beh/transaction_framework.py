@@ -120,7 +120,7 @@ class Op:
         self.handler.commit_done(self)
         return
 
-    def revert(self):
+    def do_revert(self):
         """Revert the operation.  The "revert" member of this is set to True
         here for convenience for the user.
 
@@ -164,7 +164,7 @@ class Data:
 
     def revert(self):
         for op in reversed(self.ops):
-            op.revert()
+            op.do_revert()
             pass
         return
 
@@ -699,8 +699,12 @@ class TopElemHandler:
         return 0
 
     def commit(self, t):
-        data = t.get_userdata()
-        data.commit()
+        try:
+            data = t.get_userdata()
+            data.commit()
+        except:
+            self.revert(t)
+            raise
         return 0
 
     def commit_done(self, t):
