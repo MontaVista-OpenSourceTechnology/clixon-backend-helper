@@ -32,8 +32,15 @@
 project('clixon-backend-helper', 'c')
 
 prefix = get_option('prefix')
+if get_option('prefix') == '/usr'
+   my_sysconfdir = get_option('sysconfdir')
+else
+   my_sysconfdir = prefix + '/' + get_option('sysconfdir')
+endif
+my_localstatedir = get_option('localstatedir')
 my_libexecdir = prefix + '/' + get_option('libexecdir')
 my_datadir = prefix + '/' + get_option('datadir')
+my_libdir = prefix + '/' + get_option('libdir')
 
 py3 = import('python').find_installation('python3')
 pyinc = py3.get_variable('INCLUDEPY').split()
@@ -53,3 +60,6 @@ install_data('clixon-beh-config@2024-06-05.yang',
 install_headers('clixon_beh.h')
 
 subdir('clixon_beh')
+
+subdir('implementations/linux-system')
+subdir('implementations/ietf-ip')
