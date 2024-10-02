@@ -1292,7 +1292,7 @@ int drop_priv_temp(int euid);
 %constant int OE_JSON = OE_JSON;
 %constant int OE_RESTCONF = OE_RESTCONF;
 %constant int OE_PLUGIN = OE_PLUGIN;
-%constant int OE_YANG  = OE_YANG ;
+%constant int OE_YANG  = OE_YANG;
 %constant int OE_FATAL = OE_FATAL;
 %constant int OE_UNDEF = OE_UNDEF;
 %constant int OE_SSL = OE_SSL;
