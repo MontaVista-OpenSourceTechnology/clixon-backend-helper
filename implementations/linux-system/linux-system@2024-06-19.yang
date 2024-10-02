@@ -35,6 +35,12 @@ module linux-system {
              dns configuration.";
     }
 
+    feature dnsproxy {
+	description
+	    "Indicates that the device supports dnsproxy dns
+             configuration.";
+    }
+
     typedef crypt-hash-shadow {
 	type string {
 	    pattern
@@ -79,11 +85,11 @@ module linux-system {
 	}
     }
 
-    augment "/ietf:system/ietf:dns-resolver/ietf:server" {
+    augment "/ietf:system/ietf:dns-resolver" {
 	leaf certificate {
 	    type binary;
 	    description
-		"The certificate used to validate the server.";
+		"The certificate file used to validate the servers.";
 	}
     }
 
