@@ -25,6 +25,7 @@ touchcmd = "/bin/touch"
 lscmd = "/bin/ls"
 lncmd = "/bin/ln"
 mvcmd = "/bin/mv"
+mkdircmd = "/bin/mkdir"
 rmcmd = "/bin/rm"
 catcmd = "/bin/cat"
 datecmd = "/bin/date"
@@ -395,6 +396,11 @@ class DNSSearch(tf.YangElemValidateOnly):
     def validate_add(self, data, xml):
         ddata = dns_get_opdata(data)
         ddata.add_search.append(xml.get_body())
+        return
+
+    def validate(self, data, origxml, newxml):
+        self.validate_add(data, newxml)
+        return
 
     def fetch_index(self, indexname, index, vdata):
         for i in vdata["search"]:
@@ -456,8 +462,11 @@ system_dns_server_ip_children = {
 # /system/dns-resolver/server/certificate
 class DNSServerCertificate(tf.YangElemValidateOnly):
     def validate_add(self, data, xml):
+        v = xml.get_body()
+        if v == "x":
+            return
         ddata = dns_get_opdata(data)
-        ddata.certificate = xml.get_body()
+        ddata.certificate = v
         return
 
     def getvalue(self, vdata=None):
@@ -771,6 +780,7 @@ class UserData(tf.YangElemCommitOnly):
         if not self.oldkeyfile:
             self.home = getpwentry(self.user_name)[5]
             self.keyfile = self.home + "/.ssh/authorized_keys";
+            self.program_output([mkdircmd, "-p", self.home + "/.ssh"])
             try:
                 self.program_output([cpcmd, self.keyfile,
                                      self.keyfile + ".keep"])
@@ -800,8 +810,8 @@ class UserData(tf.YangElemCommitOnly):
             for i in self.user_keys:
                 self.savekeyfile()
                 # Always delete the old key
-                program_output(["sed", "-i", "/" + i.name + "/d",
-                                self.keyfile])
+                self.program_output(["sed", "-i", "/" + i.name + "/d",
+                                     self.keyfile])
                 if i.op == "add":
                     f = open(self.keyfile, "a")
                     f.write(str(i.algorithm) + " "
@@ -867,7 +877,10 @@ class UserPassword(tf.YangElemValidateOnly):
             raise tf.RPCError("application", "invalid-value", "error",
                               "User password change not allowed")
         data.userCurrU.user_password_op = "add"
-        data.userCurrU.user_password = xml.get_body()
+        v = xml.get_body()
+        if v == "x":
+            return
+        data.userCurrU.user_password = v
         return
 
     def validate_del(self, data, xml):
@@ -883,8 +896,11 @@ class UserPassword(tf.YangElemValidateOnly):
             if not allow_user_key_change:
                 raise tf.RPCError("application", "invalid-value", "error",
                                   "User password change not allowed")
+            v = xml.get_body()
+            if v == "x":
+                return
             data.userCurrU.user_password_op = "add" # Add and change are same
-            data.userCurrU.user_password = xml.get_body()
+            data.userCurrU.user_password = v
             pass
         return
 
@@ -919,12 +935,18 @@ class UserAuthkeyAlgo(tf.YangElemValidateOnly):
 # /system/authentication/user/authorized-key/key-data
 class UserAuthkeyKeyData(tf.YangElemValidateOnly):
     def validate_add(self, data, xml):
-        data.userCurrU.user_curr_key.keydata = xml.get_body()
+        v = xml.get_body()
+        if v == "x":
+            return
+        data.userCurrU.user_curr_key.keydata = v
         return
 
     def validate(self, data, origxml, newxml):
         if newxml.get_flags(clixon_beh.XMLOBJ_FLAG_CHANGE):
-            data.userCurrU.user_curr_key.keydata = xml.get_body()
+            v = xml.get_body()
+            if v == "x":
+                return
+            data.userCurrU.user_curr_key.keydata = v
             data.userCurrU.user_curr_key.change_keydata = True
             pass
         return
@@ -989,7 +1011,8 @@ system_user_authkey_children = {
 # /system/authentication/user
 class User(tf.YangElem):
     def start(self, data, op):
-        new_op = data.add_op(data.userCurrU, "user", UserData("user", data))
+        v = UserData("user", data)
+        new_op = data.add_op(v, "user", v)
         data.userCurrU = new_op.value
         data.userCurrU.user_op = op
         return
@@ -1035,7 +1058,8 @@ system_user_children = {
 # /system/authentication
 system_authentication_children = {
     "user-authentication-order": tf.YangElemConfigOnly("user-authentication-order"),
-    "user": User("user", tf.YangType.LIST, children = system_user_children),
+    "user": User("user", tf.YangType.LIST, children = system_user_children,
+                 validate_all=True),
 }
 
 class NTPServerData:
@@ -1371,7 +1395,7 @@ class Handler(tf.TopElemHandler, tf.ProgOut):
                                  sysbase + passwdfile + ".keep",
                                  sysbase + passwdfile])
             if have_shadow:
-                self.program_output([rmcmd, "-f",
+                self.program_output([mvcmd, "-f",
                                      sysbase + shadowfile + ".keep",
                                      sysbase + shadowfile])
         return 0
