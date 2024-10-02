@@ -41,7 +41,6 @@ install_data(appname + '_cli.cli',
              install_dir: my_libdir + '/' + appname + '/clispec')
 
 install_data(['iana-if-type@2014-05-08.yang',
-	      'ietf-inet-types@2013-07-15.yang',
 	      'ietf-interfaces@2018-02-20.yang',
 	      'ietf-ip@2018-02-22.yang'],
              install_dir: my_datadir + '/clixon/' + appname)
