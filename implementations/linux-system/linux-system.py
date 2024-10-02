@@ -29,6 +29,7 @@ mkdircmd = "/bin/mkdir"
 rmcmd = "/bin/rm"
 catcmd = "/bin/cat"
 datecmd = "/bin/date"
+sedcmd = "/bin/sed"
 hostnamecmd = "/bin/hostname"
 hostnamefile = "/etc/hostname"
 localtimefile = "/etc/localtime"
@@ -738,7 +739,7 @@ else:
     pass
 
 class UserKey:
-    def __init(self):
+    def __init__(self):
         self.op = None
         self.name = None
         self.change_algorithm = False
@@ -809,15 +810,22 @@ class UserData(tf.YangElemCommitOnly):
                 pass
             for i in self.user_keys:
                 self.savekeyfile()
-                # Always delete the old key
-                self.program_output(["sed", "-i", "/" + i.name + "/d",
-                                     self.keyfile])
-                if i.op == "add":
-                    f = open(self.keyfile, "a")
-                    f.write(str(i.algorithm) + " "
-                            + str(i.keydata) + " "
-                            + str(i.name) + "\n")
-                    f.close()
+                if i.op == "del":
+                    self.program_output([sedcmd, "-i", "/" + i.name + "/d",
+                                         self.keyfile])
+                elif i.op == "add":
+                    # keydata will be none on a change that's not
+                    # changing anything.
+                    if i.keydata is not None:
+                        # First delete the old one.
+                        self.program_output([sedcmd, "-i", "/" + i.name + "/d",
+                                             self.keyfile])
+                        f = open(self.keyfile, "a")
+                        f.write(str(i.algorithm) + " "
+                                + str(i.keydata) + " "
+                                + str(i.name) + "\n")
+                        f.close()
+                        pass
                     pass
                 pass
             pass
@@ -913,6 +921,11 @@ class UserAuthkeyName(tf.YangElemValidateOnly):
         data.userCurrU.user_curr_key.name = xml.get_body()
         return
 
+    # We need the name for deletion.
+    def validate_del(self, data, xml):
+        data.userCurrU.user_curr_key.name = xml.get_body()
+        return
+
     def getvalue(self, vdata=None):
         return vdata[2]
 
@@ -974,7 +987,11 @@ class UserAuthkey(tf.YangElem):
         data.userCurrU.user_curr_key = UserKey()
         data.userCurrU.user_keys.append(data.userCurrU.user_curr_key)
         data.userCurrU.user_curr_key.op = "del"
-        data.userCurrU.user_keys.append(data.userCurrU.user_curr_key)
+        super().validate_del(data, xml)
+        return
+
+    def validate(self, data, origxml, newxml):
+        self.validate_add(data, newxml)
         return
 
     def fetch_index(self, indexname, index, vdata):
