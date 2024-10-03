@@ -3,10 +3,10 @@
   * [Content](#content)
   * [Compile and run](#compile)
   * [Using the CLI](#using-the-cli)
-  * [Netconf](#netconf)	
+  * [Netconf](#netconf)
   * [Restconf](#restconf)
   * [Next steps](#next-steps)
-  
+
 ## Content
 
 This directory contains a simple Clixon hello world host example. It contains the following files:
@@ -45,17 +45,17 @@ The following example shows how to add a very simple configuration `hello world`
 ```
    $ clixon_cli -f /usr/local/etc/clixon/hello_beh.xml
    cli> set <?>
-     hello                 
-   cli> set hello to world 
-   cli> show configuration 
+     hello
+   cli> set hello to world
+   cli> show configuration
    hello world;
-   cli> commit 
+   cli> commit
    cli> delete <?>
      all                   Delete whole candidate configuration
-     hello                 
-   cli> delete hello 
-   cli> show configuration 
-   cli> commit 
+     hello
+   cli> delete hello
+   cli> show configuration
+   cli> commit
    cli> quit
    $
 ```
@@ -89,7 +89,7 @@ Send restconf commands (using Curl):
 
 ## Notes
 
-### Restconf datastore config 
+### Restconf datastore config
 
 You can use the config of restconf in the startup datastore as an alternative:
 ```

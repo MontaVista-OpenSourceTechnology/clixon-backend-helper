@@ -22,7 +22,7 @@ module linux-system {
          items are:
          * New password hash types.
          * NTP NTS-KE support, NTP over TLS
-         * use-vc DNS option support 
+         * use-vc DNS option support
          * certificates for DNS
          * features for resolv.conf dns or dnsproxy
 
