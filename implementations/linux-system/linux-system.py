@@ -7,17 +7,21 @@ import clixon_beh.transaction_framework as tf
 MY_NAMESPACE = "http://linux.org"
 IETF_SYSTEM_NAMESPACE = "urn:ietf:params:xml:ns:yang:ietf-system"
 
+# For testing, to store the files elsewhere to avoid updating the main
+# system data.
+sysbase = ""
+
 # Enable various password operations
 allow_user_add_del = True      # Add/delete users allowed?
 allow_user_pw_change = True    # User password changes allowed?
 allow_user_key_change = True   # SSH authorized key changes allowed?
 enable_user_update = True      # Allow the password files to be chagned at all.
-useradd = "/usr/sbin/useradd"
-userdel = "/usr/sbin/userdel"
-usermod = "/usr/sbin/usermod"
+useradd = "/sbin/useradd"
+userdel = "/sbin/userdel"
+usermod = "/sbin/usermod"
 have_shadow = True
-passwdfile = "/etc/passwd"
-shadowfile = "/etc/shadow"
+passwdfile = sysbase + "/etc/passwd"
+shadowfile = sysbase + "/etc/shadow"
 
 # Various commands
 cpcmd = "/bin/cp"
@@ -30,13 +34,19 @@ rmcmd = "/bin/rm"
 catcmd = "/bin/cat"
 datecmd = "/bin/date"
 sedcmd = "/bin/sed"
-hostnamecmd = "/bin/hostname"
-hostnamefile = "/etc/hostname"
-localtimefile = "/etc/localtime"
-timezonefile = "/etc/timezone"
-zoneinfodir = "/usr/share/zoneinfo/"
+systemctlcmd = "/bin/systemctl"
 
-resolvconffile = "/etc/resolv.conf"
+# Hostname management
+hostnamecmd = "/bin/hostname"
+hostnamefile = sysbase + "/etc/hostname"
+
+# Time management
+localtimefile = sysbase + "/etc/localtime"
+timezonefile = sysbase + "/etc/timezone"
+zoneinfodir = sysbase + "/usr/share/zoneinfo/"
+
+# end old-dns or dns-proxy is set, we have things to do to resolv.conf.
+resolvconffile = sysbase + "/etc/resolv.conf"
 
 # dnsproxy configuration depends on systemd setup.  We have a file in
 # /etc/sysconfig in the form:
@@ -45,20 +55,27 @@ resolvconffile = "/etc/resolv.conf"
 #   dnsconf=-l 127.0.0.1 -p 8054 -u tls://192.168.91.1:853
 # where the name above is "one".  This allows us to store the name in
 # the file.  Unfortunately, systemd won't let us use ${SERVER_one} :(.
-dnsproxyconf = "/etc/sysconfig/dnsproxy-client-54"
-dnsproxycert = "/etc/dnsproxy/dnsserv-up-54.crt"
+#
+# This particular configuration is a little strange, for this dnsmasq
+# is running providing DNS services (along with DHCP and maybe TFTP),
+# this is used to make a secure connection upstream that dnsmasq hooks
+# to.  If you just wanted to use dnsproxy, you could modify the listen
+# port and address as you needed.
+dnsproxyconf = sysbase + "/etc/sysconfig/dnsproxy-client-54"
+dnsproxycert = sysbase + "/etc/dnsproxy/dnsserv-up-54.crt"
+dnsproxysystemd = "dnsproxy@client-54"
 dnsproxylistenport = "8054"
 dnsproxylistenaddr = "127.0.0.1"
-
-# For testing, to store the files elsewhere to avoid updating the main
-# system data
-sysbase = "/home/cminyard/tmp/clixon"
 
 # Pull the feature values from the config.
 old_dns_supported = clixon_beh.is_feature_set("linux-system", "old-dns")
 dnsproxy_supported = clixon_beh.is_feature_set("linux-system", "dnsproxy")
 using_ntp = clixon_beh.is_feature_set("ietf-system", "ntp")
 
+# If DNS isn't managed through this interface, just stub everything
+# out.  In that case, it would be generally be managed through
+# systemd's resolvectl and that's per-interface, mostly.  It would
+# need its own control interface.
 do_dns = old_dns_supported or dnsproxy_supported
 
 # /system/hostname
@@ -104,7 +121,7 @@ class Hostname(tf.YangElem):
         if sysbase == "":
             self.program_output([hostnamecmd, value])
             pass
-        f = open(sysbase + hostnamefile, "w")
+        f = open(hostnamefile, "w")
         try:
             f.write(value + "\n")
         finally:
@@ -139,7 +156,7 @@ class TimeZone(tf.YangElem):
             raise tf.RPCError("application", "invalid-value", "error",
                               "Only name timezones are accepted")
         value = newxml.get_body()
-        if not os.path.exists(sysbase + zoneinfodir + value):
+        if not os.path.exists(zoneinfodir + value):
             raise tf.RPCError("application", "invalid-value", "error",
                               value + " not a valid timezone")
         data.add_op(self, None, value)
@@ -148,8 +165,7 @@ class TimeZone(tf.YangElem):
     def commit(self, op):
         oldlocaltime = None
         try:
-            lt = self.program_output([lscmd, "-l",
-                                      sysbase + localtimefile])
+            lt = self.program_output([lscmd, "-l", localtimefile])
             lt = lt.split("->")
             if len(lt) > 2:
                 oldlocaltime = lt[1].strip()
@@ -172,9 +188,8 @@ class TimeZone(tf.YangElem):
                     # timedatectl will not add /etc/localtime if it
                     # does not exist or is not already a symlink.
                     # Make sure it points to something.
-                    self.program_output([lncmd, "-sf",
-                                         sysbase + zoneinfodir + "GMT",
-                                         sysbase + localtimefile])
+                    self.program_output([lncmd, "-sf", zoneinfodir + "GMT",
+                                         localtimefile])
                     pass
                 self.setvalue(op.oldvalue[1])
             except:
@@ -188,12 +203,11 @@ class TimeZone(tf.YangElem):
             self.program_output(["/bin/timedatectl", "set-timezone",
                                  "--", value])
         else:
-            f = open(sysbase + timezonefile, "w")
+            f = open(timezonefile, "w")
             f.write(value + "\n")
             f.close()
-            self.program_output([lncmd, "-sf",
-                                 sysbase + zoneinfodir + value,
-                                 sysbase + localtimefile])
+            self.program_output([lncmd, "-sf", zoneinfodir + value,
+                                 localtimefile])
             pass
         return
 
@@ -201,7 +215,7 @@ class TimeZone(tf.YangElem):
         if not self.is_name:
             return ""
         try:
-            s = self.program_output([catcmd, sysbase + timezonefile]).strip()
+            s = self.program_output([catcmd, timezonefile]).strip()
         except:
             s = "GMT"
             pass
@@ -213,8 +227,9 @@ system_clock_children = {
     "timezone-utc-offset": TimeZone("timezone-utc-offset", is_name=False),
 }
 
-# DNS can be disabled in the linux-system yang file, but this is here
-# for old-style DNS.  If you are using resolvconf, disable it in the
+# DNS is configured through features in the linux-system yang file.
+# This file handles old-style resolv.conf DNS, and using dnsproxy for
+# a secure connection.  If you are using resolvectl, disable it in the
 # yang file and handle it in the IP address handling.
 
 class DNSHandler(tf.YangElemCommitOnly):
@@ -231,16 +246,15 @@ class DNSHandler(tf.YangElemCommitOnly):
     def priv_old_dns(self, op):
         ddata = op.value
         if op.revert:
-            os.remove(sysbase + resolvconffile + ".tmp")
+            os.remove(resolvconffile + ".tmp")
         elif op.done:
-            os.replace(sysbase + resolvconffile + ".tmp",
-                       sysbase + resolvconffile)
+            os.replace(resolvconffile + ".tmp", resolvconffile)
         else:
             # Create a file to hold the data.  We move the file over when
             # done.
             # FIXME - no handling for port or certificate in the default
             # way of doing this.
-            f = open(sysbase + resolvconffile + ".tmp", "w")
+            f = open(resolvconffile + ".tmp", "w")
             try:
                 if len(ddata.add_search) > 0:
                     f.write("search")
@@ -266,32 +280,30 @@ class DNSHandler(tf.YangElemCommitOnly):
         return
 
     def priv_dnsproxy(self, op):
+        """Set up the configuration for dnsproxy"""
         ddata = op.value
         if op.revert:
-            os.remove(sysbase + dnsproxyconf + ".tmp")
+            os.remove(dnsproxyconf + ".tmp")
             try:
-                os.remove(sysbase + dnsproxycert + ".tmp")
+                os.remove(dnsproxycert + ".tmp")
             except:
                 pass
-            os.remove(sysbase + resolvconffile + ".tmp")
+            os.remove(resolvconffile + ".tmp")
             return
 
         if op.done:
-            os.replace(sysbase + dnsproxyconf + ".tmp",
-                       sysbase + dnsproxyconf)
+            os.replace(dnsproxyconf + ".tmp", dnsproxyconf)
             if ddata.certificate is not None:
-                os.replace(sysbase + dnsproxycert + ".tmp",
-                           sysbase + dnsproxycert)
-            os.replace(sysbase + resolvconffile + ".tmp",
-                       sysbase + resolvconffile)
+                os.replace(dnsproxycert + ".tmp", dnsproxycert)
+            os.replace(resolvconffile + ".tmp", resolvconffile)
             return
 
 
-        f = open(sysbase + dnsproxyconf + ".tmp", "w")
+        f = open(dnsproxyconf + ".tmp", "w")
         try:
             if ddata.certificate is not None:
                 f.write("SSL_CERT_FILE=" + dnsproxycert + "\n")
-                fcert = open(sysbase + dnsproxycert + ".tmp", "w")
+                fcert = open(dnsproxycert + ".tmp", "w")
                 try:
                     fcert.write(ddata.certificate + "\n")
                 finally:
@@ -313,8 +325,8 @@ class DNSHandler(tf.YangElemCommitOnly):
             pass
 
         # Update options and search in the resolv.conf file
-        fin = open(sysbase + resolvconffile, "r")
-        f = open(sysbase + resolvconffile + ".tmp", "w")
+        fin = open(resolvconffile, "r")
+        f = open(resolvconffile + ".tmp", "w")
         try:
             for i in fin:
                 if i.startswith("search "):
@@ -340,6 +352,9 @@ class DNSHandler(tf.YangElemCommitOnly):
             fin.close()
             f.close()
             pass
+
+        if sysbase == "":
+            self.program_output([systemctlcmd, "restart", dnsproxysystemd])
         return
 
     def priv(self, op):
@@ -569,7 +584,7 @@ class DNSResolver(tf.YangElem):
 
     def fetch_resolv_conf(self):
         try:
-            f = open(sysbase + resolvconffile, "r", encoding="utf-8")
+            f = open(resolvconffile, "r", encoding="utf-8")
         except:
             return None
         srvnum = 1
@@ -625,7 +640,7 @@ class DNSResolver(tf.YangElem):
 
             if dnsproxy_supported:
                 vdata["nameservers"] = []
-                fdnsp = open(sysbase + dnsproxyconf, "r")
+                fdnsp = open(dnsproxyconf, "r")
                 try:
                     for i in fdnsp:
                         if i.startswith("SERVER_"):
@@ -705,7 +720,7 @@ system_dns_resolver_children = {
 # The standard pwd methods for python don't have a way to override the
 # base location.  Re-implement them with that capability.
 def getpwentry(name):
-    f = open(sysbase + passwdfile, "r")
+    f = open(passwdfile, "r")
     found = False
     for i in f:
         p = i.split(":")
@@ -716,16 +731,18 @@ def getpwentry(name):
     if found:
         if len(p) != 7:
             raise Exception("Password entry doesn't have 6 values")
+        # Put sysbase into the home directory
         p[5] = sysbase + p[5]
         return p
     raise Exception("Password entry not found")
 
 def getpwentryall():
-    f = open(sysbase + passwdfile, "r")
+    f = open(passwdfile, "r")
     plist = []
     for i in f:
         p = i.split(":")
         if len(p) == 7:
+            # Put sysbase into the home directory
             p[5] = sysbase + p[5]
             plist.append(p)
             pass
@@ -767,11 +784,11 @@ class UserData(tf.YangElemCommitOnly):
         if not self.data.oldpwfile:
             if enable_user_update:
                 self.data.oldpwfile = True
-                self.program_output([cpcmd, sysbase + passwdfile,
-                                     sysbase + passwdfile + ".keep"])
+                self.program_output([cpcmd, passwdfile,
+                                     passwdfile + ".keep"])
                 if have_shadow:
-                    self.program_output([cpcmd, sysbase + shadowfile,
-                                         sysbase + shadowfile + ".keep"])
+                    self.program_output([cpcmd, shadowfile,
+                                         shadowfile + ".keep"])
                     pass
                 pass
             pass
@@ -829,6 +846,11 @@ class UserData(tf.YangElemCommitOnly):
                     pass
                 pass
             pass
+        return
+
+    def commit_done(self, op):
+        if self.oldkeyfile:
+            self.program_output([rmcmd, "-f", self.keyfile + ".keep"])
         return
 
     def revert(self, op):
@@ -1395,26 +1417,26 @@ class Handler(tf.TopElemHandler, tf.ProgOut):
         data.userNTP = None # Replaced by NTP operations
         return 0
 
+    # The password file is saved if a user modification is done.  This is
+    # done once for all users, so we have to wait until the very end to
+    # delete the backup password file.
     def end(self, t):
         data = t.get_userdata()
         if data.oldpwfile:
-            self.program_output([rmcmd, "-f",
-                                 sysbase + passwdfile + ".keep"])
+            self.program_output([rmcmd, "-f", passwdfile + ".keep"])
             if have_shadow:
-                self.program_output([rmcmd, "-f",
-                                     sysbase + shadowfile + ".keep"])
+                self.program_output([rmcmd, "-f", shadowfile + ".keep"])
         return 0
 
+    # If we failed, revert the password file from the backup.
     def abort(self, t):
         data = t.get_userdata()
         if data.oldpwfile:
-            self.program_output([mvcmd, "-f",
-                                 sysbase + passwdfile + ".keep",
-                                 sysbase + passwdfile])
+            self.program_output([mvcmd, "-f", passwdfile + ".keep",
+                                 passwdfile])
             if have_shadow:
-                self.program_output([mvcmd, "-f",
-                                     sysbase + shadowfile + ".keep",
-                                     sysbase + shadowfile])
+                self.program_output([mvcmd, "-f", shadowfile + ".keep",
+                                     shadowfile])
         return 0
 
     def statedata(self, nsc, xpath):

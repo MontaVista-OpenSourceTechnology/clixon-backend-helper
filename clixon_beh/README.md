@@ -421,17 +421,23 @@ queue, which will call the `commit` method in `Hostname` which then
 calls the `hostname` program to set the hostname, and sets the value
 in `/etc/hostname`.
 
-If commit completes successfully, the `complete_done` and `end`
-methods are called, which are not handled in `TopElemHandler` since
-they don't matter for its work.  The user may override these if they
-have need.
+If commit completes successfully, the `commit_done` and `end` methods
+are called, which are not handled in `TopElemHandler` since they don't
+matter for its work.  The user may override these if they have need.
+There is an `done` boolean in the `op` parameter that's passed around
+the various commit operations, you can use that to tell if you are in
+a done operation.
 
 If commit fails, then the `revert` method will be called to return the
-contents to its original state.  The `op` object has a boolean named
-`revert`, if it is true then a revert is in process.  It also contains
-an `oldvalue` element which is set by default to None.  The user can
-save the old value in the commit call at the beginning so the it can
-set it back to the original value if a `revert` happens.
+contents to its original state.  Unlike the clixon plugin interface,
+which will *not* call the revert on the plugin that failed, the
+`revert` method for the `transaction_framework` handler *will* be
+called on the plugin that failed in addition to all previously called
+plugins.  The `op` parameter to the `revert` method has a boolean
+named `revert`, if it is true then a revert is in process.  It also
+contains an `oldvalue` element which is set by default to None.  The
+user can save the old value in the commit call at the beginning so the
+it can set it back to the original value if a `revert` happens.
 
 ### YangElem and Children
 
