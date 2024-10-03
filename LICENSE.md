@@ -2,7 +2,7 @@ Copyright (C) 2024 MontaVista Software
 
 clixon_beh, like clixon, is dual license.
 
-Either Apache License, Version 2.0 or GNU General Public License Version 3. 
+Either Apache License, Version 2.0 or GNU General Public License Version 3.
 You choose.
 
 Except as otherwise noted,

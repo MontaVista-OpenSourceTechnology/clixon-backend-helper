@@ -3,10 +3,10 @@
   * [Content](#content)
   * [Compile and run](#compile)
   * [Using the CLI](#using-the-cli)
-  * [Netconf](#netconf)	
+  * [Netconf](#netconf)
   * [Restconf](#restconf)
   * [Next steps](#next-steps)
-  
+
 ## Content
 
 This directory contains a Linux implementation of the ietf-system,
@@ -40,7 +40,7 @@ Start cli:
 
 ## Notes
 
-### Restconf datastore config 
+### Restconf datastore config
 
 You can use the config of restconf in the startup datastore as an alternative:
 ```

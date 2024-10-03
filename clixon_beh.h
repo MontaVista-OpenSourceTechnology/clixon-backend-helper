@@ -21,7 +21,7 @@
   in which case the provisions of the GPL are applicable instead
   of those above. If you wish to allow use of your version of this file only
   under the terms of the GPL, and not to allow others to
-  use your version of this file under the terms of Apache License version 2, 
+  use your version of this file under the terms of Apache License version 2,
   indicate your decision by deleting the provisions above and replace them with
   the  notice and other provisions required by the GPL. If you do not delete
   the provisions above, a recipient may use your version of this file under
@@ -50,7 +50,7 @@
 
 #include <cligen/cligen.h>
 #include <clixon/clixon.h>
-#include <clixon/clixon_backend.h> 
+#include <clixon/clixon_backend.h>
 
 #define clixon_beh_stringify(a) clixon_beh_stringify2(a)
 #define clixon_beh_stringify2(a) #a

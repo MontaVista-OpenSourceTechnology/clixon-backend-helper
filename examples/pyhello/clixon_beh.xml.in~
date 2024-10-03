@@ -1,3 +1,0 @@
-<clixon-beh-config xmlns="http://mvista.com/clixon-beh/config">
-  <CLIXON_BEH_PLUGIN_DIR>@LIBEXECDIR@/hello_beh</CLIXON_BEH_PLUGIN_DIR>
-</clixon-beh-config>
