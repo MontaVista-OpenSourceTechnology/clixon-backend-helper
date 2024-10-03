@@ -3,7 +3,6 @@ appname = 'linux-system'
 conf_data = configuration_data()
 conf_data.set('SYSCONFDIR', my_sysconfdir)
 conf_data.set('DATADIR', my_datadir)
-conf_data.set('LIBDIR', my_libdir)
 conf_data.set('LOCALSTATEDIR', my_localstatedir)
 conf_data.set('SBINDIR', prefix + '/' + get_option('sbindir'))
 conf_data.set('LIBEXECDIR', my_libexecdir)
@@ -25,7 +24,7 @@ install_data('autocli.xml',
              install_dir: my_sysconfdir + '/clixon/' + appname)
 
 install_data(appname + '_cli.cli',
-             install_dir: my_libdir + '/' + appname + '/clispec')
+             install_dir: my_sysconfdir + '/clixon/' + appname + '/clispec')
 
 install_data(['ietf-system@2014-08-06.yang',
 	      'iana-crypt-hash@2014-08-06.yang',
