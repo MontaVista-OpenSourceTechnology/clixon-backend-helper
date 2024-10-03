@@ -703,6 +703,9 @@ class TopElemHandler:
             data = t.get_userdata()
             data.commit()
         except:
+            # clixon will not call revert on this plugin if we fail,
+            # it's our resposibility to clean up this plugin if we
+            # fail.
             self.revert(t)
             raise
         return 0

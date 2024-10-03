@@ -30,6 +30,10 @@ into clixon's yang directory.  And that should be all you need.
 
 Each directory in the examples directory is a stand-alone build
 
+## Interfaces
+
+Each of this is an implementation of a full YANG specification.
+
 ## The C Interface
 
 The C interface for clixon_beh is similar to the one for the clixon
