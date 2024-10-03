@@ -1,10 +1,6 @@
-Copyright (C) 2009-2016 Olof Hagsand and Benny Holmgren
+Copyright (C) 2024 MontaVista Software
 
-Copyright (C) 2017-2019 Olof Hagsand
-
-Copyright (C) 2020-2022 Olof Hagsand and Rubicon Communications, LLC (Netgate)
-
-CLIXON is dual license. 
+clixon_beh, like clixon, is dual license.
 
 Either Apache License, Version 2.0 or GNU General Public License Version 3. 
 You choose.
