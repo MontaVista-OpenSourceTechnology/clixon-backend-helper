@@ -676,7 +676,7 @@ class TopElemHandler:
         return 0
 
     def validate(self, t):
-        if False: # For debugging
+        if True: # For debugging
             print(str(t.orig_str()))
             print(str(t.new_str()))
             pass
@@ -761,6 +761,7 @@ class RPCError(Exception):
     pass
 
 def handle_err(exc):
+    traceback.print_exception(exc)
     if exc.__class__ == RPCError:
         clixon_beh.rpc_err(exc.ns, exc.rtype, exc.tag, exc.info, exc.severity,
                            exc.message)

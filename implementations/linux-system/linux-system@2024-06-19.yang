@@ -10,6 +10,10 @@ module linux-system {
 	prefix ietf;
     }
 
+    import clixon-lib {
+        prefix cl;
+    }
+
     organization
 	"MontaVista Software";
 
@@ -74,6 +78,13 @@ module linux-system {
 	}
 	description
 	    "An extension of iana-crypt-hash to add newer hashing types.";
+    }
+
+    augment "/ietf:system" {
+	cl:system-only-config {
+	    description
+		"All of ietf-system/linux-system is system-only.";
+	}
     }
 
     deviation /ietf:system/ietf:authentication/ietf:user/ietf:password {
