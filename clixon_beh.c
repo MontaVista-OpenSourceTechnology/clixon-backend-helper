@@ -673,6 +673,26 @@ clixon_beh_statedata(clixon_handle h, cvec *nsc, char *xpath, cxobj *xtop)
 }
 
 static int
+clixon_beh_system_only(clixon_handle h, cvec *nsc, char *xpath, cxobj *xtop)
+{
+    int rv = 0;
+    struct clixon_beh_plugin *p = plugins;
+
+    clixon_beh_for_each_plugin(p) {
+	rv = 0;
+	if (p->api && p->api->system_only &&
+		(!p->namespace || clixon_beh_find_namespace(nsc, p->namespace)
+		 /* FIXME - the following is a hack for now. */
+		 || strcmp(xpath, "/") == 0))
+	    rv = p->api->system_only(p, nsc, xpath, xtop);
+	if (rv < 0)
+	    break;
+    }
+
+    return rv;
+}
+
+static int
 clixon_beh_exit(clixon_handle h)
 {
     struct clixon_beh *beh = NULL;
@@ -793,6 +813,7 @@ static clixon_plugin_api api = {
     .ca_reset = clixon_beh_reset,
     .ca_lockdb = clixon_beh_lockdb,
     .ca_statedata = clixon_beh_statedata,
+    .ca_system_only = clixon_beh_system_only,
     .ca_trans_begin = clixon_beh_begin,
     .ca_trans_end = clixon_beh_end,
     .ca_trans_validate = clixon_beh_validate,
