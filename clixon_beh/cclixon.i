@@ -236,7 +236,61 @@ pyclixon_beh_statedata(struct clixon_beh_plugin *p,
     }
     if (clixon_xml_parse_string(xmlstr, YB_NONE, NULL, &xtop, NULL) < 0) {
 	clixon_err(OE_PLUGIN, 0, "pyclixon_beh:callback: Could not parse "
-		   "returned XML string.");
+		   "returned XML string from statedata.");
+	Py_DECREF(o);
+	return -1;
+    }
+    Py_DECREF(o);
+
+    return 0;
+}
+
+static int
+pyclixon_beh_system_only(struct clixon_beh_plugin *p,
+			 cvec *nsc, char *xpath, cxobj *xtop)
+{
+    struct plugin *bp = clixon_beh_plugin_get_cb_data(p);
+    PyObject *args = PyTuple_New(2);
+    PyObject *arg1 = PyTuple_New(cvec_len(nsc));
+    PyObject *o = NULL;
+    unsigned int i;
+    const char *xmlstr;
+
+    for (i = 0; i < cvec_len(nsc); i++)
+	PyTuple_SET_ITEM(arg1, i, PyUnicode_FromString(cvec_i_str(nsc, i)));
+    PyTuple_SET_ITEM(args, 0, arg1);
+    PyTuple_SET_ITEM(args, 1, PyUnicode_FromString(xpath));
+    if (pyclixon_call_rv(bp->handler, "system_only", args, true, &o) < 0)
+	return -1;
+    if (!o)
+	return -1;
+    if (!PyTuple_Check(o) || PyTuple_GET_SIZE(o) != 2 ||
+		!PyLong_Check(PyTuple_GET_ITEM(o, 0)) ||
+		!PyUnicode_Check(PyTuple_GET_ITEM(o, 1))) {
+	PyObject *t = PyObject_GetAttrString(bp->handler, "__class__");
+	PyObject *c = PyObject_GetAttrString(t, "__name__");
+	const char *classt = PyUnicode_AsUTF8(c);
+
+	clixon_err(OE_PLUGIN, 0, "pyclixon_beh:callback: method system_only of "
+		   "class %s didn't return a tuple of size 2, first element "
+		   "an int and second a string", classt);
+	Py_DECREF(o);
+	return -1;
+    }
+    if (PyLong_AsUnsignedLong(PyTuple_GET_ITEM(o, 0)) < 0) {
+	Py_DECREF(o);
+	return -1;
+    }
+    xmlstr = PyUnicode_AsUTF8AndSize(PyTuple_GET_ITEM(o, 1), NULL);
+    if (!xmlstr) {
+	clixon_err(OE_PLUGIN, 0, "pyclixon_beh:callback: Could convert string "
+		   "return of method system_only to a string.");
+	Py_DECREF(o);
+	return -1;
+    }
+    if (clixon_xml_parse_string(xmlstr, YB_NONE, NULL, &xtop, NULL) < 0) {
+	clixon_err(OE_PLUGIN, 0, "pyclixon_beh:callback: Could not parse "
+		   "returned XML string from system_only.");
 	Py_DECREF(o);
 	return -1;
     }
@@ -564,6 +618,7 @@ struct clixon_beh_api pyclixon_beh_api_strxml = {
     .daemon = pyclixon_beh_daemon,
     .reset = pyclixon_beh_reset,
     .statedata = pyclixon_beh_statedata,
+    .system_only = pyclixon_beh_system_only,
     .lockdb = pyclixon_beh_lockdb,
     .exit = pyclixon_beh_exit,
     .begin = pyclixon_beh_begin,
@@ -629,7 +684,7 @@ pyclixon_rpc_callback(clixon_handle h,
     xmlstr = PyUnicode_AsUTF8AndSize(PyTuple_GET_ITEM(o, 1), NULL);
     if (!xmlstr) {
 	clixon_err(OE_PLUGIN, 0, "pyclixon_beh:rpc: Could convert string "
-		   "return of method statedata to a string.");
+		   "return of rpc callback to a string.");
 	Py_DECREF(o);
 	return -1;
     }
@@ -695,7 +750,7 @@ pyclixon_action_callback(clixon_handle h,
     xmlstr = PyUnicode_AsUTF8AndSize(PyTuple_GET_ITEM(o, 1), NULL);
     if (!xmlstr) {
 	clixon_err(OE_PLUGIN, 0, "pyclixon_beh:action: Could convert string "
-		   "return of method statedata to a string.");
+		   "return of action callback to a string.");
 	Py_DECREF(o);
 	return -1;
     }
@@ -704,58 +759,6 @@ pyclixon_action_callback(clixon_handle h,
 		   "string.");
 	Py_DECREF(o);
 	return -1;
-    }
-    Py_DECREF(o);
-    return 0;
-}
-
-static int
-pyclixon_stateonly_callback(void *regarg, cxobj *retxml)
-{
-    struct pyclixon_rpc_info *info = regarg;
-    struct clixon_beh *beh = clixon_beh_get_global_beh();
-    struct clixon_handle *h = clixon_beh_get_handle(beh);
-    PyObject *o = NULL;
-    const char *xmlstr;
-    int ret;
-
-    if (pyclixon_call_rv(info->handler, "stateonly", NULL, false, &o) < 0)
-	return -1;
-    if (!o)
-	return -1;
-    if (!PyTuple_Check(o) || PyTuple_GET_SIZE(o) != 2 ||
-		!PyLong_Check(PyTuple_GET_ITEM(o, 0)) ||
-		!PyUnicode_Check(PyTuple_GET_ITEM(o, 1))) {
-	PyObject *t = PyObject_GetAttrString(info->handler, "__class__");
-	PyObject *c = PyObject_GetAttrString(t, "__name__");
-	const char *classt = PyUnicode_AsUTF8(c);
-
-	clixon_err(OE_PLUGIN, 0, "pyclixon_beh:rpc: method rpc of "
-		   "class %s didn't return a tuple of size 2, first element "
-		   "an int and second a string", classt);
-	Py_DECREF(o);
-	return -1;
-    }
-    if (PyLong_AsUnsignedLong(PyTuple_GET_ITEM(o, 0)) < 0) {
-	Py_DECREF(o);
-	return -1;
-    }
-    xmlstr = PyUnicode_AsUTF8AndSize(PyTuple_GET_ITEM(o, 1), NULL);
-    if (!xmlstr) {
-	clixon_err(OE_PLUGIN, 0, "pyclixon_beh:rpc: Could convert string "
-		   "return of method statedata to a string.");
-	Py_DECREF(o);
-	return -1;
-    }
-    if (xml_spec(retxml))
-	ret =clixon_xml_parse_string(xmlstr, YB_PARENT, NULL, &retxml, NULL);
-    else
-	ret =clixon_xml_parse_string(xmlstr, YB_MODULE, clicon_dbspec_yang(h),
-				     &retxml, NULL);
-    if (ret < 0) {
-	    clixon_err(OE_PLUGIN, 0, "pyclixon_beh:stateonly: Could not parse "
-		       "returned XML string.");
-	    return -1;
     }
     Py_DECREF(o);
     return 0;
@@ -980,58 +983,6 @@ stream_notifyt(char *name, char *xmlstr)
     if (stream_notify(h, name, "%s", xmlstr) < 0)
 	PyErr_Format(PyExc_RuntimeError,
 		     "Error notifying stream for %s", name);
-}
-
-void
-add_stateonly(char *path, PyObject *handler)
-{
-    int rv;
-    struct pyclixon_rpc_info *info;
-    struct clixon_beh *beh = clixon_beh_get_global_beh();
-    struct clixon_handle *h = clixon_beh_get_handle(beh);
-    cxobj *xpath = NULL;
-
-    if (path == NULL) {
-	PyErr_Format(PyExc_RuntimeError,
-		     "No path given for add_stateonly");
-	return;
-    }
-    if (handler == NULL) {
-	PyErr_Format(PyExc_RuntimeError,
-		     "No handler given for add_rpc_callback");
-	return;
-    }
-
-    if (clixon_xml_parse_string(path, YB_NONE, NULL, &xpath, NULL) < 0) {
-	PyErr_Format(PyExc_RuntimeError,
-		     "Error parsing string %s", path);
-	return;
-    }
-    if (xml_rootchild(xpath, 0, &xpath) < 0) {
-	xml_free(xpath);
-	PyErr_Format(PyExc_RuntimeError,
-		     "Error removing top of xml path for %s", path);
-	return;
-    }
-
-    info = malloc(sizeof(*info));
-    if (!info) {
-	xml_free(xpath);
-	PyErr_Format(PyExc_RuntimeError,
-		     "Out of memory allocating RPC info");
-	return;
-    }
-    info->handler = handler;
-    Py_INCREF(handler);
-    rv = xmldb_add_stateonly(h, xpath,
-			     pyclixon_stateonly_callback, info);
-    if (rv == -1) {
-	xml_free(xpath);
-	PyErr_Format(PyExc_RuntimeError,
-		     "Error registering RPC callback");
-	Py_DECREF(handler);
-	free(info);
-    }
 }
 
 /*

@@ -42,7 +42,7 @@ IETF_SYSTEM_NAMESPACE = "urn:ietf:params:xml:ns:yang:ietf-system"
 
 # For testing, to store the files elsewhere to avoid updating the main
 # system data.
-sysbase = ""
+sysbase = "/home/cminyard/tmp/clixon"
 
 # Enable various password operations
 allow_user_add_del = True      # Add/delete users allowed?
@@ -1435,6 +1435,9 @@ system_state_children = {
 }
 
 class Handler(tf.TopElemHandler, tf.ProgOut):
+    # FIXME - this is a hack for now
+    first_call_done = False
+
     def exit(self):
         self.p = None # Break circular dependency
         return 0;
@@ -1449,6 +1452,19 @@ class Handler(tf.TopElemHandler, tf.ProgOut):
         data.oldpwfile = False # Are the old pw/shadow files set
         data.userNTP = None # Replaced by NTP operations
         return 0
+
+    # FIXME - this is a hack for now
+    def validate(self, t):
+        if not self.first_call_done:
+            return 0
+        return super().validate(t)
+
+    # FIXME - this is a hack for now
+    def commit(self, t):
+        if not self.first_call_done:
+            self.first_call_done = True
+            return 0
+        return super().commit(t)
 
     # The password file is saved if a user modification is done.  This is
     # done once for all users, so we have to wait until the very end to
@@ -1473,6 +1489,13 @@ class Handler(tf.TopElemHandler, tf.ProgOut):
         return 0
 
     def statedata(self, nsc, xpath):
+        return super().statedata(nsc, xpath)
+
+    def system_only(self, nsc, xpath):
+        if xpath == "/":
+            rv = super().statedata(nsc, "/system")
+            print("X: " + str(rv))
+            return rv
         return super().statedata(nsc, xpath)
 
     pass
@@ -1546,19 +1569,3 @@ class ShutdownHandler(tf.RPC):
 
 clixon_beh.add_rpc_callback("system-shutdown", IETF_SYSTEM_NAMESPACE,
                             ShutdownHandler())
-
-class AuthStatedata:
-    def stateonly(self):
-        rv = children["system"].getonevalue()
-        if rv and len(rv) > 0:
-            rv = ("<system xmlns=\"" + IETF_SYSTEM_NAMESPACE + "\">"
-                  + rv + "</system>")
-            pass
-        # Uncomment to print the return data
-        #print("Return: " + str(rv))
-        return (0, rv)
-
-    pass
-
-clixon_beh.add_stateonly("<system xmlns=\"" + IETF_SYSTEM_NAMESPACE + "\"></system>",
-                         AuthStatedata())

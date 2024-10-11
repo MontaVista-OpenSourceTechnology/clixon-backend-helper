@@ -77,6 +77,7 @@ struct clixon_beh_api {
     clixon_beh_daemon_cb      daemon;         /* Plugin daemonized (always called) */
     clixon_beh_reset_cb       reset;          /* Reset system status */
     clixon_beh_statedata_cb   statedata;      /* Provide state data XML from plugin */
+    clixon_beh_statedata_cb   system_only;    /* Provide state data XML from the system */
     clixon_beh_lockdb_cb      lockdb;         /* Database lock changed state */
     clixon_beh_exit_cb        exit;
     clixon_beh_transaction_cb begin;    /* Transaction start */
