@@ -78,6 +78,9 @@ localtimefile = sysbase + "/etc/localtime"
 timezonefile = sysbase + "/etc/timezone"
 zoneinfodir = sysbase + "/usr/share/zoneinfo/"
 
+chronyccmd = "/usr/bin/chronyc"
+chronydir = sysbase + "/etc/chrony"
+
 # end old-dns or dns-proxy is set, we have things to do to resolv.conf.
 resolvconffile = sysbase + "/etc/resolv.conf"
 
@@ -330,7 +333,6 @@ class DNSHandler(tf.YangElemCommitOnly):
                 os.replace(dnsproxycert + ".tmp", dnsproxycert)
             os.replace(resolvconffile + ".tmp", resolvconffile)
             return
-
 
         f = open(dnsproxyconf + ".tmp", "w")
         try:
@@ -1140,7 +1142,7 @@ class NTPServerData:
         self.name = None
         self.address = None
         self.port = "123"
-        self.port_set = False
+        self.ntsport = "4460"
         self.assoc_type = "server" # server, peer, or pool
         self.iburst = False
         self.prefer = False
@@ -1157,125 +1159,319 @@ class NTPData(tf.YangElemCommitOnly):
         self.servers = []
         return
 
-    # FIXME - really implement this
     def commit(self, op):
-        print("NTP")
-        print("  enabled: " + str(self.enabled))
+        if False:
+            print("NTP")
+            print("  enabled: " + str(self.enabled))
+            for i in self.servers:
+                print("  server(" + str(i.op) + "): " + str(i.name))
+                print("    name: " + str(i.name))
+                print("    is_udp: " + str(i.is_udp))
+                print("    address: " + str(i.address))
+                print("    port: " + str(i.port))
+                print("    ntsport: " + str(i.ntsport))
+                print("    cert: " + str(i.certificate))
+                print("    assoc_type: " + str(i.assoc_type))
+                print("    iburst: " + str(i.iburst))
+                print("    prefer: " + str(i.prefer))
+                pass
+            pass
         for i in self.servers:
-            print("  server(" + str(i.op) + "): " + str(i.name))
-            print("    name: " + str(i.name))
-            print("    is_udp: " + str(i.is_udp))
-            print("    address: " + str(i.address))
-            print("    port: " + str(i.port))
-            print("    cert: " + str(i.certificate))
-            print("    assoc_type: " + str(i.assoc_type))
-            print("    iburst: " + str(i.iburst))
-            print("    prefer: " + str(i.prefer))
+            if i.op == "add" or i.op == "change":
+                f = open(chronydir + "/sources.d/" + i.name + ".sources", "w")
+                try:
+                    f.write(i.assoc_type + " " + i.address + " port " + i.port)
+                    if not i.is_udp:
+                        f.write(" nts ntsport " + i.ntsport)
+                        pass
+                    if i.iburst:
+                        f.write(" iburst")
+                    if i.prefer:
+                        f.write(" prefer")
+                    f.write("\n")
+                finally:
+                    f.close()
+                    pass
+                if i.certificate is None:
+                    # No certificate, delete it.
+                    self.program_output([rmcmd, "-f",
+                                         (chronydir + "/ntstrustedcerts/" +
+                                          i.name + ".crt")])
+                elif i.certificate != "x":
+                    # A certificate with contents "x" is invalid, we use that
+                    # to mark that the certificate was just fetched and then
+                    # re-written, so we don't change it.
+                    f = open(chronydir + "/ntstrustedcerts/" + i.name + ".crt",
+                             "w")
+                    try:
+                        f.write(i.certificate)
+                        f.write("\n")
+                    finally:
+                        f.close()
+                        pass
+                    pass
+                pass
+            else:
+                self.program_output([rmcmd, "-f",
+                                     (chronydir + "/sources.d/" + i.name +
+                                      ".sources")])
+                self.program_output([rmcmd, "-f",
+                                     (chronydir + "/ntstrustedcerts/" +
+                                      i.name + ".crt")])
+                pass
+            pass
+        return
 
     def revert(self, op):
+        self.program_output([rmcmd, "-rf", chronydir])
+        self.program_output([mvcmd, chronydir + ".old", chronydir])
         return
 
-    pass
-
-# /system/ntp/enabled
-class NTPEnabled(tf.YangElemValidateOnly):
-    def validate_add(self, data, xml):
-        data.userNTP.enabled = xml.get_body()
-        return
-
-    pass
-
-# /system/ntp/server/name
-class NTPServerName(tf.YangElemValidateOnly):
-    def validate_add(self, data, xml):
-        data.userNTP.curr_server.name = xml.get_body()
-        return
-
-    pass
-
-# /system/ntp/server/udp/address
-class NTPServerUDPAddress(tf.YangElemValidateOnly):
-    def validate_add(self, data, xml):
-        data.userNTP.curr_server.address = xml.get_body()
-        return
-
-    pass
-
-# /system/ntp/server/udp/port
-class NTPServerUDPPort(tf.YangElemValidateOnly):
-    def validate_add(self, data, xml):
-        data.userNTP.curr_server.port = xml.get_body()
-        data.userNTP.curr_server.port_set = True
-        return
-
-    pass
-
-# /system/ntp/server/tcp/address
-class NTPServerNTSAddress(tf.YangElemValidateOnly):
-    def validate_add(self, data, xml):
-        data.userNTP.curr_server.is_udp = False
-        data.userNTP.curr_server.address = xml.get_body()
-        if not data.userNTP.curr_server.port_set:
-            data.userNTP.curr_server.port = 4460
+    def commit_done(self, op):
+        self.program_output([rmcmd, "-rf", chronydir + ".old"])
+        if sysbase == "":
+            self.program_output([chronyccmd, "reload", "sources"])
             pass
         return
 
     pass
 
-# /system/ntp/server/tcp/port
-class NTPServerNTSPort(tf.YangElemValidateOnly):
+# /system/ntp/enabled
+class NTPEnabled(tf.YangElem):
     def validate_add(self, data, xml):
-        data.userNTP.curr_server.is_udp = False
-        data.userNTP.curr_server.port = xml.get_body()
-        data.userNTP.curr_server.port_set = True
+        data.userNTP.enabled = xml.get_body()
         return
+
+    def validate(self, data, origxml, newxml):
+        return self.validate_add(data, newxml)
+
+    def getvalue(self, vdata):
+        # FIXME = do enable/disable?
+        return "true"
+
+    pass
+
+# /system/ntp/server/name
+class NTPServerName(tf.YangElem):
+    def validate_add(self, data, xml):
+        data.userNTP.curr_server.name = xml.get_body()
+        return
+
+    def validate_del(self, data, xml):
+        # Need the name when deleting
+        return self.validate_add(data, xml)
+
+    def validate(self, data, origxml, newxml):
+        return self.validate_add(data, newxml)
+
+    def getvalue(self, vdata):
+        return vdata.name
+
+    pass
+
+# /system/ntp/server/udp/address
+class NTPServerUDPAddress(tf.YangElem):
+    def validate_add(self, data, xml):
+        data.userNTP.curr_server.address = xml.get_body()
+        return
+
+    def validate_del(self, data, xml):
+        # Nothing to do on delete
+        return
+
+    def validate(self, data, origxml, newxml):
+        return self.validate_add(data, newxml)
+
+    def getvalue(self, vdata):
+        return vdata.address
+
+    pass
+
+# /system/ntp/server/udp/port
+class NTPServerUDPPort(tf.YangElem):
+    def validate_add(self, data, xml):
+        data.userNTP.curr_server.port = xml.get_body()
+        return
+
+    def validate_del(self, data, xml):
+        # Nothing to do on delete
+        return
+
+    def validate(self, data, origxml, newxml):
+        return self.validate_add(data, newxml)
+
+    def getvalue(self, vdata):
+        return vdata.port
+
+    pass
+
+# /system/ntp/server/tcp/address
+class NTPServerNTSAddress(tf.YangElem):
+    def validate_add(self, data, xml):
+        data.userNTP.curr_server.address = xml.get_body()
+        return
+
+    def validate_del(self, data, xml):
+        # Nothing to do on delete
+        return
+
+    def validate(self, data, origxml, newxml):
+        return self.validate_add(data, newxml)
+
+    def getvalue(self, vdata):
+        return vdata.address
+
+    pass
+
+# /system/ntp/server/tcp/port
+class NTPServerNTSPort(tf.YangElem):
+    def validate_add(self, data, xml):
+        data.userNTP.curr_server.ntsport = xml.get_body()
+        return
+
+    def validate_del(self, data, xml):
+        # Nothing to do on delete
+        return
+
+    def validate(self, data, origxml, newxml):
+        return self.validate_add(data, newxml)
+
+    def getvalue(self, vdata):
+        return vdata.ntsport
 
     pass
 
 # /system/ntp/server/tcp/certificate
-class NTPServerNTSCertificate(tf.YangElemValidateOnly):
+class NTPServerNTSCertificate(tf.YangElem):
     def validate_add(self, data, xml):
-        data.userNTP.curr_server.is_udp = False
         data.userNTP.curr_server.certificate = xml.get_body()
         return
+
+    def validate_del(self, data, xml):
+        # Nothing to do on delete
+        return
+
+    def validate(self, data, origxml, newxml):
+        return self.validate_add(data, newxml)
+
+    def getvalue(self, vdata):
+        return "x"
 
     pass
 
 # /system/ntp/server/association-type
-class NTPServerAsocType(tf.YangElemValidateOnly):
+class NTPServerAsocType(tf.YangElem):
     def validate_add(self, data, xml):
         data.userNTP.curr_server.asoc_type = xml.get_body()
         return
 
+    def validate_del(self, data, xml):
+        # Nothing to do on delete
+        return
+
+    def validate(self, data, origxml, newxml):
+        return self.validate_add(data, newxml)
+
+    def getvalue(self, vdata):
+        return vdata.assoc_type
+
     pass
 
 # /system/ntp/server/iburst
-class NTPServerIBurst(tf.YangElemValidateOnly):
+class NTPServerIBurst(tf.YangElem):
     def validate_add(self, data, xml):
-        data.userNTP.curr_server.iburst = xml.get_body()
+        v = xml.get_body()
+        data.userNTP.curr_server.iburst = v == "true"
         return
+
+    def validate_del(self, data, xml):
+        # Nothing to do on delete
+        return
+
+    def validate(self, data, origxml, newxml):
+        return self.validate_add(data, newxml)
+
+    def getvalue(self, vdata):
+        if vdata.iburst:
+            return "true"
+        return "false"
 
     pass
 
-# /system/ntp/server/prever
-class NTPServerPrefer(tf.YangElemValidateOnly):
+# /system/ntp/server/prefer
+class NTPServerPrefer(tf.YangElem):
     def validate_add(self, data, xml):
-        data.userNTP.curr_server.prefer = xml.get_body()
+        v = xml.get_body()
+        data.userNTP.curr_server.prefer = v == "true"
         return
+
+    def validate_del(self, data, xml):
+        # Nothing to do on delete
+        return
+
+    def validate(self, data, origxml, newxml):
+        return self.validate_add(data, newxml)
+
+    def getvalue(self, vdata):
+        if vdata.prefer:
+            return "true"
+        return "false"
+
+    pass
+
+# /system/ntp/server/udp
+class NTPUDPServer(tf.YangElem):
+    # is_udp is true by default, use the default validation.
+
+    def getvalue(self, vdata):
+        if not vdata.is_udp:
+            return ""
+        return super().getvalue(vdata)
+
+    pass
+
+# /system/ntp/server/ntp
+class NTPNTSServer(tf.YangElem):
+   # Set is_udp False for NTS
+
+    def validate_add(self, data, xml):
+        data.userNTP.curr_server.is_udp = False
+        super().validate_add(data, xml)
+        return
+
+    def validate(self, data, origxml, newxml):
+        data.userNTP.curr_server.is_udp = False
+        super().validate(data, origxml, newxml)
+        return
+
+    def getvalue(self, vdata):
+        if vdata.is_udp:
+            return ""
+        return super().getvalue(vdata)
 
     pass
 
 # /system/ntp/server
-class NTPServer(tf.YangElemValidateOnly):
+class NTPServer(tf.YangElem):
     def start(self, data, op):
         data.userNTP.curr_server = NTPServerData()
         data.userNTP.curr_server.op = op
         data.userNTP.servers.append(data.userNTP.curr_server)
         return
 
+    def validate_data(self, data):
+        s = data.userNTP.curr_server
+        if not s.is_udp:
+            if s.assoc_type != "server":
+                raise tf.RPCError("application", "invalid-value", "error",
+                                  "NTP with NTS must be a server assoc_type.")
+            pass
+        return
+
     def validate_add(self, data, xml):
         self.start(data, "add")
         super().validate_add(data, xml)
+        self.validate_data(data)
         return
 
     def validate_del(self, data, xml):
@@ -1286,7 +1482,63 @@ class NTPServer(tf.YangElemValidateOnly):
     def validate(self, data, origxml, newxml):
         self.start(data, "change")
         super().validate(data, origxml, newxml)
+        self.validate_data(data)
         return
+
+    valid_assoc_types = ["server", "peer", "pool"]
+
+    def read_chrony_data(self):
+        servers = []
+        for i in os.listdir(chronydir + "/sources.d"):
+            if not i.endswith(".sources"):
+                continue
+            f = open(chronydir + "/sources.d/" + i)
+            try:
+                s = NTPServerData()
+                s.name = i[:len(i) - 8]
+                for l in f:
+                    l = l.split()
+                    if l[0] not in self.valid_assoc_types:
+                        raise Exception() # bail
+                    s.assoc_type = l[0]
+                    s.address = l[1]
+                    i = 2
+                    while i < len(l):
+                        if l[i] == "port":
+                            i += 1
+                            s.port = l[i]
+                        elif l[i] == "ntsport":
+                            i += 1
+                            s.ntsport = l[i]
+                        elif l[i] == "iburst":
+                            s.iburst = True
+                        elif l[i] == "nts":
+                            s.is_udp = False
+                        elif l[i] == "prefer":
+                            s.prefer = True
+                            pass
+                        i += 1
+                        pass
+                    break # Only process the first line.
+                servers.append(s)
+                pass
+            except:
+                pass # Nothing to do
+            finally:
+                f.close()
+            pass
+        return servers
+
+    def fetch_index(self, indexname, index, vdata):
+        servers = self.read_chrony_data()
+        for i in servers:
+            if i.name == index:
+                return i
+            pass
+        return None
+
+    def fetch_full_index(self, vdata):
+        return self.read_chrony_data()
 
     pass
 
@@ -1299,29 +1551,33 @@ system_ntp_server_udp_children = {
 # /system/ntp/server/nts
 system_ntp_server_nts_children = {
     "address": NTPServerNTSAddress("address", tf.YangType.LEAF),
-    "port": NTPServerNTSPort("port", tf.YangType.LEAF),
+    "port": NTPServerUDPPort("port", tf.YangType.LEAF),
+    "ntsport": NTPServerNTSPort("ntsport", tf.YangType.LEAF),
     "certificate": NTPServerNTSCertificate("certificate", tf.YangType.LEAF),
 }
 
 # /system/ntp/server
 system_ntp_server_children = {
     "name": NTPServerName("name", tf.YangType.LEAF),
-    "udp": tf.YangElemValidateOnly("udp", tf.YangType.CONTAINER,
+    "udp": NTPUDPServer("udp", tf.YangType.CONTAINER,
                                    children = system_ntp_server_udp_children,
                                    validate_all = True),
-    "nts": tf.YangElemValidateOnly("nts", tf.YangType.CONTAINER,
-                                   children = system_ntp_server_nts_children,
-                                   validate_all = True),
+    "nts": NTPNTSServer("nts", tf.YangType.CONTAINER,
+                        children = system_ntp_server_nts_children,
+                        validate_all = True, namespace = MY_NAMESPACE),
     "association-type": NTPServerAsocType("association-type", tf.YangType.LEAF),
     "iburst": NTPServerIBurst("iburst", tf.YangType.LEAF),
     "prefer": NTPServerPrefer("prefer", tf.YangType.LEAF),
 }
 
 # /system/ntp
-class NTP(tf.YangElemValidateOnly):
+class NTP(tf.YangElem):
     def start(self, data):
-        new_op = data.add_op(data.userNTP, "ntp", NTPData("ntp"))
-        data.userNTP = new_op.value
+        self.program_output([rmcmd, "-rf", chronydir + ".old"])
+        self.program_output([cpcmd, "-a", chronydir, chronydir + ".old"])
+        v = NTPData("ntp")
+        new_op = data.add_op(v, "ntp", v)
+        data.userNTP = v
         return
 
     def validate_add(self, data, xml):
@@ -1338,16 +1594,12 @@ class NTP(tf.YangElemValidateOnly):
         super().validate(data, origxml, newxml)
         return
 
-    # FIXME - implement this
-    def getvalue(self, vdata=None):
-        return ""
-
     pass
 
 # /system/ntp
 system_ntp_children = {
     "enabled": NTPEnabled("enabled", tf.YangType.LEAF),
-    "server": NTPServer("server", tf.YangType.CONTAINER,
+    "server": NTPServer("server", tf.YangType.LIST,
                         children = system_ntp_server_children,
                         validate_all = True)
 }
@@ -1358,8 +1610,7 @@ system_children = {
     "hostname": Hostname("hostname", tf.YangType.LEAF),
     "location": tf.YangElemConfigOnly("location"),
     "clock": tf.YangElem("clock", tf.YangType.CONTAINER, system_clock_children),
-    "ntp": NTP("ntp", tf.YangType.CONTAINER, children = system_ntp_children,
-               validate_all = True),
+    "ntp": NTP("ntp", tf.YangType.CONTAINER, children = system_ntp_children),
     "dns-resolver": DNSResolver("dns-resolver", tf.YangType.CONTAINER,
                                 children = system_dns_resolver_children,
                                 validate_all = True),
@@ -1473,9 +1724,11 @@ class Handler(tf.TopElemHandler, tf.ProgOut):
         return 0
 
     def statedata(self, nsc, xpath):
-        return super().statedata(nsc, xpath)
-
-    pass
+        rv = super().statedata(nsc, xpath)
+        if False:
+            print("X: " + str(rv))
+            pass
+        return rv
 
 children = {
     "system": tf.YangElem("system", tf.YangType.CONTAINER, system_children,
@@ -1554,8 +1807,9 @@ class AuthStatedata:
             rv = ("<system xmlns=\"" + IETF_SYSTEM_NAMESPACE + "\">"
                   + rv + "</system>")
             pass
-        # Uncomment to print the return data
-        #print("Return: " + str(rv))
+        if False:
+            print("Return: " + str(rv))
+            pass
         return (0, rv)
 
     pass
