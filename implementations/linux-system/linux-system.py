@@ -42,7 +42,9 @@ IETF_SYSTEM_NAMESPACE = "urn:ietf:params:xml:ns:yang:ietf-system"
 
 # For testing, to store the files elsewhere to avoid updating the main
 # system data.
-sysbase = "/home/cminyard/tmp/clixon"
+sysbase = os.getenv("LINUX_SYSTEM_SYSBASE")
+if sysbase is None:
+    sysbase = ""
 
 # Enable various password operations
 allow_user_add_del = True      # Add/delete users allowed?
@@ -78,6 +80,7 @@ localtimefile = sysbase + "/etc/localtime"
 timezonefile = sysbase + "/etc/timezone"
 zoneinfodir = sysbase + "/usr/share/zoneinfo/"
 
+# NTP handling
 chronyccmd = "/usr/bin/chronyc"
 chronydir = sysbase + "/etc/chrony"
 
@@ -126,7 +129,7 @@ class Hostname(tf.YangElem):
 
     def validate(self, data, origxml, newxml):
         value = newxml.get_body()
-        if len(value) > 64: # Linux only allow 64 characters
+        if len(value) > 64: # Linux only allows 64 characters
             raise tf.RPCError("application", "invalid-value", "error",
                               "Host name too long, 64-character max.")
         data.add_op(self, None, value)
@@ -157,17 +160,14 @@ class Hostname(tf.YangElem):
         if sysbase == "":
             self.program_output([hostnamecmd, value])
             pass
-        f = open(hostnamefile, "w")
-        try:
+        with open(hostnamefile, "w") as f:
             f.write(value + "\n")
-        finally:
-            f.close()
             pass
         return
 
     def getvalue(self, vdata=None):
-        with open(hostnamefile, "r") as file:
-            data = file.read().rstrip()
+        with open(hostnamefile, "r") as f:
+            data = f.read().rstrip()
             pass
         return data
 
@@ -239,9 +239,9 @@ class TimeZone(tf.YangElem):
             self.program_output(["/bin/timedatectl", "set-timezone",
                                  "--", value])
         else:
-            f = open(timezonefile, "w")
-            f.write(value + "\n")
-            f.close()
+            with open(timezonefile, "w") as f:
+                f.write(value + "\n")
+                pass
             self.program_output([lncmd, "-sf", zoneinfodir + value,
                                  localtimefile])
             pass
@@ -290,8 +290,7 @@ class DNSHandler(tf.YangElemCommitOnly):
             # done.
             # FIXME - no handling for port or certificate in the default
             # way of doing this.
-            f = open(resolvconffile + ".tmp", "w")
-            try:
+            with open(resolvconffile + ".tmp", "w") as f:
                 if len(ddata.add_search) > 0:
                     f.write("search")
                     for i in ddata.add_search:
@@ -309,8 +308,6 @@ class DNSHandler(tf.YangElemCommitOnly):
                     f.write(" use-vc")
                     pass
                 f.write("\n")
-            finally:
-                f.close()
                 pass
             pass
         return
@@ -334,8 +331,7 @@ class DNSHandler(tf.YangElemCommitOnly):
             os.replace(resolvconffile + ".tmp", resolvconffile)
             return
 
-        f = open(dnsproxyconf + ".tmp", "w")
-        try:
+        with open(dnsproxyconf + ".tmp", "w") as f:
             if ddata.certificate is not None:
                 f.write("SSL_CERT_FILE=" + dnsproxycert + "\n")
                 fcert = open(dnsproxycert + ".tmp", "w")
@@ -355,14 +351,10 @@ class DNSHandler(tf.YangElemCommitOnly):
             f.write("dnsconf=-l " + dnsproxylistenaddr +
                     " -p " + dnsproxylistenport +
                     servers + "\n")
-        finally:
-            f.close()
             pass
 
         # Update options and search in the resolv.conf file
-        fin = open(resolvconffile, "r")
-        f = open(resolvconffile + ".tmp", "w")
-        try:
+        with open(resolvconffile, "r") as fin, open(resolvconffile + ".tmp", "w") as f:
             for i in fin:
                 if i.startswith("search "):
                     continue
@@ -383,9 +375,6 @@ class DNSHandler(tf.YangElemCommitOnly):
                 f.write(" use-vc")
                 pass
             f.write("\n")
-        finally:
-            fin.close()
-            f.close()
             pass
 
         if sysbase == "":
@@ -619,93 +608,86 @@ class DNSResolver(tf.YangElem):
 
     def fetch_resolv_conf(self):
         try:
-            f = open(resolvconffile, "r", encoding="utf-8")
-        except:
-            return None
-        srvnum = 1
-        srvstr = str(srvnum)
-        vdata = { "search": [],
-                  "nameservers": [],
-                  "timeout": "",
-                  "attempts": "",
-                  "use-vc": "false" }
-        try:
-            # Construct a map of all the data and then pass it to super().
-            for l in f:
-                if l.startswith("search "):
-                    vdata["search"] += l.split()[1:]
-                elif l.startswith("#name: "):
-                    ts = l.split()
-                    if len(ts) > 1:
-                        srvstr = ts[1]
-                        pass
-                    pass
-                elif l.startswith("nameserver "):
-                    ts = l.split()
-                    if len(ts) > 1:
-                        v = { "name": srvstr,
-                              "address": ts[1],
-                              "port": "53" }
-                        vdata["nameservers"].append(v)
-                        srvnum = srvnum + 1
-                        srvstr = str(srvnum)
-                        pass
-                    pass
-                elif l.startswith("options"):
-                    use_vc_found = "false"
-                    for i in l.split()[1:]:
-                        if i.startswith("timeout:"):
-                            ts = i.split(":")
-                            if len(ts) > 1:
-                                vdata["timeout"] = ts[1]
-                                pass
-                            pass
-                        elif i.startswith("attempts:"):
-                            ts = i.split(":")
-                            if len(ts) > 1:
-                                vdata["attempts"] = ts[1]
-                                pass
-                            pass
-                        elif i == "use-vc":
-                            vdata["use-vc"] = "true"
-                            pass
-                        pass
-                    pass
-                pass
+            with open(resolvconffile, "r", encoding="utf-8") as f:
+                srvnum = 1
+                srvstr = str(srvnum)
+                vdata = { "search": [],
+                          "nameservers": [],
+                          "timeout": "",
+                          "attempts": "",
+                          "use-vc": "false" }
 
-            if dnsproxy_supported:
-                vdata["nameservers"] = []
-                fdnsp = open(dnsproxyconf, "r")
-                try:
-                    for i in fdnsp:
-                        if i.startswith("SERVER_"):
-                            s = i.split("=")
-                            if len(s) != 2:
-                                continue
-                            name = s[0][7:]
-                            s = s[1].split()
-                            if len(s) != 2:
-                                continue
-                            s = s[1].split(":")
-                            if len(s) != 3:
-                                continue
-                            if len(s[1]) < 3:
-                                continue
-                            vdata["nameservers"].append({"name": name,
-                                                         "address": s[1][2:],
-                                                         "port": s[2]})
+                # Construct a map of all the data and then pass it to super().
+                for l in f:
+                    if l.startswith("search "):
+                        vdata["search"] += l.split()[1:]
+                    elif l.startswith("#name: "):
+                        ts = l.split()
+                        if len(ts) > 1:
+                            srvstr = ts[1]
+                            pass
+                        pass
+                    elif l.startswith("nameserver "):
+                        ts = l.split()
+                        if len(ts) > 1:
+                            v = { "name": srvstr,
+                                  "address": ts[1],
+                                  "port": "53" }
+                            vdata["nameservers"].append(v)
+                            srvnum = srvnum + 1
+                            srvstr = str(srvnum)
+                            pass
+                        pass
+                    elif l.startswith("options"):
+                        use_vc_found = "false"
+                        for i in l.split()[1:]:
+                            if i.startswith("timeout:"):
+                                ts = i.split(":")
+                                if len(ts) > 1:
+                                    vdata["timeout"] = ts[1]
+                                    pass
+                                pass
+                            elif i.startswith("attempts:"):
+                                ts = i.split(":")
+                                if len(ts) > 1:
+                                    vdata["attempts"] = ts[1]
+                                    pass
+                                pass
+                            elif i == "use-vc":
+                                vdata["use-vc"] = "true"
+                                pass
                             pass
                         pass
                     pass
-                finally:
-                    fdnsp.close()
+
+                if dnsproxy_supported:
+                    vdata["nameservers"] = []
+                    with open(dnsproxyconf, "r") as fdnsp:
+                        for i in fdnsp:
+                            if i.startswith("SERVER_"):
+                                s = i.split("=")
+                                if len(s) != 2:
+                                    continue
+                                name = s[0][7:]
+                                s = s[1].split()
+                                if len(s) != 2:
+                                    continue
+                                s = s[1].split(":")
+                                if len(s) != 3:
+                                    continue
+                                if len(s[1]) < 3:
+                                    continue
+                                vdata["nameservers"].append({"name": name,
+                                                             "address": s[1][2:],
+                                                             "port": s[2]})
+                                pass
+                            pass
+                        pass
                     pass
                 pass
             pass
-        except Exception as e:
-            f.close()
+        except:
             return None
-        f.close()
         return vdata
 
     def getxml(self, path, indexname=None, index=None, vdata=None):
@@ -755,13 +737,14 @@ system_dns_resolver_children = {
 # The standard pwd methods for python don't have a way to override the
 # base location.  Re-implement them with that capability.
 def getpwentry(name):
-    f = open(passwdfile, "r")
     found = False
-    for i in f:
-        p = i.split(":")
-        if p[0] == name:
-            found = True
-            break
+    with open(passwdfile, "r") as f:
+        for i in f:
+            p = i.split(":")
+            if p[0] == name:
+                found = True
+                break
+            pass
         pass
     if found:
         if len(p) != 7:
@@ -772,14 +755,15 @@ def getpwentry(name):
     raise Exception("Password entry not found")
 
 def getpwentryall():
-    f = open(passwdfile, "r")
     plist = []
-    for i in f:
-        p = i.split(":")
-        if len(p) == 7:
-            # Put sysbase into the home directory
-            p[5] = sysbase + p[5]
-            plist.append(p)
+    with open(passwdfile, "r") as f:
+        for i in f:
+            p = i.split(":")
+            if len(p) == 7:
+                # Put sysbase into the home directory
+                p[5] = sysbase + p[5]
+                plist.append(p)
+                pass
             pass
         pass
     return plist
@@ -872,11 +856,11 @@ class UserData(tf.YangElemCommitOnly):
                         # First delete the old one.
                         self.program_output([sedcmd, "-i", "/" + i.name + "/d",
                                              self.keyfile])
-                        f = open(self.keyfile, "a")
-                        f.write(str(i.algorithm) + " "
-                                + str(i.keydata) + " "
-                                + str(i.name) + "\n")
-                        f.close()
+                        with open(self.keyfile, "a") as f:
+                            f.write(str(i.algorithm) + " "
+                                    + str(i.keydata) + " "
+                                    + str(i.name) + "\n")
+                            pass
                         pass
                     pass
                 pass
@@ -1060,17 +1044,18 @@ class UserAuthkey(tf.YangElem):
 
     def fetch_full_index(self, vdata):
         try:
-            f = open(vdata[5] + "/.ssh/authorized_keys", "r")
-        except:
-            return []
-        idx = []
-        for i in f:
-            i = i.split()
-            if len(i) >= 3:
-                idx.append(i)
+            with open(vdata[5] + "/.ssh/authorized_keys", "r") as f:
+                idx = []
+                for i in f:
+                    i = i.split()
+                    if len(i) >= 3:
+                        idx.append(i)
+                        pass
+                    pass
                 pass
             pass
-        f.close()
+        except:
+            return []
         return idx
 
     pass
@@ -1178,8 +1163,7 @@ class NTPData(tf.YangElemCommitOnly):
             pass
         for i in self.servers:
             if i.op == "add" or i.op == "change":
-                f = open(chronydir + "/sources.d/" + i.name + ".sources", "w")
-                try:
+                with open(chronydir + "/sources.d/" + i.name + ".sources", "w") as f:
                     f.write(i.assoc_type + " " + i.address + " port " + i.port)
                     if not i.is_udp:
                         f.write(" nts ntsport " + i.ntsport)
@@ -1189,8 +1173,6 @@ class NTPData(tf.YangElemCommitOnly):
                     if i.prefer:
                         f.write(" prefer")
                     f.write("\n")
-                finally:
-                    f.close()
                     pass
                 if i.certificate is None:
                     # No certificate, delete it.
@@ -1201,13 +1183,8 @@ class NTPData(tf.YangElemCommitOnly):
                     # A certificate with contents "x" is invalid, we use that
                     # to mark that the certificate was just fetched and then
                     # re-written, so we don't change it.
-                    f = open(chronydir + "/ntstrustedcerts/" + i.name + ".crt",
-                             "w")
-                    try:
-                        f.write(i.certificate)
-                        f.write("\n")
-                    finally:
-                        f.close()
+                    with open(chronydir + "/ntstrustedcerts/" + i.name + ".crt", "w") as f:
+                        f.write(i.certificate + "\n")
                         pass
                     pass
                 pass
