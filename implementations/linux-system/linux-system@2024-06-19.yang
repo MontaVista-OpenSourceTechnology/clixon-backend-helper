@@ -62,6 +62,11 @@ module linux-system {
              configuration.";
     }
 
+    feature chrony-ntp {
+	description
+	    "Indicates that the device supports NTP via chrony.";
+    }
+
     typedef crypt-hash-shadow {
 	type string {
 	    pattern
