@@ -1123,6 +1123,26 @@ system_authentication_children = {
                  validate_all=True),
 }
 
+# NTP configuration
+#
+# The only supported NTP client right now is chrony.  This code
+# assumes that all chrony servers are configured in files in
+# /etc/chrony/sources.d Each file has one server in it with the name
+# of the file (removing the final ".sources") is the name in YANG.
+# All keys are in /etc/chrony/ntstrustedcerts and are placed there,
+# and they are the YANG name suffixed with ".crt".  Note that at this
+# time the keys are not directly tied to the individual servers, all
+# keys are available for all servers.  This doesn't touch any other
+# chrony configuration.
+#
+# NTS is supported, and all YANG configuration of a server is
+# supported.
+#
+# Enable/disable is not supported at this time.  It would basically
+# have to interact with systemd or init, but that doesn't seem very
+# important, and I'm not sure it's a good idea to let configuration
+# turn it off.
+
 class NTPServerData:
     def __init__(self):
         self.op = None
