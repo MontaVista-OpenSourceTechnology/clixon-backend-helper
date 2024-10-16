@@ -1749,9 +1749,14 @@ class Handler(tf.TopElemHandler, tf.ProgOut):
     def system_only(self, nsc, xpath):
         if xpath == "/":
             rv = super().statedata(nsc, "/system")
-            print("Y: " + str(rv))
-            return rv
-        return super().statedata(nsc, xpath)
+            if False:
+                print("Y: " + str(rv))
+                pass
+            pass
+        else:
+            rv = self.statedata(nsd, xpath)
+            pass
+        return rv
 
     pass
 
