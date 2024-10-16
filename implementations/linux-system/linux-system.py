@@ -45,6 +45,7 @@ IETF_SYSTEM_NAMESPACE = "urn:ietf:params:xml:ns:yang:ietf-system"
 sysbase = os.getenv("LINUX_SYSTEM_SYSBASE")
 if sysbase is None:
     sysbase = ""
+    pass
 
 # Enable various password operations
 allow_user_add_del = True      # Add/delete users allowed?
@@ -110,6 +111,7 @@ dnsproxylistenaddr = "127.0.0.1"
 old_dns_supported = clixon_beh.is_feature_set("linux-system", "old-dns")
 dnsproxy_supported = clixon_beh.is_feature_set("linux-system", "dnsproxy")
 using_ntp = clixon_beh.is_feature_set("ietf-system", "ntp")
+chrony_ntp = clixon_beh.is_feature_set("linux-system", "chrony-ntp")
 
 # If DNS isn't managed through this interface, just stub everything
 # out.  In that case, it would be generally be managed through
@@ -1550,6 +1552,9 @@ system_ntp_server_children = {
 # /system/ntp
 class NTP(tf.YangElem):
     def start(self, data):
+        if not chrony_ntp:
+            raise tf.RPCError("application", "invalid-value", "error",
+                              "NTP configuration not supported.")
         self.program_output([rmcmd, "-rf", chronydir + ".old"])
         self.program_output([cpcmd, "-a", chronydir, chronydir + ".old"])
         v = NTPData("ntp")
@@ -1570,6 +1575,11 @@ class NTP(tf.YangElem):
         self.start(data)
         super().validate(data, origxml, newxml)
         return
+
+    def getvalue(self, vdata):
+        if not chrony_ntp:
+            return ""
+        return super().getvalue(vdata)
 
     pass
 
