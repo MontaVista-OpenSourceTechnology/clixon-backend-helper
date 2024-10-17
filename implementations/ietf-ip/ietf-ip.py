@@ -599,10 +599,10 @@ class StateInterface(tf.YangElemValueOnly):
     pass
 
 # /interfaces-state
-interfaces_state_children = {
-    "interface": StateInterface("interface", tf.YangType.LIST,
-                                interfaces_state_interface_children)
-}
+interfaces_state_children = {}
+tf.add_yang_elem_to_map(interfaces_state_children,
+                        StateInterface("interface", tf.YangType.LIST,
+                                       interfaces_state_interface_children))
 
 class Handler(tf.TopElemHandler, tf.ProgOut):
     first_call_done = False
@@ -660,15 +660,17 @@ class Handler(tf.TopElemHandler, tf.ProgOut):
 
     pass
 
-children = {
-    "interfaces": tf.YangElem("interfaces", tf.YangType.CONTAINER,
-                              interfaces_children,
-                              namespace=IETF_INTERFACES_NAMESPACE),
-    "interfaces-state": tf.YangElem("interfaces-state", tf.YangType.CONTAINER,
+children = {}
+tf.add_yang_elem_to_map(children,
+                        tf.YangElem("interfaces", tf.YangType.CONTAINER,
+                                    interfaces_children,
+                                    namespace=IETF_INTERFACES_NAMESPACE))
+tf.add_yang_elem_to_map(children,
+                        tf.YangElem("interfaces-state", tf.YangType.CONTAINER,
                                     interfaces_state_children,
                                     namespace=IETF_INTERFACES_NAMESPACE,
-                                    isconfig=False),
-}
+                                    isconfig=False))
+
 handler = Handler("ietf-ip", children)
 handler.p = clixon_beh.add_plugin("ietf-ip", IETF_INTERFACES_NAMESPACE, handler)
 
