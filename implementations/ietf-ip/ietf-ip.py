@@ -46,14 +46,23 @@ IETF_IP_NAMESPACE = "urn:ietf:params:xml:ns:yang:ietf-ip"
 
 class MapValue(tf.YangElemValueOnly):
     """Pull the given keyval from the value mapping."""
-    def __init__(self, name, keyval, isconfig=True):
+    def __init__(self, name, keyval, isconfig=True, maxint=None):
         self.keyval = keyval
+        self.maxint = maxint
         super().__init__(name, tf.YangType.LEAF, isconfig=isconfig)
         return
 
     def getvalue(self, getnonconfig, vdata=None):
         if self.keyval in vdata:
-            return vdata[self.keyval]
+            rv = vdata[self.keyval]
+            if self.maxint is not None:
+                rv = int(rv)
+                if rv > self.maxint:
+                    rv = self.maxint
+                    pass
+                rv = str(rv)
+                pass
+            return rv
         return ""
     pass
 
@@ -238,7 +247,7 @@ class IPV6Address(tf.YangElemValueOnly):
 # /interfaces/interface/ipv6
 interfaces_interface_ipv6_children = {
     # forwarding
-    "mtu": MapValue("mtu", "mtu"),
+    "mtu": MapValue("mtu", "mtu", maxint=65535),
     "address": IPV6Address("address", tf.YangType.LIST, ipv6_children),
     "neighbor": IPV6Neigh("neighbor", tf.YangType.LIST, ipv6_neighbor),
 }
@@ -313,7 +322,7 @@ class IPV4Neigh(tf.YangElemValueOnly):
 interfaces_interface_ipv4_children = {
     # enabled
     # forwarding
-    "mtu": MapValue("mtu", "mtu"),
+    "mtu": MapValue("mtu", "mtu", maxint=65535),
     "address": IPV4Address("address", tf.YangType.LIST, ipv4_children),
     "neighbor": IPV4Neigh("neighbor", tf.YangType.LIST, ipv4_neighbor),
 }
@@ -360,14 +369,19 @@ class InterfaceType(tf.YangElem):
 
     def getvalue(self, getnonconfig, vdata=None):
         v = vdata["link_type"]
+        ns = "urn:ietf:params:xml:ns:yang:iana-if-type"
         if v == "none":
             # It might be a tunnel.
             if vdata["ifname"].startswith("tun"):
-                return "tunnel"
+                v = "tunnel"
             pass
         elif v in link_types:
-            return link_types[v]
-        return "other"
+            v = link_types[v]
+        else:
+            v = "other"
+            pass
+        return ("<%s xmlns:ianaift=\"%s\">ianaift:%s</%s>"
+                % (self.name, ns, tf.xmlescape(v), self.name))
     pass
 
 # /interfaces/interface/admin-status
@@ -399,7 +413,8 @@ class InterfaceOperStatus(tf.YangElemValueOnly):
 interfaces_interface_children = {
     "name": MapValue("name", "ifname"),
     "description": tf.YangElemConfigOnly("description"),
-    "type": InterfaceType("type", tf.YangType.LEAF),
+    "type": InterfaceType("type", tf.YangType.LEAF,
+                          xmlprocvalue=False, wrapxml=False),
     "admin-status": InterfaceAdminStatus("admin-status", tf.YangType.LEAF),
     "oper-status": InterfaceOperStatus("oper-status", tf.YangType.LEAF,
                                        isconfig=False),
@@ -460,7 +475,7 @@ state_ipv6_children = {
 
 interfaces_state_interface_ipv6_children = {
     # forwarding
-    "mtu": MapValue("mtu", "mtu"),
+    "mtu": MapValue("mtu", "mtu", maxint=65535),
     "address": IPV6Address("address", tf.YangType.LIST, state_ipv6_children),
     "neighbor": IPV6Neigh("neighbor", tf.YangType.LIST, state_ipv6_neighbor),
 }
@@ -512,7 +527,7 @@ class StateIPV4Neigh(tf.YangElemValueOnly):
 
 interfaces_state_interface_ipv4_children = {
     # forwarding
-    "mtu": MapValue("mtu", "mtu"),
+    "mtu": MapValue("mtu", "mtu", maxint=65535),
     "address": StateIPV4Address("address", tf.YangType.LIST,
                                 state_ipv4_children),
     "neighbor": StateIPV4Neigh("neighbor", tf.YangType.LIST,
@@ -590,6 +605,8 @@ interfaces_state_children = {
 }
 
 class Handler(tf.TopElemHandler, tf.ProgOut):
+    first_call_done = False
+
     def exit(self):
         self.p = None # Break circular dependency
         return 0
@@ -609,6 +626,19 @@ class Handler(tf.TopElemHandler, tf.ProgOut):
         data = t.get_userdata()
         return 0
 
+    # FIXME - this is a hack for now
+    def validate(self, t):
+        if not self.first_call_done:
+            return 0
+        return super().validate(t)
+
+    # FIXME - this is a hack for now
+    def commit(self, t):
+        if not self.first_call_done:
+            self.first_call_done = True
+            return 0
+        return super().commit(t)
+
     def statedata(self, nsc, xpath):
         rv = super().statedata(nsc, xpath)
         if False:
@@ -619,7 +649,7 @@ class Handler(tf.TopElemHandler, tf.ProgOut):
     def system_only(self, nsc, xpath):
         if xpath == "/":
             rv = super().statedata(nsc, "/interfaces", getnonconfig=False)
-            if True:
+            if False:
                 print("Y: " + str(rv))
                 pass
             pass

@@ -1,0 +1,27 @@
+module mv-ip {
+    namespace "http://mvista.com/mv-ip";
+    prefix "lin";
+
+    import ietf-ip {
+	prefix ip;
+    }
+    import iana-if-type {
+	prefix ianaift;
+    }
+
+    organization
+	"MontaVista Software";
+
+    contact
+	"http://mvista.com
+         Corey Minyard - cminyard@mvista.com";
+
+    description
+	"This module is here to load iana-if-type so we can get to those
+         types.";
+
+    revision 2024-10-17 {
+	description
+	    "Initial revision.";
+    }
+}

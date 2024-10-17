@@ -59,7 +59,8 @@ install_data(appname + '_cli.cli',
 
 install_data(['iana-if-type@2014-05-08.yang',
 	      'ietf-interfaces@2018-02-20.yang',
-	      'ietf-ip@2018-02-22.yang'],
+	      'ietf-ip@2018-02-22.yang',
+	      'mv-ip@2024-10-17.yang'],
              install_dir: my_datadir + '/clixon/' + appname)
 
 install_data('startup_db',
