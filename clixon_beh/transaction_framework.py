@@ -666,6 +666,16 @@ class YangElemValueOnly(YangElem):
 
     pass
 
+def add_yang_elem_to_map(mapv, elem):
+    """You can define the element in the map directly, but this will
+    require you to put the name twice, once in the map's index and
+    once in the element allocation.  This little helper will allow you
+    to add it to the map and only have to put the name in there once.
+
+    """
+    mapv[elem.name] = elem
+    return
+
 class TopElemHandler:
     """Handler for Clixon backend.  This can be used directly.  Or a
     handler can descend from this if they need to add the pre_daemon,
