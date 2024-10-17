@@ -1104,7 +1104,7 @@ clixon_plugin_init(clixon_handle h) {
     char *plugin_dir = NULL;
     struct clixon_beh *beh = NULL;
 
-    clixon_debug(CLIXON_DBG_DEFAULT, "clixbon_be_helper Entry\n");
+    clixon_debug(CLIXON_DBG_DEFAULT, "clixon_be_helper Entry\n");
 
     beh = calloc(1, sizeof(*beh));
     if (!beh) {
