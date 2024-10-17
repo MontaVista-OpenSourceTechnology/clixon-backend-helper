@@ -647,16 +647,16 @@ class YangElemValueOnly(YangElem):
     """
 
     def validate_add(self, data, xml):
-        raise tf.RPCError("application", "invalid-value", "error",
-                          "Could not modify state for " + self.name)
+        raise RPCError("application", "invalid-value", "error",
+                       "Could not modify state for " + self.name)
 
     def validate_del(self, data, xml):
-        raise tf.RPCError("application", "invalid-value", "error",
-                          "Could not modify state for " + self.name)
+        raise RPCError("application", "invalid-value", "error",
+                       "Could not modify state for " + self.name)
 
     def validate(self, data, origxml, newxml):
-        raise tf.RPCError("application", "invalid-value", "error",
-                          "Could not modify state for " + self.name)
+        raise RPCError("application", "invalid-value", "error",
+                       "Could not modify state for " + self.name)
 
     def commit(self, op):
         raise Exception("abort")
@@ -701,8 +701,8 @@ class TopElemHandler:
 
     def validate(self, t):
         if False: # For debugging
-            print(str(t.orig_str()))
-            print(str(t.new_str()))
+            print("orig: " + str(t.orig_str()))
+            print("new: " + str(t.new_str()))
             pass
 
         data = t.get_userdata()
