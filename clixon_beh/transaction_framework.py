@@ -229,7 +229,8 @@ class YangElem(PrivOp, ProgOut):
 
     """
     def __init__(self, name, etype, children = None, validate_all = False,
-                 xmlprocvalue = None, wrapxml = None, namespace = None):
+                 xmlprocvalue = None, wrapxml = None, namespace = None,
+                 isconfig = True):
         """name should be the xml tag name for this operations.  children, if
         set, should be a map of the xml elements that can occur in
         this xml element, and their handlers.  If validate_all is set,
@@ -253,11 +254,17 @@ class YangElem(PrivOp, ProgOut):
         the same item.  Those should set wrapxml to False.  Default is
         True.
 
+        The allocater should set isconfig to False for items that are
+        "config false" in the YANG.  In that case, getvalue() or
+        getxml() will not be called for the object if getnonconfig is
+        False.
+
         """
         self.etype = etype
         self.wrapgvxml = True
         self.xmlgvprocvalue = False
         self.namespace = namespace
+        self.isconfig = isconfig
         if etype == YangType.CONTAINER:
             self.indexed = False
             self.xmlprocvalue = False
@@ -433,7 +440,7 @@ class YangElem(PrivOp, ProgOut):
             return "<" + name + ">"
         return
 
-    def getxml(self, path, indexname=None, index=None, vdata=None):
+    def getxml(self, path, getnonconfig, indexname=None, index=None, vdata=None):
         """Process a get operation before the path has ended.  We are
         just parsing down the path until we hit then end.  indexname
         and index are for lists, they provide the index name and the
@@ -441,7 +448,11 @@ class YangElem(PrivOp, ProgOut):
         it will call the fetch_index() method on this class to get the
         vdata.
 
+        The getnonconfig parm sets whether we want config data or not.
+
         """
+        if not getnonconfig and not self.isconfig:
+            return ""
         if self.indexed:
             if index is None:
                 raise Exception("No index is set for " + self.name)
@@ -455,7 +466,7 @@ class YangElem(PrivOp, ProgOut):
 
         xml = self.xmlheader(self.name, self.namespace)
         if len(path) == 0:
-            value = self.getonevalue(vdata=vdata)
+            value = self.getonevalue(getnonconfig, vdata=vdata)
             if self.xmlprocvalue:
                 value = xmlescape(value)
                 pass
@@ -463,20 +474,31 @@ class YangElem(PrivOp, ProgOut):
         else:
             (name, index, indexname) = self.parsepathentry(path[0])
             if name in self.children:
-                xml += self.children[name].getxml(path[1:],
-                                                  indexname=indexname,
-                                                  index=index,
-                                                  vdata=vdata)
+                x = self.children[name]
+                if getnonconfig or x.isconfig:
+                    xml += x.getxml(path[1:],
+                                    indexname=indexname,
+                                    index=index,
+                                    vdata=vdata)
+                    pass
+                pass
             else:
                 raise Exception("Unknown name " + name + " in " + self.name)
             pass
         xml += "</" + self.name + ">"
         return xml
 
-    def getonevalue(self, vdata=None):
+    def getonevalue(self, getnonconfig, vdata=None):
+        if not getnonconfig and not self.isconfig:
+            return ""
         xml = ""
         for name in self.children:
-            s = str(self.children[name].getvalue(vdata))
+            x = self.children[name]
+            if getnonconfig or x.isconfig:
+                s = str(x.getvalue(getnonconfig, vdata=vdata))
+            else:
+                s = ""
+                pass
             if len(s) > 0:
                 if self.children[name].xmlprocvalue:
                     s = xmlescape(s)
@@ -492,9 +514,11 @@ class YangElem(PrivOp, ProgOut):
             pass
         return xml
 
-    def getvalue(self, vdata=None):
+    def getvalue(self, getnonconfig, vdata=None):
         """Return the xml strings for this node.  Leaf nodes should override
         this and return the value."""
+        if not getnonconfig and not self.isconfig:
+            return ""
         xml = ""
         if self.indexed:
             for i in self.fetch_full_index(vdata):
@@ -504,7 +528,7 @@ class YangElem(PrivOp, ProgOut):
                 if self.xmlgvprocvalue:
                     xml += xmlescape(self.getonevalue(vdata=i))
                 else:
-                    xml += str(self.getonevalue(vdata=i))
+                    xml += str(self.getonevalue(getnonconfig, vdata=i))
                     pass
                 if self.wrapgvxml:
                     xml += "</" + self.name + ">"
@@ -512,7 +536,7 @@ class YangElem(PrivOp, ProgOut):
                 pass
             pass
         else:
-            xml = str(self.getonevalue(vdata=vdata))
+            xml = str(self.getonevalue(getnonconfig, vdata=vdata))
             if len(xml) > 0 and self.wrapgvxml:
                 xml = (self.xmlheader(self.name, self.namespace) +
                        xml + "</" + self.name + ">")
@@ -540,13 +564,13 @@ class YangElemConfigOnly(YangElem):
     def validate(self, data, origxml, newxml):
         return
 
-    def getxml(self, path, indexname=None, index=None, value=None):
+    def getxml(self, path, getnonconfig, indexname=None, index=None, value=None):
         return ""
 
-    def getonevalue(self, vdata=None):
+    def getonevalue(self, getnonconfig, vdata=None):
         return ""
 
-    def getvalue(self, vdata=None):
+    def getvalue(self, getnonconfig, vdata=None):
         return ""
 
     pass
@@ -571,10 +595,10 @@ class YangElemCommitOnly(YangElem):
     def validate(self, data, origxml, newxml):
         raise Exception("abort")
 
-    def getonevalue(self, vdata=None):
+    def getonevalue(self, getnonconfig, vdata=None):
         raise Exception("abort")
 
-    def getvalue(self, vdata=None):
+    def getvalue(self, getnonconfig, vdata=None):
         raise Exception("abort")
 
     pass
@@ -676,7 +700,7 @@ class TopElemHandler:
         return 0
 
     def validate(self, t):
-        if True: # For debugging
+        if False: # For debugging
             print(str(t.orig_str()))
             print(str(t.new_str()))
             pass
@@ -720,7 +744,7 @@ class TopElemHandler:
         data.revert()
         return 0
 
-    def statedata(self, nsc, xpath):
+    def statedata(self, nsc, xpath, getnonconfig=True):
         path = xpath.split("/")
         if len(path) < 2:
             return(-1, "")
@@ -734,10 +758,29 @@ class TopElemHandler:
             name = name[1]
             pass
         if name in self.xmlroot.children:
-            xml = self.xmlroot.children[name].getxml(path[2:])
+            x = self.xmlroot.children[name]
+            if getnonconfig or x.isconfig:
+                if x.indexed:
+                    if len(path) > 2:
+                        xml = x.getxml(path[3:], getnonconfig, index=path[2])
+                    else:
+                        xml = x.getvalue(getnonconfig)
+                        pass
+                    pass
+                else:
+                    xml = x.getxml(path[2:], getnonconfig)
+                    pass
+                pass
+            else:
+                xml = ""
+                pass
+            pass
         else:
             raise Exception("Unknown name " + name + " in " + self.name)
         return (0, xml)
+
+    def system_only(self, nsc, xpath):
+        return ""
 
     pass
 
