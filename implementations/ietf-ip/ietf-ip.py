@@ -39,17 +39,19 @@ import clixon_beh.transaction_framework as tf
 
 ipcmd = "/usr/bin/ip"
 
+is_if_mib = clixon_beh.is_feature_set("ietf-interfaces", "if-mib")
+
 IETF_INTERFACES_NAMESPACE = "urn:ietf:params:xml:ns:yang:ietf-interfaces"
 IETF_IP_NAMESPACE = "urn:ietf:params:xml:ns:yang:ietf-ip"
 
 class MapValue(tf.YangElemValueOnly):
     """Pull the given keyval from the value mapping."""
-    def __init__(self, name, keyval):
+    def __init__(self, name, keyval, isconfig=True):
         self.keyval = keyval
-        super().__init__(name, tf.YangType.LEAF)
+        super().__init__(name, tf.YangType.LEAF, isconfig=isconfig)
         return
 
-    def getvalue(self, vdata=None):
+    def getvalue(self, getnonconfig, vdata=None):
         if self.keyval in vdata:
             return vdata[self.keyval]
         return ""
@@ -57,13 +59,13 @@ class MapValue(tf.YangElemValueOnly):
 
 class Map2Value(tf.YangElemValueOnly):
     """Pull the given keyval from the value mapping."""
-    def __init__(self, name, keyval1, keyval2):
+    def __init__(self, name, keyval1, keyval2, isconfig=True):
         self.keyval1 = keyval1
         self.keyval2 = keyval2
-        super().__init__(name, tf.YangType.LEAF)
+        super().__init__(name, tf.YangType.LEAF, isconfig=isconfig)
         return
 
-    def getvalue(self, vdata=None):
+    def getvalue(self, getnonconfig, vdata=None):
         if self.keyval1 in vdata[self.keyval1]:
             return vdata[self.keyval1][self.keyval2]
         return ""
@@ -71,12 +73,12 @@ class Map2Value(tf.YangElemValueOnly):
 
 class ErrorValue(tf.YangElemValueOnly):
     """Pull the given all _error values from the value mapping."""
-    def __init__(self, name, keyval = None):
+    def __init__(self, name, keyval = None, isconfig=True):
         self.keyval = keyval
-        super().__init__(name, tf.YangType.LEAF)
+        super().__init__(name, tf.YangType.LEAF, isconfig=isconfig)
         return
 
-    def getvalue(self, vdata=None):
+    def getvalue(self, getnonconfig, vdata=None):
         if self.keyval is not None:
             vdata = vdata[self.keyval]
             pass
@@ -91,21 +93,23 @@ class ErrorValue(tf.YangElemValueOnly):
     pass
 
 class MapChild(tf.YangElemValueOnly):
-    def __init__(self, name, mapval, children, validate_all=True):
+    def __init__(self, name, mapval, children, validate_all=True,
+                 isconfig=True):
         self.mapval = mapval
         super().__init__(name, tf.YangType.CONTAINER, children,
-                         validate_all=validate_all)
+                         validate_all=validate_all, isconfig=isconfig)
         return
 
-    def getxml(self, path, namespace=None, indexname=None, index=None,
-               vdata=None):
+    def getxml(self, getnonconfig, path, namespace=None, indexname=None,
+               index=None, vdata=None):
         vdata = vdata[self.mapval]
-        return super().getxml(path, namespace=namespace, indexname=indexname,
+        return super().getxml(path, getnonconfig,
+                              namespace=namespace, indexname=indexname,
                               index=index, vdata=vdata)
 
-    def getvalue(self, vdata=None):
+    def getvalue(self, getnonconfig, vdata=None):
         vdata = vdata[self.mapval]
-        return super().getvalue(vdata=vdata)
+        return super().getvalue(getnonconfig, vdata=vdata)
 
     pass
 
@@ -115,7 +119,8 @@ class MapChild(tf.YangElemValueOnly):
 # /interfaces-state/interface/ipv6/neighbor/origin
 class NeighOrigin(tf.YangElemValueOnly):
     """Get the origin value of the address."""
-    def getvalue(self, vdata=None):
+
+    def getvalue(self, getnonconfig, vdata=None):
         if "PERMANENT" in vdata["state"]:
             return "static"
         return "dynamic"
@@ -126,7 +131,7 @@ class NeighOrigin(tf.YangElemValueOnly):
 # /interfaces-state/interface/ipv6/neighbor/state
 class IPV6NeighState(tf.YangElemValueOnly):
     """Get the state value of the address."""
-    def getvalue(self, vdata=None):
+    def getvalue(self, getnonconfig, vdata=None):
         if "INCOMPLETE" in vdata["state"]:
             return "incomplete"
         if "REACHABLE" in vdata["state"]:
@@ -145,9 +150,9 @@ class IPV6NeighState(tf.YangElemValueOnly):
 ipv6_neighbor = {
     "ip": MapValue("ip", "dst"),
     "link-layer-address": MapValue("link-layer-address", "lladdr"),
-    "origin": NeighOrigin("origin", tf.YangType.LEAF),
+    "origin": NeighOrigin("origin", tf.YangType.LEAF, isconfig=False),
     # is-router
-    "state": IPV6NeighState("state", tf.YangType.LEAF)
+    "state": IPV6NeighState("state", tf.YangType.LEAF, isconfig=False)
 }
 
 # /interfaces/interface/ipv6/neighbor
@@ -174,7 +179,7 @@ class IPV6Neigh(tf.YangElemValueOnly):
 # /interfaces-state/interface/ipv6/address/origin
 class IPV6Origin(tf.YangElemValueOnly):
     """Get the origin value of the address."""
-    def getvalue(self, vdata=None):
+    def getvalue(self, getnonconfig, vdata=None):
         if "dynamic" in vdata and vdata["dynamic"] == "true":
             return "random"
         if vdata["local"].startswith("fc") or vdata["local"].startswith("fd"):
@@ -187,7 +192,7 @@ class IPV6Origin(tf.YangElemValueOnly):
 # /interfaces-state/interface/ipv6/address/status
 class IPV6Status(tf.YangElemValueOnly):
     """Get the origin value of the address."""
-    def getvalue(self, vdata=None):
+    def getvalue(self, getnonconfig, vdata=None):
         if "dadfailed" in vdata and vdata["datafailed"] == "true":
             return "duplicate"
         if "optimistic" in vdata and vdata["optimistic"] == "true":
@@ -206,8 +211,8 @@ class IPV6Status(tf.YangElemValueOnly):
 ipv6_children = {
     "ip": MapValue("ip", "local"),
     "prefix-length": MapValue("prefix-length", "prefixlen"),
-    "origin": IPV6Origin("origin", tf.YangType.LEAF),
-    "status": IPV6Status("status", tf.YangType.LEAF)
+    "origin": IPV6Origin("origin", tf.YangType.LEAF, isconfig=False),
+    "status": IPV6Status("status", tf.YangType.LEAF, isconfig=False)
 }
 
 # /interfaces/interface/ipv6/address
@@ -242,7 +247,7 @@ interfaces_interface_ipv6_children = {
 # /interfaces-state/interface/ipv4/address/origin
 class IPV4Origin(tf.YangElemValueOnly):
     """Get the origin value of the address."""
-    def getvalue(self, vdata=None):
+    def getvalue(self, getnonconfig, vdata=None):
         if "dynamic" in vdata and vdata["dynamic"] == "true":
             return "dhcp"
         if vdata["local"].startswith("169.254."):
@@ -255,7 +260,7 @@ class IPV4Origin(tf.YangElemValueOnly):
 ipv4_children = {
     "ip": MapValue("ip", "local"),
     "prefix-length": MapValue("prefix-length", "prefixlen"),
-    "origin": IPV4Origin("origin", tf.YangType.LEAF)
+    "origin": IPV4Origin("origin", tf.YangType.LEAF, isconfig=False)
 }
 
 # /interfaces/interface/ipv4/address
@@ -278,11 +283,11 @@ class IPV4Address(tf.YangElemValueOnly):
 
     pass
 
-# /interfaces-state/interface/ipv6/neighbor/origin
+# /interfaces/interface/ipv6/neighbor/origin
 ipv4_neighbor = {
     "ip": MapValue("ip", "dst"),
     "link-layer-address": MapValue("link-layer-address", "lladdr"),
-    "origin": NeighOrigin("origin", tf.YangType.LEAF)
+    "origin": NeighOrigin("origin", tf.YangType.LEAF, isconfig=False)
 }
 
 class IPV4Neigh(tf.YangElemValueOnly):
@@ -304,7 +309,7 @@ class IPV4Neigh(tf.YangElemValueOnly):
 
     pass
 
-# /interfaces-state/interface/ipv4
+# /interfaces/interface/ipv4
 interfaces_interface_ipv4_children = {
     # enabled
     # forwarding
@@ -313,7 +318,7 @@ interfaces_interface_ipv4_children = {
     "neighbor": IPV4Neigh("neighbor", tf.YangType.LIST, ipv4_neighbor),
 }
 
-# /interfaces-state/interface/statistics
+# /interfaces/interface/statistics
 interfaces_interface_statistics_children = {
     # discontinuity-time
     "in-octets": Map2Value("in-octets", "rx", "bytes"),
@@ -337,7 +342,7 @@ link_types = {
     "ether": "ethernetCsmacd",
 }
 
-# /interfaces-state/interface/type
+# /interfaces/interface/type
 class InterfaceType(tf.YangElem):
     """Get the iana-if-type value of the link_type."""
 
@@ -353,7 +358,7 @@ class InterfaceType(tf.YangElem):
         raise tf.RPCError("application", "invalid-value", "error",
                           "Setting interface type not allowed")
 
-    def getvalue(self, vdata=None):
+    def getvalue(self, getnonconfig, vdata=None):
         v = vdata["link_type"]
         if v == "none":
             # It might be a tunnel.
@@ -365,10 +370,12 @@ class InterfaceType(tf.YangElem):
         return "other"
     pass
 
-# /interfaces-state/interface/admin-status
+# /interfaces/interface/admin-status
 class InterfaceAdminStatus(tf.YangElemValueOnly):
     """Get the admin-status value of the interface."""
-    def getvalue(self, vdata=None):
+    def getvalue(self, getnonconfig, vdata=None):
+        if not is_if_mib:
+            return ""
         if "UP" in vdata["flags"]:
             return "up"
         # FIXME - do we need to add anything else?
@@ -379,7 +386,7 @@ class InterfaceAdminStatus(tf.YangElemValueOnly):
 # /interfaces-state/interface/oper-status
 class InterfaceOperStatus(tf.YangElemValueOnly):
     """Get the oper-status value of the interface."""
-    def getvalue(self, vdata=None):
+    def getvalue(self, getnonconfig, vdata=None):
         # FIXME - "operstate" doesn't seem to always be correct.  Just use
         # flags.
         if "UP" in vdata["flags"]:
@@ -394,13 +401,15 @@ interfaces_interface_children = {
     "description": tf.YangElemConfigOnly("description"),
     "type": InterfaceType("type", tf.YangType.LEAF),
     "admin-status": InterfaceAdminStatus("admin-status", tf.YangType.LEAF),
-    "oper-status": InterfaceOperStatus("oper-status", tf.YangType.LEAF),
-    "if-index": MapValue("if-index", "ifindex"),
-    "phys-address": MapValue("phys-address", "address"),
+    "oper-status": InterfaceOperStatus("oper-status", tf.YangType.LEAF,
+                                       isconfig=False),
+    "if-index": MapValue("if-index", "ifindex", isconfig=False),
+    "phys-address": MapValue("phys-address", "address", isconfig=False),
     # FIXME - how to get speed?
     # Also missing: last-change, higher-layer-if, lower-layer-if.
     "statistics": MapChild("statistics", "stats64",
-                            interfaces_interface_statistics_children),
+                           interfaces_interface_statistics_children,
+                           isconfig=False),
     "ipv4": tf.YangElem("ipv4", tf.YangType.CONTAINER,
                         interfaces_interface_ipv4_children,
                         namespace=IETF_IP_NAMESPACE),
@@ -410,19 +419,7 @@ interfaces_interface_children = {
 }
 
 # /interfaces/interface
-class Interface(tf.YangElem):
-    def validate_add(self, data, xml):
-        raise tf.RPCError("application", "invalid-value", "error",
-                          "Setting interface not allowed")
-
-    def validate_del(self, data, xml):
-        raise tf.RPCError("application", "invalid-value", "error",
-                          "Setting interface not allowed")
-
-    def validate(self, data, origxml, newxml):
-        raise tf.RPCError("application", "invalid-value", "error",
-                          "Setting interface not allowed")
-
+class Interface(tf.YangElemValueOnly):
     def getinterfaces(self):
         return self.program_output([ipcmd, "-p", "-s", "-s", "-j", "addr"],
                                    decoder = lambda x : json.loads(x))
@@ -525,7 +522,7 @@ interfaces_state_interface_ipv4_children = {
 # /interfaces-state/interface/type
 class InterfaceStateType(tf.YangElemValueOnly):
     """Get the iana-if-type value of the link_type."""
-    def getvalue(self, vdata=None):
+    def getvalue(self, getnonconfig, vdata=None):
         v = vdata["link_type"]
         if v == "none":
             # It might be a tunnel.
@@ -540,7 +537,7 @@ class InterfaceStateType(tf.YangElemValueOnly):
 # /interfaces-state/interface/admin-status
 class InterfaceStateAdminStatus(tf.YangElemValueOnly):
     """Get the admin-status value of the interface."""
-    def getvalue(self, vdata=None):
+    def getvalue(self, getnonconfig, vdata=None):
         if "UP" in vdata["flags"]:
             return "up"
         # FIXME - do we need to add anything else?
@@ -613,37 +610,37 @@ class Handler(tf.TopElemHandler, tf.ProgOut):
         return 0
 
     def statedata(self, nsc, xpath):
-        return super().statedata(nsc, xpath)
+        rv = super().statedata(nsc, xpath)
+        if False:
+            print("X: " + str(rv))
+            pass
+        return rv
+
+    def system_only(self, nsc, xpath):
+        if xpath == "/":
+            rv = super().statedata(nsc, "/interfaces", getnonconfig=False)
+            if True:
+                print("Y: " + str(rv))
+                pass
+            pass
+        else:
+            rv = self.statedata(nsd, xpath, getnonconfig=False)
+            pass
+        return rv
 
     pass
 
 children = {
-    "interfaces": tf.YangElem("interfaces", tf.YangType.LIST,
+    "interfaces": tf.YangElem("interfaces", tf.YangType.CONTAINER,
                               interfaces_children,
                               namespace=IETF_INTERFACES_NAMESPACE),
-    "interfaces-state": tf.YangElem("interfaces-state", tf.YangType.LIST,
+    "interfaces-state": tf.YangElem("interfaces-state", tf.YangType.CONTAINER,
                                     interfaces_state_children,
-                                    namespace=IETF_INTERFACES_NAMESPACE),
+                                    namespace=IETF_INTERFACES_NAMESPACE,
+                                    isconfig=False),
 }
 handler = Handler("ietf-ip", children)
 handler.p = clixon_beh.add_plugin("ietf-ip", IETF_INTERFACES_NAMESPACE, handler)
-
-class AuthStatedata:
-    def stateonly(self):
-        rv = children["interfaces"].getonevalue()
-        if rv and len(rv) > 0:
-            rv = ("<interfaces xmlns=\"" + IETF_INTERFACES_NAMESPACE + "\">"
-                  + rv + "</interfaces>")
-            pass
-        # Uncomment to print the return data
-        #print("Return: " + str(rv))
-        return (0, rv)
-
-    pass
-
-clixon_beh.add_stateonly("<interfaces xmlns=\"" + IETF_INTERFACES_NAMESPACE +
-                         "\"></interfaces>",
-                         AuthStatedata())
 
 # I don't think the below is necessary.
 # class AuthStatedata:
