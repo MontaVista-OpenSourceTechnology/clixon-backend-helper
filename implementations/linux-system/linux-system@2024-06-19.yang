@@ -7,7 +7,7 @@ module linux-system {
     }
 
     import ietf-system {
-	prefix ietf;
+	prefix sys;
     }
 
     import clixon-lib {
@@ -88,14 +88,14 @@ module linux-system {
             password data.";
     }
 
-    augment "/ietf:system" {
+    augment "/sys:system" {
 	cl:system-only-config {
 	    description
 		"All of ietf-system/linux-system is system-only.";
 	}
     }
 
-    deviation /ietf:system/ietf:authentication/ietf:user/ietf:password {
+    deviation /sys:system/sys:authentication/sys:user/sys:password {
 	deviate replace {
 	    type crypt-hash-shadow;
 	}
@@ -105,14 +105,14 @@ module linux-system {
              compatible with the old type";
     }
 
-    //deviation /ietf:system/ietf:dns-resolver {
+    //deviation /sys:system/sys:dns-resolver {
     //	deviate not-supported;
     //	description
     //	    "We don't support old DNS resolving, we use systemd's
     //             resolver.  So we don't want anyone touching this stuff.";
     //}
 
-    augment "/ietf:system/ietf:dns-resolver/ietf:options" {
+    augment "/sys:system/sys:dns-resolver/sys:options" {
 	leaf use-vc {
 	    type boolean;
 	    default false;
@@ -121,7 +121,7 @@ module linux-system {
 	}
     }
 
-    augment "/ietf:system/ietf:dns-resolver" {
+    augment "/sys:system/sys:dns-resolver" {
 	leaf certificate {
 	    type string;
 	    description
@@ -129,7 +129,7 @@ module linux-system {
 	}
     }
 
-    augment "/ietf:system/ietf:ntp/ietf:server/ietf:transport" {
+    augment "/sys:system/sys:ntp/sys:server/sys:transport" {
 	case nts {
             container nts {
 		description
@@ -142,7 +142,7 @@ module linux-system {
 			"The address of the NTP server.";
 		}
 		leaf port {
-		    if-feature ietf:ntp-udp-port;
+		    if-feature sys:ntp-udp-port;
 		    type inet:port-number;
 		    default 123;
 		    description
