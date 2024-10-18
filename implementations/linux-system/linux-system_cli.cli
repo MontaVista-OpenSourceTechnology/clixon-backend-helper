@@ -44,21 +44,21 @@ show("Show a particular state of the system"){
 	        @datamodel, cli_show_auto("candidate", "json");
 	    }
     }
-    state("Show running state"), cli_show_config("running", "text", "/");{
-	    xml("Show configuration as XML"), cli_show_config("running", "xml", "/");{
-	        @datamodel, cli_show_auto("running", "xml");
+    state("Show running state"), cli_show_config("running", "text", "/", NULL, false, true);{
+	    xml("Show configuration as XML"), cli_show_config("running", "xml", "/", NULL, false, true);{
+	        @datamodel, cli_show_auto("running", "xml", false, true);
 	    }
-	    cli("Show configuration as CLI commands"), cli_show_config("running", "cli", "/");{
-	        @datamodel, cli_show_auto("running", "cli");
+	    cli("Show configuration as CLI commands"), cli_show_config("running", "cli", "/", NULL, false, true);{
+	        @datamodel, cli_show_auto("running", "cli", false, true);
 	    }
-	    netconf("Show configuration as netconf edit-config operation"), cli_show_config("running", "netconf", "/");{
-	        @datamodel, cli_show_auto("running", "netconf");
+	    netconf("Show configuration as netconf edit-config operation"), cli_show_config("running", "netconf", "/", NULL, false, true);{
+	        @datamodel, cli_show_auto("running", "netconf", false, true);
 	    }
-	    text("Show configuration as text"), cli_show_config("running","text","/");{
-	        @datamodel, cli_show_auto("running", "text");
+	    text("Show configuration as text"), cli_show_config("running","text","/", NULL, false, true);{
+	        @datamodel, cli_show_auto("running", "text", false, true);
 	    }
-	    json("Show configuration as JSON"), cli_show_config("running", "json", "/");{
-	        @datamodel, cli_show_auto("running", "json");
+	    json("Show configuration as JSON"), cli_show_config("running", "json", "/", NULL, false, true);{
+	        @datamodel, cli_show_auto("running", "json", false, true);
 	    }
     }
     yang("Show yang specs"), show_yang(); {

@@ -215,6 +215,31 @@ class YangType(Enum):
 
     pass
 
+def parsepathentry(e):
+    """Parse value in the form "[pfx:]name[\\[[pfx:]indexname='value'\\]]"
+    Ignore the prefixes, get the name, indexname, and value.
+    """
+    name = e.split(":", 1)
+    indexname = None
+    index = None
+    if len(name) == 1:
+        name = name[0]
+    elif "[" in name[1]:
+        (name, index) = name[1].split("[", 1)
+        index = index[:-1] # Remove the ']' at the end
+        if ':' in name:
+            name = name.split(":")[1]
+            pass
+        (indexname, index) = index.split("=", 1)
+        if ':' in indexname:
+            indexname = indexname.split(":")[1]
+            pass
+        index = index[1:-1] # remove the quotes
+    else:
+        name = name[1]
+        pass
+    return (name, indexname, index)
+
 class YangElem(PrivOp, ProgOut):
     """The base class for operation handler (what goes into an "Op" class
     handler) and an element handler (what gets called from the clixon
@@ -303,15 +328,23 @@ class YangElem(PrivOp, ProgOut):
             pass
         return
 
+    def xmlheader(self):
+        if self.namespace is not None:
+            return "<" + self.name + " xmlns=\"" + self.namespace + "\">"
+        else:
+            return "<" + self.name + ">"
+        return
+
+    def xmlwrap(self, xml):
+        if len(xml) == 0:
+            return ""
+        return self.xmlheader() + xml + "</" + self.name + ">"
+
     def validate_add(self, data, xml):
         """Validate add of an element list.  Leaf elements should override
         this."""
         for i in range(0, xml.nr_children_type(clixon_beh.XMLOBJ_TYPE_ELEMENT)):
-            c = xml.child_i(i)
-            name = c.get_name()
-            if name in self.children:
-                self.children[name].validate_add(data, c)
-                pass
+            self.children.validate_add(data, xml.child_i(i))
             pass
         return
 
@@ -319,11 +352,7 @@ class YangElem(PrivOp, ProgOut):
         """Validate delete of an element list.  Leaf elements should override
         this."""
         for i in range(0, xml.nr_children_type(clixon_beh.XMLOBJ_TYPE_ELEMENT)):
-            c = xml.child_i(i)
-            name = c.get_name()
-            if name in self.children:
-                self.children[name].validate_del(data, c)
-                pass
+            self.children.validate_del(data, xml.child_i(i))
             pass
         return
 
@@ -351,27 +380,18 @@ class YangElem(PrivOp, ProgOut):
                 nxmlf = nxml.get_flags(clixon_beh.XMLOBJ_FLAG_FULL_MASK)
                 pass
             if oxmlf & clixon_beh.XMLOBJ_FLAG_DEL:
-                c = oxml.get_name()
-                if c in self.children:
-                    self.children[c].validate_del(data, oxml)
-                    pass
+                self.children.validate_del(data, nxml)
                 oi += 1
                 oxml = origxml.child_i(oi)
             elif nxmlf & clixon_beh.XMLOBJ_FLAG_ADD:
-                c = nxml.get_name()
-                if c in self.children:
-                    self.children[c].validate_add(data, nxml)
-                    pass
+                self.children.validate_add(data, nxml)
                 ni += 1
                 nxml = newxml.child_i(ni)
             else:
                 if (self.validate_all or
-                    nxmlf & clixon_beh.XMLOBJ_FLAG_CHANGE or
-                    oxmlf & clixon_beh.XMLOBJ_FLAG_CHANGE):
-                    c = nxml.get_name()
-                    if c in self.children:
-                        self.children[c].validate(data, oxml, nxml)
-                        pass
+                        nxmlf & clixon_beh.XMLOBJ_FLAG_CHANGE or
+                        oxmlf & clixon_beh.XMLOBJ_FLAG_CHANGE):
+                    self.children.validate(data, oxml, nxml)
                     pass
                 if oxml:
                     oi += 1
@@ -394,31 +414,6 @@ class YangElem(PrivOp, ProgOut):
     def revert(self, op):
         return
 
-    def parsepathentry(self, e):
-        """Parse value in the form "[pfx:]name[\\[[pfx:]indexname='value'\\]]"
-        Ignore the prefixes, get the name, indexname, and value.
-        """
-        name = e.split(":", 1)
-        indexname = None
-        index = None
-        if len(name) == 1:
-            name = name[0]
-        elif "[" in name[1]:
-            (name, index) = name[1].split("[", 1)
-            index = index[:-1] # Remove the ']' at the end
-            if ':' in name:
-                name = name.split(":")[1]
-                pass
-            (indexname, index) = index.split("=", 1)
-            if ':' in indexname:
-                indexname = indexname.split(":")[1]
-                pass
-            index = index[1:-1] # remove the quotes
-        else:
-            name = name[1]
-            pass
-        return (name, indexname, index)
-
     def fetch_index(self, indexname, index, vdata):
         """Fetch the value data (vdata) for the given index.  You must
         override this method if you are a list.
@@ -432,13 +427,6 @@ class YangElem(PrivOp, ProgOut):
 
         """
         raise Exception("No full index function for " + self.name)
-
-    def xmlheader(self, name, namespace):
-        if namespace is not None:
-            return "<" + name + " xmlns=\"" + namespace + "\">"
-        else:
-            return "<" + name + ">"
-        return
 
     def getxml(self, path, getnonconfig, indexname=None, index=None, vdata=None):
         """Process a get operation before the path has ended.  We are
@@ -464,55 +452,18 @@ class YangElem(PrivOp, ProgOut):
             raise Exception("Index is set for " + self.name +
                             " which doesn't support indexes")
 
-        xml = self.xmlheader(self.name, self.namespace)
         if len(path) == 0:
-            value = self.getonevalue(getnonconfig, vdata=vdata)
-            if self.xmlprocvalue:
-                value = xmlescape(value)
-                pass
-            xml += value
+            xml = self.children.getonevalue(getnonconfig, vdata=vdata)
         else:
-            (name, index, indexname) = self.parsepathentry(path[0])
-            if name in self.children:
-                x = self.children[name]
-                if getnonconfig or x.isconfig:
-                    xml += x.getxml(path[1:],
-                                    indexname=indexname,
-                                    index=index,
-                                    vdata=vdata)
-                    pass
-                pass
-            else:
-                raise Exception("Unknown name " + name + " in " + self.name)
+            xml = self.children.getxml(path, getnonconfig, vdata=vdata)
             pass
-        xml += "</" + self.name + ">"
+        xml = self.xmlwrap(xml)
         return xml
 
     def getonevalue(self, getnonconfig, vdata=None):
         if not getnonconfig and not self.isconfig:
             return ""
-        xml = ""
-        for name in self.children:
-            x = self.children[name]
-            if getnonconfig or x.isconfig:
-                s = str(x.getvalue(getnonconfig, vdata=vdata))
-            else:
-                s = ""
-                pass
-            if len(s) > 0:
-                if self.children[name].xmlprocvalue:
-                    s = xmlescape(s)
-                    pass
-                if self.children[name].wrapxml:
-                    namespace = self.children[name].namespace
-                    xml += (self.xmlheader(name, namespace) +
-                            s + "</" + name + ">")
-                else:
-                    xml += s
-                    pass
-                pass
-            pass
-        return xml
+        return self.children.getonevalue(getnonconfig, vdata=vdata)
 
     def getvalue(self, getnonconfig, vdata=None):
         """Return the xml strings for this node.  Leaf nodes should override
@@ -522,24 +473,21 @@ class YangElem(PrivOp, ProgOut):
         xml = ""
         if self.indexed:
             for i in self.fetch_full_index(vdata):
-                if self.wrapgvxml:
-                    xml += self.xmlheader(self.name, self.namespace)
-                    pass
                 if self.xmlgvprocvalue:
-                    xml += xmlescape(self.getonevalue(vdata=i))
+                    s = xmlescape(self.getonevalue(vdata=i))
                 else:
-                    xml += str(self.getonevalue(getnonconfig, vdata=i))
+                    s = str(self.getonevalue(getnonconfig, vdata=i))
                     pass
                 if self.wrapgvxml:
-                    xml += "</" + self.name + ">"
+                    s = self.xmlwrap(s)
                     pass
+                xml += s
                 pass
             pass
         else:
             xml = str(self.getonevalue(getnonconfig, vdata=vdata))
-            if len(xml) > 0 and self.wrapgvxml:
-                xml = (self.xmlheader(self.name, self.namespace) +
-                       xml + "</" + self.name + ">")
+            if self.wrapgvxml:
+                xml = self.xmlwrap(xml)
             pass
         return xml
 
@@ -666,15 +614,86 @@ class YangElemValueOnly(YangElem):
 
     pass
 
-def add_yang_elem_to_map(mapv, elem):
-    """You can define the element in the map directly, but this will
-    require you to put the name twice, once in the map's index and
-    once in the element allocation.  This little helper will allow you
-    to add it to the map and only have to put the name in there once.
+class YangElemMap:
+    """
 
     """
-    mapv[elem.name] = elem
-    return
+
+    def __init__(self, parent, path):
+        self.mapv = {}
+        self.parent = parent
+        self.path = path
+        return
+
+    def add(self, elem):
+        self.mapv[elem.name] = elem
+        return
+
+    def validate_add(self, data, xml):
+        name = xml.get_name()
+        if name not in self.mapv:
+            raise RPCError("application", "invalid-value", "error",
+                           "No element %s in %s " % (name, self.path))
+        self.mapv[name].validate_add(data, xml)
+        return
+
+    def validate_del(self, data, xml):
+        name = xml.get_name()
+        if name not in self.mapv:
+            raise RPCError("application", "invalid-value", "error",
+                           "No element %s in %s " % (name, self.path))
+        self.mapv[name].validate_del(data, xml)
+        return
+
+    def validate(self, data, origxml, newxml):
+        if origxml:
+            name = origxml.get_name()
+        else:
+            name = newxml.get_name()
+        if name not in self.mapv:
+            raise RPCError("application", "invalid-value", "error",
+                           "No element %s in %s " % (name, self.path))
+        self.mapv[name].validate(data, origxml, newxml)
+        return
+
+    def getxml(self, path, getnonconfig, vdata=None):
+        (name, indexname, index) = parsepathentry(path[0])
+        if name not in self.mapv:
+            raise RPCError("application", "invalid-value", "error",
+                           "No element %s in %s " % (name, self.path))
+        x = self.mapv[name]
+        if getnonconfig or x.isconfig:
+            xml = x.getxml(path[1:],
+                           getnonconfig,
+                           indexname=indexname,
+                           index=index,
+                           vdata=vdata)
+        else:
+            xml = ""
+            pass
+        return xml
+
+    def getonevalue(self, getnonconfig, vdata=None):
+        xml = ""
+        for name in self.mapv:
+            x = self.mapv[name]
+            if getnonconfig or x.isconfig:
+                s = str(x.getvalue(getnonconfig, vdata=vdata))
+                if x.xmlprocvalue:
+                    s = xmlescape(s)
+                    pass
+                if x.wrapxml:
+                    s = x.xmlwrap(s)
+                    pass
+                pass
+            else:
+                s = ""
+                pass
+            xml += s
+            pass
+        return xml
+
+    pass
 
 class TopElemHandler:
     """Handler for Clixon backend.  This can be used directly.  Or a
@@ -691,7 +710,7 @@ class TopElemHandler:
 
         """
         self.name = name
-        self.xmlroot = YangElem("TopLevel", YangType.CONTAINER, children)
+        self.children = children
         return
 
     # Not implemented, will just default to doing nothing:
@@ -719,17 +738,7 @@ class TopElemHandler:
 
         # Handle the top-level name.  There can only be one, and it has to
         # match one of the entries.
-        origxml = t.orig_xml()
-        newxml = t.new_xml()
-        if origxml:
-            name = origxml.get_name()
-        else:
-            name = newxml.get_name()
-            pass
-        if name in self.xmlroot.children:
-            self.xmlroot.children[name].validate(data, origxml, newxml)
-        else:
-            raise Exception("Unknown name " + name + " in " + self.name)
+        self.children.validate(data, t.orig_xml(), t.new_xml())
         return 0
 
     def commit(self, t):
@@ -758,36 +767,11 @@ class TopElemHandler:
         path = xpath.split("/")
         if len(path) < 2:
             return(-1, "")
+        path = path[1:] # Get rid of the empty thing before the first /
 
         # Handle the top-level name.  There can only be one, and it has to
         # match one of the entries.
-        name = path[1].split(":")
-        if len(name) == 1:
-            name = name[0]
-        else:
-            name = name[1]
-            pass
-        if name in self.xmlroot.children:
-            x = self.xmlroot.children[name]
-            if getnonconfig or x.isconfig:
-                if x.indexed:
-                    if len(path) > 2:
-                        xml = x.getxml(path[3:], getnonconfig, index=path[2])
-                    else:
-                        xml = x.getvalue(getnonconfig)
-                        pass
-                    pass
-                else:
-                    xml = x.getxml(path[2:], getnonconfig)
-                    pass
-                pass
-            else:
-                xml = ""
-                pass
-            pass
-        else:
-            raise Exception("Unknown name " + name + " in " + self.name)
-        return (0, xml)
+        return (0, self.children.getxml(path, getnonconfig))
 
     def system_only(self, nsc, xpath):
         return ""

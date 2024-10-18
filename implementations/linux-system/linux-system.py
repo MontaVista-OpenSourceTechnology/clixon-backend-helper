@@ -259,12 +259,6 @@ class TimeZone(tf.YangElem):
             pass
         return s
 
-# /system/clock
-system_clock_children = {
-    "timezone-name": TimeZone("timezone-name", is_name=True),
-    "timezone-utc-offset": TimeZone("timezone-utc-offset", is_name=False),
-}
-
 # DNS is configured through features in the linux-system yang file.
 # This file handles old-style resolv.conf DNS, and using dnsproxy for
 # a secure connection.  If you are using resolvectl, disable it in the
@@ -495,12 +489,6 @@ class DNSServerPort(tf.YangElemValidateOnly):
 
     pass
 
-# /system/dns-resolver/server/udp-and-tcp
-system_dns_server_ip_children = {
-    "address": DNSServerAddress("address", tf.YangType.LEAF),
-    "port": DNSServerPort("port", tf.YangType.LEAF),
-}
-
 # /system/dns-resolver/server/certificate
 class DNSServerCertificate(tf.YangElemValidateOnly):
     def validate_add(self, data, xml):
@@ -516,15 +504,6 @@ class DNSServerCertificate(tf.YangElemValidateOnly):
         return "x"
 
     pass
-
-# /system/dns-resolver/server
-system_dns_server_children = {
-    "name": DNSServerName("name", tf.YangType.LEAF),
-    "udp-and-tcp": tf.YangElemValidateOnly("udp-and-tcp", tf.YangType.CONTAINER,
-                                           children=system_dns_server_ip_children,
-                                           validate_all=True),
-    # FIXME - Add encrypted DNS support, and possibly DNSSEC.
-}
 
 # /system/dns-resolver/server
 class DNSServer(tf.YangElemValidateOnly):
@@ -715,26 +694,6 @@ class DNSResolver(tf.YangElem):
         return super().getvalue(getnonconfig, vdata=vdata)
 
     pass
-
-# /system/dns-resolver/options
-system_dns_options_children = {
-    "timeout": DNSTimeout("timeout", tf.YangType.LEAF),
-    "attempts": DNSAttempts("attempts", tf.YangType.LEAF),
-    "use-vc": DNSUseVC("use-vc", tf.YangType.LEAF, namespace=MY_NAMESPACE)
-}
-
-# /system/dns-resolver
-system_dns_resolver_children = {
-    "search": DNSSearch("search", tf.YangType.LEAFLIST, validate_all=True),
-    "server": DNSServer("server", tf.YangType.LIST,
-                        children=system_dns_server_children,
-                        validate_all=True),
-    "options": tf.YangElem("options", tf.YangType.CONTAINER,
-                           children=system_dns_options_children,
-                           validate_all=True),
-    "certificate": DNSServerCertificate("certificate", tf.YangType.LEAF,
-                                        namespace=MY_NAMESPACE),
-}
 
 # The standard pwd methods for python don't have a way to override the
 # base location.  Re-implement them with that capability.
@@ -1062,13 +1021,6 @@ class UserAuthkey(tf.YangElem):
 
     pass
 
-# /system/authentication/user/authorized-key
-system_user_authkey_children = {
-    "name": UserAuthkeyName("name", tf.YangType.LEAF),
-    "algorithm": UserAuthkeyAlgo("algorithm", tf.YangType.LEAF),
-    "key-data": UserAuthkeyKeyData("key-data", tf.YangType.LEAF),
-}
-
 # /system/authentication/user
 class User(tf.YangElem):
     def start(self, data, op):
@@ -1106,22 +1058,6 @@ class User(tf.YangElem):
         return getpwentryall()
 
     pass
-
-# /system/authentication/user
-system_user_children = {
-    "name": UserName("name", tf.YangType.LEAF),
-    "password": UserPassword("password", tf.YangType.LEAF),
-    "authorized-key": UserAuthkey("authorized-key", tf.YangType.LIST,
-                                  children = system_user_authkey_children,
-                                  validate_all=True),
-}
-
-# /system/authentication
-system_authentication_children = {
-    "user-authentication-order": tf.YangElemConfigOnly("user-authentication-order"),
-    "user": User("user", tf.YangType.LIST, children = system_user_children,
-                 validate_all=True),
-}
 
 # NTP configuration
 #
@@ -1541,34 +1477,6 @@ class NTPServer(tf.YangElem):
 
     pass
 
-# /system/ntp/server/udp
-system_ntp_server_udp_children = {
-    "address": NTPServerUDPAddress("address", tf.YangType.LEAF),
-    "port": NTPServerUDPPort("port", tf.YangType.LEAF),
-}
-
-# /system/ntp/server/nts
-system_ntp_server_nts_children = {
-    "address": NTPServerNTSAddress("address", tf.YangType.LEAF),
-    "port": NTPServerUDPPort("port", tf.YangType.LEAF),
-    "ntsport": NTPServerNTSPort("ntsport", tf.YangType.LEAF),
-    "certificate": NTPServerNTSCertificate("certificate", tf.YangType.LEAF),
-}
-
-# /system/ntp/server
-system_ntp_server_children = {
-    "name": NTPServerName("name", tf.YangType.LEAF),
-    "udp": NTPUDPServer("udp", tf.YangType.CONTAINER,
-                                   children = system_ntp_server_udp_children,
-                                   validate_all = True),
-    "nts": NTPNTSServer("nts", tf.YangType.CONTAINER,
-                        children = system_ntp_server_nts_children,
-                        validate_all = True, namespace = MY_NAMESPACE),
-    "association-type": NTPServerAsocType("association-type", tf.YangType.LEAF),
-    "iburst": NTPServerIBurst("iburst", tf.YangType.LEAF),
-    "prefer": NTPServerPrefer("prefer", tf.YangType.LEAF),
-}
-
 # /system/ntp
 class NTP(tf.YangElem):
     def start(self, data):
@@ -1603,28 +1511,6 @@ class NTP(tf.YangElem):
 
     pass
 
-# /system/ntp
-system_ntp_children = {
-    "enabled": NTPEnabled("enabled", tf.YangType.LEAF),
-    "server": NTPServer("server", tf.YangType.LIST,
-                        children = system_ntp_server_children,
-                        validate_all = True)
-}
-
-# /system
-system_children = {
-    "contact": tf.YangElemConfigOnly("contact"),
-    "hostname": Hostname("hostname", tf.YangType.LEAF),
-    "location": tf.YangElemConfigOnly("location"),
-    "clock": tf.YangElem("clock", tf.YangType.CONTAINER, system_clock_children),
-    "ntp": NTP("ntp", tf.YangType.CONTAINER, children = system_ntp_children),
-    "dns-resolver": DNSResolver("dns-resolver", tf.YangType.CONTAINER,
-                                children = system_dns_resolver_children,
-                                validate_all = True),
-    "authentication": tf.YangElem("authentication", tf.YangType.CONTAINER,
-                                  children = system_authentication_children),
-}
-
 # /system-state/platform/*
 class SystemStatePlatform(tf.YangElemValueOnly):
     def getvalue(self, getnonconfig, vdata=None):
@@ -1649,52 +1535,195 @@ class SystemStateClock(tf.YangElemValueOnly):
         date = date.split(" ")
         if len(date) < 2:
             raise Exception("Invalid date output: " + str(date))
-        if "+" in date[1]:
-            date[1] = date[1].replace("+", "Z+", 1)
-        else:
-            date[1] = date[1].replace("-", "Z-", 1)
-            pass
         date = date[0] + "T" + date[1]
 
         if self.name == "boot-datetime":
-            bdate = shlex.split(self.program_output(["/bin/who","-b"]))
-            if len(bdate) < 4:
-                raise Exception("Invalid who -b output: " + str(bdate))
+            bdate = shlex.split(self.program_output(["uptime","-s"]))
+            if len(bdate) < 2:
+                raise Exception("Invalid uptime -s output: " + str(bdate))
             # Steal the time zone from the main date.
-            zone = date.split("Z")
+            if "+" in date:
+                zone = "+" + date.rsplit("+", 1)[1]
+            else:
+                zone = "-" + date.rsplit("-", 1)[1]
+                pass
             if len(zone) < 2:
                 raise Exception("Invalid zone in date: " + date)
-            date = bdate[2] + "T" + bdate[3] + "Z" + zone[1]
+            date = bdate[0] + "T" + bdate[1] + zone
 
         return date
 
     pass
 
-# /system-state/platform
-system_state_platform_children = {
-    "os-name": SystemStatePlatform("os-name", tf.YangType.LEAF),
-    "os-release": SystemStatePlatform("os-release", tf.YangType.LEAF),
-    "os-version": SystemStatePlatform("os-version", tf.YangType.LEAF),
-    "machine": SystemStatePlatform("machine", tf.YangType.LEAF)
-}
+ietfsystem = tf.YangElemMap(None, "/")
 
-# /system-state/clock
-system_state_clock_children = {
-    "current-datetime": SystemStateClock("current-datetime", tf.YangType.LEAF),
-    "boot-datetime": SystemStateClock("boot-datetime", tf.YangType.LEAF)
-}
+system = tf.YangElemMap(
+    ietfsystem,
+    "/system")
+system_ntp = tf.YangElemMap(
+    system,
+    "/system/ntp")
+system_ntp_server = tf.YangElemMap(
+    system_ntp,
+    "/system/ntp/server")
+system_ntp_server_nts = tf.YangElemMap(
+    system_ntp_server,
+    "/system/ntp/server/nts")
+system_ntp_server_udp = tf.YangElemMap(
+    system_ntp_server,
+    "/system/ntp/server/udp")
+system_authentication = tf.YangElemMap(
+    system,
+    "/system/authentication")
+system_authentication_user = tf.YangElemMap(
+    system_authentication,
+    "/system/authentication/user")
+system_authentication_user_authkey = tf.YangElemMap(
+    system_authentication_user,
+    "/system/authentication/user/authorized-key")
+system_dnsresolver = tf.YangElemMap(
+    system,
+    "/system/dns-resolver")
+system_dnsresolver_options = tf.YangElemMap(
+    system_dnsresolver,
+    "/system/dns-resolver/options")
+system_dnsresolver_server = tf.YangElemMap(
+    system_dnsresolver,
+    "/system/dns-resolver/server")
+system_dnsresolver_server_udpandtcp = tf.YangElemMap(
+    system_dnsresolver_server,
+    "/system/dns-resolver/server/udp-and-tcp")
+system_clock = tf.YangElemMap(
+    system,
+    "/system/clock")
 
-# /system-state
-system_state_children = {
-    "platform": tf.YangElem("platform", tf.YangType.CONTAINER,
-                            system_state_platform_children),
-    "clock": tf.YangElem("clock", tf.YangType.CONTAINER,
-                         system_state_clock_children)
-}
+m = system_clock
+m.add(TimeZone("timezone-name", is_name=True))
+m.add(TimeZone("timezone-utc-offset", is_name=False))
+
+m = system_dnsresolver_server_udpandtcp
+m.add(DNSServerAddress("address", tf.YangType.LEAF))
+m.add(DNSServerPort("port", tf.YangType.LEAF))
+
+m = system_dnsresolver_server
+m.add(DNSServerName("name", tf.YangType.LEAF))
+m.add(tf.YangElemValidateOnly("udp-and-tcp", tf.YangType.CONTAINER,
+                              children=system_dnsresolver_server_udpandtcp,
+                              validate_all=True))
+# FIXME - Possibly add DNSSEC.
+
+m = system_dnsresolver_options
+m.add(DNSTimeout("timeout", tf.YangType.LEAF))
+m.add(DNSAttempts("attempts", tf.YangType.LEAF))
+m.add(DNSUseVC("use-vc", tf.YangType.LEAF, namespace=MY_NAMESPACE))
+
+m = system_dnsresolver
+m.add(DNSSearch("search", tf.YangType.LEAFLIST, validate_all=True))
+m.add(DNSServer("server", tf.YangType.LIST,
+                children=system_dnsresolver_server,
+                validate_all=True))
+m.add(tf.YangElem("options", tf.YangType.CONTAINER,
+                  children=system_dnsresolver_options,
+                  validate_all=True))
+m.add(DNSServerCertificate("certificate", tf.YangType.LEAF,
+                           namespace=MY_NAMESPACE))
+
+m = system_authentication_user_authkey
+m.add(UserAuthkeyName("name", tf.YangType.LEAF))
+m.add(UserAuthkeyAlgo("algorithm", tf.YangType.LEAF))
+m.add(UserAuthkeyKeyData("key-data", tf.YangType.LEAF))
+
+m = system_authentication_user
+m.add(UserName("name", tf.YangType.LEAF))
+m.add(UserPassword("password", tf.YangType.LEAF))
+m.add(UserAuthkey("authorized-key", tf.YangType.LIST,
+                  children = system_authentication_user_authkey,
+                  validate_all=True))
+
+m = system_authentication
+m.add(tf.YangElemConfigOnly("user-authentication-order"))
+m.add(User("user", tf.YangType.LIST, children = system_authentication_user,
+           validate_all=True))
+
+m = system_ntp_server_udp
+m.add(NTPServerUDPAddress("address", tf.YangType.LEAF))
+m.add(NTPServerUDPPort("port", tf.YangType.LEAF))
+
+m = system_ntp_server_nts
+m.add(NTPServerNTSAddress("address", tf.YangType.LEAF))
+m.add(NTPServerUDPPort("port", tf.YangType.LEAF))
+m.add(NTPServerNTSPort("ntsport", tf.YangType.LEAF))
+m.add(NTPServerNTSCertificate("certificate", tf.YangType.LEAF))
+
+m = system_ntp_server
+m.add(NTPServerName("name", tf.YangType.LEAF))
+m.add(NTPUDPServer("udp", tf.YangType.CONTAINER,
+                   children = system_ntp_server_udp,
+                   validate_all = True))
+m.add(NTPNTSServer("nts", tf.YangType.CONTAINER,
+                   children = system_ntp_server_nts,
+                   validate_all = True, namespace = MY_NAMESPACE))
+m.add(NTPServerAsocType("association-type", tf.YangType.LEAF))
+m.add(NTPServerIBurst("iburst", tf.YangType.LEAF))
+m.add(NTPServerPrefer("prefer", tf.YangType.LEAF))
+
+m = system_ntp
+m.add(NTPEnabled("enabled", tf.YangType.LEAF))
+m.add(NTPServer("server", tf.YangType.LIST,
+                children = system_ntp_server,
+                validate_all = True))
+
+m = system
+m.add(tf.YangElemConfigOnly("contact"))
+m.add(Hostname("hostname", tf.YangType.LEAF))
+m.add(tf.YangElemConfigOnly("location"))
+m.add(tf.YangElem("clock", tf.YangType.CONTAINER, system_clock))
+m.add(NTP("ntp", tf.YangType.CONTAINER, children = system_ntp))
+m.add(DNSResolver("dns-resolver", tf.YangType.CONTAINER,
+                  children = system_dnsresolver,
+                  validate_all = True))
+m.add(tf.YangElem("authentication", tf.YangType.CONTAINER,
+                  children = system_authentication))
+
+
+systemstate = tf.YangElemMap(
+    ietfsystem,
+    "/system-state")
+systemstate_clock = tf.YangElemMap(
+    systemstate,
+    "/system-state/clock")
+systemstate_platform = tf.YangElemMap(
+    systemstate,
+    "/system-state/platform")
+
+m = systemstate_platform
+m.add(SystemStatePlatform("os-name", tf.YangType.LEAF))
+m.add(SystemStatePlatform("os-release", tf.YangType.LEAF))
+m.add(SystemStatePlatform("os-version", tf.YangType.LEAF))
+m.add(SystemStatePlatform("machine", tf.YangType.LEAF))
+
+m = systemstate_clock
+m.add(SystemStateClock("current-datetime", tf.YangType.LEAF))
+m.add(SystemStateClock("boot-datetime", tf.YangType.LEAF))
+
+m = systemstate
+m.add(tf.YangElem("platform", tf.YangType.CONTAINER,
+                  systemstate_platform))
+m.add(tf.YangElem("clock", tf.YangType.CONTAINER,
+                  systemstate_clock))
+
+m = ietfsystem
+m.add(tf.YangElem("system", tf.YangType.CONTAINER, system,
+                  namespace = IETF_SYSTEM_NAMESPACE))
+m.add(tf.YangElem("system-state", tf.YangType.CONTAINER,
+                  systemstate,
+                  namespace = IETF_SYSTEM_NAMESPACE,
+                  isconfig=False))
 
 class Handler(tf.TopElemHandler, tf.ProgOut):
     # FIXME - this is a hack for now
     first_call_done = False
+    first_state_done = False
 
     def exit(self):
         self.p = None # Break circular dependency
@@ -1755,27 +1784,21 @@ class Handler(tf.TopElemHandler, tf.ProgOut):
 
     def system_only(self, nsc, xpath):
         if xpath == "/":
-            rv = super().statedata(nsc, "/system")
+            rv = super().statedata(nsc, "/system",
+                                   getnonconfig=self.first_state_done)
             if False:
                 print("Y: " + str(rv))
                 pass
             pass
         else:
-            rv = self.statedata(nsd, xpath)
+            rv = self.statedata(nsc, xpath, getnonconfig=self.first_state_done)
             pass
+        self.first_state_done = True
         return rv
 
     pass
 
-children = {
-    "system": tf.YangElem("system", tf.YangType.CONTAINER, system_children,
-                          namespace = IETF_SYSTEM_NAMESPACE),
-    "system-state": tf.YangElem("system-state", tf.YangType.CONTAINER,
-                                system_state_children,
-                                namespace = IETF_SYSTEM_NAMESPACE,
-                                isconfig=False),
-}
-handler = Handler("linux-system", children)
+handler = Handler("linux-system", ietfsystem)
 handler.p = clixon_beh.add_plugin(handler.name, IETF_SYSTEM_NAMESPACE, handler)
 
 class SetTimeHandler(tf.RPC):
