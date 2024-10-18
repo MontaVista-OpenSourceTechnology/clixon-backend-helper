@@ -433,8 +433,32 @@ m.add(IPV4Address("address", tf.YangType.LIST,
 m.add(IPV4Neigh("neighbor", tf.YangType.LIST,
                 interfaces_interface_ipv4_neighbor))
 
+class DiscontinuityTime(tf.YangElemValueOnly):
+    # FIXME - This just returns boot time, not sure what else to do.
+    def getvalue(self, getnonconfig, vdata=None):
+        date = self.program_output(["/bin/date", "--rfc-3339=seconds"]).strip()
+        date = date.split(" ")
+        if len(date) < 2:
+            raise Exception("Invalid date output: " + str(date))
+        date = date[0] + "T" + date[1]
+
+        bdate = shlex.split(self.program_output(["uptime","-s"]))
+        if len(bdate) < 2:
+            raise Exception("Invalid uptime -s output: " + str(bdate))
+        # Steal the time zone from the main date.
+        if "+" in date:
+            zone = "+" + date.rsplit("+", 1)[1]
+        else:
+            zone = "-" + date.rsplit("-", 1)[1]
+            pass
+        if len(zone) < 2:
+            raise Exception("Invalid zone in date: " + date)
+        bdate = bdate[0] + "T" + bdate[1] + zone
+
+        return bdate
+
 m = interfaces_interface_statistics
-# discontinuity-time
+m.add(DiscontinuityTime("discontinuity-time", tf.YangType.LEAF))
 m.add(Map2Value("in-octets", "rx", "bytes"))
 m.add(Map2Value("in-unicast-pkts", "rx", "bytes"))
 # in-broadcast-pkts
@@ -475,51 +499,25 @@ m = interfaces
 m.add(Interface("interface", tf.YangType.LIST,
                 interfaces_interface))
 
-class StateIPV4Address(tf.YangElemValueOnly):
-    def fetch_index(self, indexname, index, vdata):
-        for i in vdata["addr_info"]:
-            if i["ip"] == index:
-                return i
-            pass
-        return None
-
-    def fetch_full_index(self, vdata):
-        return vdata["addr_info"]
-
-    pass
-
-class StateIPV4Neigh(tf.YangElemValueOnly):
-    def get_neighs(self, vdata):
-        return self.program_output([ipcmd, "-4", "-j", "neigh", "show", "dev",
-                                    vdata["ifname"]],
-                                   decoder = lambda x : json.loads(x))
-
-    def fetch_index(self, indexname, index, value):
-        neighs = self.get_neighs(vdata)
-        for i in neighs:
-            if i["dst"] == index:
-                return i
-            pass
-        return None
-
-    def fetch_full_index(self, vdata):
-        return self.get_neighs(vdata)
-
-    pass
-
 # /interfaces-state/interface/type
 class InterfaceStateType(tf.YangElemValueOnly):
     """Get the iana-if-type value of the link_type."""
     def getvalue(self, getnonconfig, vdata=None):
         v = vdata["link_type"]
+        ns = "urn:ietf:params:xml:ns:yang:iana-if-type"
         if v == "none":
             # It might be a tunnel.
             if vdata["ifname"].startswith("tun"):
-                return "tunnel"
+                v = "tunnel"
             pass
         elif v in link_types:
-            return link_types[v]
-        return "other"
+            v = link_types[v]
+        else:
+            v = "other"
+            pass
+        return ("<%s xmlns:ianaift=\"%s\">ianaift:%s</%s>"
+                % (self.name, ns, tf.xmlescape(v), self.name))
+
     pass
 
 # /interfaces-state/interface/admin-status
@@ -615,13 +613,13 @@ m.add(IPV6Neigh("neighbor", tf.YangType.LIST,
 m = interfacesstate_interface_ipv4
 # forwarding
 m.add(MapValue("mtu", "mtu", maxint=65535))
-m.add(StateIPV4Address("address", tf.YangType.LIST,
-                       interfacesstate_interface_ipv4_children))
-m.add(StateIPV4Neigh("neighbor", tf.YangType.LIST,
-                     interfacesstate_interface_ipv4_neighbor))
+m.add(IPV4Address("address", tf.YangType.LIST,
+                  interfacesstate_interface_ipv4_children))
+m.add(IPV4Neigh("neighbor", tf.YangType.LIST,
+                interfacesstate_interface_ipv4_neighbor))
 
 m = interfacesstate_interface_statistics
-# discontinuity-time
+m.add(DiscontinuityTime("discontinuity-time", tf.YangType.LEAF))
 m.add(Map2Value("in-octets", "rx", "bytes"))
 m.add(Map2Value("in-unicast-pkts", "rx", "bytes"))
 # in-broadcast-pkts
@@ -638,7 +636,8 @@ m.add(ErrorValue("out-errors", keyval = "tx"))
 
 m = interfacesstate_interface
 m.add(MapValue("name", "ifname"))
-m.add(InterfaceStateType("type", tf.YangType.LEAF))
+m.add(InterfaceStateType("type", tf.YangType.LEAF,
+                         xmlprocvalue=False, wrapxml=False))
 m.add(InterfaceStateAdminStatus("admin-status", tf.YangType.LEAF))
 m.add(InterfaceOperStatus("oper-status", tf.YangType.LEAF))
 m.add(MapValue("if-index", "ifindex"))
