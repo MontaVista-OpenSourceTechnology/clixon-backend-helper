@@ -192,6 +192,85 @@ pyclixon_beh_reset(struct clixon_beh_plugin *p, const char *cb)
 }
 
 static int
+process_state_return(struct plugin *bp, const char *name,
+		     PyObject *o, cxobj *xtop)
+{
+    PyObject *o1, *o2;
+    const char *xmlstr;
+    int rv = -1;
+    unsigned int i;
+
+    if (!PyTuple_Check(o) || PyTuple_GET_SIZE(o) != 2) {
+	PyObject *t = PyObject_GetAttrString(bp->handler, "__class__");
+	PyObject *c = PyObject_GetAttrString(t, "__name__");
+	const char *classt = PyUnicode_AsUTF8(c);
+
+	clixon_err(OE_PLUGIN, 0, "pyclixon_beh:callback: method %s of "
+		   "class %s didn't return a tuple of size 2.",
+		   name, classt);
+	goto out_err;
+    }
+    o1 = PyTuple_GET_ITEM(o, 0);
+    o2 = PyTuple_GET_ITEM(o, 1);
+    if (!PyLong_Check(o1)) {
+	PyObject *t = PyObject_GetAttrString(bp->handler, "__class__");
+	PyObject *c = PyObject_GetAttrString(t, "__name__");
+	const char *classt = PyUnicode_AsUTF8(c);
+
+	clixon_err(OE_PLUGIN, 0, "pyclixon_beh:callback: method %s of "
+		   "class %s first element not an int.",
+		   name, classt);
+	goto out_err;
+    }
+    if (!(PyUnicode_Check(o2) || PyTuple_Check(o2))) {
+	PyObject *t = PyObject_GetAttrString(bp->handler, "__class__");
+	PyObject *c = PyObject_GetAttrString(t, "__name__");
+	const char *classt = PyUnicode_AsUTF8(c);
+
+	clixon_err(OE_PLUGIN, 0, "pyclixon_beh:callback: method %s of "
+		   "class %s second element not a string or tuple of strings",
+		   name, classt);
+	goto out_err;
+    }
+    if (PyLong_AsUnsignedLong(PyTuple_GET_ITEM(o, 0)) < 0)
+	goto out_err;
+    if (!PyUnicode_Check(o2)) {
+	int size = PyTuple_GET_SIZE(o2);
+	for (i = 0; i < size; i++) {
+	    xmlstr = PyUnicode_AsUTF8AndSize(PyTuple_GET_ITEM(o2, i), NULL);
+	    if (!xmlstr) {
+		clixon_err(OE_PLUGIN, 0,
+			   "pyclixon_beh:callback: Could not convert string "
+			   "return %u of method %s to a string.", i, name);
+		goto out_err;
+	    }
+	    if (clixon_xml_parse_string(xmlstr, YB_NONE, NULL, &xtop, NULL) < 0){
+		clixon_err(OE_PLUGIN, 0,
+			   "pyclixon_beh:callback: Could not parse "
+			   "returned XML string %u from %s.", i, name);
+		goto out_err;
+	    }
+	}
+    } else {
+	xmlstr = PyUnicode_AsUTF8AndSize(o2, NULL);
+	if (!xmlstr) {
+	    clixon_err(OE_PLUGIN, 0,
+		       "pyclixon_beh:callback: Could not convert string "
+		       "return of method %s to a string.", name);
+	    goto out_err;
+	}
+	if (clixon_xml_parse_string(xmlstr, YB_NONE, NULL, &xtop, NULL) < 0) {
+	    clixon_err(OE_PLUGIN, 0, "pyclixon_beh:callback: Could not parse "
+		       "returned XML string from %s.", name);
+	    goto out_err;
+	}
+    }
+    rv = 0;
+ out_err:
+    return rv;
+}
+
+static int
 pyclixon_beh_statedata(struct clixon_beh_plugin *p,
 		       cvec *nsc, char *xpath, cxobj *xtop)
 {
@@ -200,7 +279,7 @@ pyclixon_beh_statedata(struct clixon_beh_plugin *p,
     PyObject *arg1 = PyTuple_New(cvec_len(nsc));
     PyObject *o = NULL;
     unsigned int i;
-    const char *xmlstr;
+    int rv;
 
     for (i = 0; i < cvec_len(nsc); i++)
 	PyTuple_SET_ITEM(arg1, i, PyUnicode_FromString(cvec_i_str(nsc, i)));
@@ -210,39 +289,10 @@ pyclixon_beh_statedata(struct clixon_beh_plugin *p,
 	return -1;
     if (!o)
 	return -1;
-    if (!PyTuple_Check(o) || PyTuple_GET_SIZE(o) != 2 ||
-		!PyLong_Check(PyTuple_GET_ITEM(o, 0)) ||
-		!PyUnicode_Check(PyTuple_GET_ITEM(o, 1))) {
-	PyObject *t = PyObject_GetAttrString(bp->handler, "__class__");
-	PyObject *c = PyObject_GetAttrString(t, "__name__");
-	const char *classt = PyUnicode_AsUTF8(c);
-
-	clixon_err(OE_PLUGIN, 0, "pyclixon_beh:callback: method statedata of "
-		   "class %s didn't return a tuple of size 2, first element "
-		   "an int and second a string", classt);
-	Py_DECREF(o);
-	return -1;
-    }
-    if (PyLong_AsUnsignedLong(PyTuple_GET_ITEM(o, 0)) < 0) {
-	Py_DECREF(o);
-	return -1;
-    }
-    xmlstr = PyUnicode_AsUTF8AndSize(PyTuple_GET_ITEM(o, 1), NULL);
-    if (!xmlstr) {
-	clixon_err(OE_PLUGIN, 0, "pyclixon_beh:callback: Could convert string "
-		   "return of method statedata to a string.");
-	Py_DECREF(o);
-	return -1;
-    }
-    if (clixon_xml_parse_string(xmlstr, YB_NONE, NULL, &xtop, NULL) < 0) {
-	clixon_err(OE_PLUGIN, 0, "pyclixon_beh:callback: Could not parse "
-		   "returned XML string from statedata.");
-	Py_DECREF(o);
-	return -1;
-    }
+    rv = process_state_return(bp, "statedata", o, xtop);
     Py_DECREF(o);
 
-    return 0;
+    return rv;
 }
 
 static int
@@ -254,7 +304,7 @@ pyclixon_beh_system_only(struct clixon_beh_plugin *p,
     PyObject *arg1 = PyTuple_New(cvec_len(nsc));
     PyObject *o = NULL;
     unsigned int i;
-    const char *xmlstr;
+    int rv;
 
     for (i = 0; i < cvec_len(nsc); i++)
 	PyTuple_SET_ITEM(arg1, i, PyUnicode_FromString(cvec_i_str(nsc, i)));
@@ -264,39 +314,10 @@ pyclixon_beh_system_only(struct clixon_beh_plugin *p,
 	return -1;
     if (!o)
 	return -1;
-    if (!PyTuple_Check(o) || PyTuple_GET_SIZE(o) != 2 ||
-		!PyLong_Check(PyTuple_GET_ITEM(o, 0)) ||
-		!PyUnicode_Check(PyTuple_GET_ITEM(o, 1))) {
-	PyObject *t = PyObject_GetAttrString(bp->handler, "__class__");
-	PyObject *c = PyObject_GetAttrString(t, "__name__");
-	const char *classt = PyUnicode_AsUTF8(c);
-
-	clixon_err(OE_PLUGIN, 0, "pyclixon_beh:callback: method system_only of "
-		   "class %s didn't return a tuple of size 2, first element "
-		   "an int and second a string", classt);
-	Py_DECREF(o);
-	return -1;
-    }
-    if (PyLong_AsUnsignedLong(PyTuple_GET_ITEM(o, 0)) < 0) {
-	Py_DECREF(o);
-	return -1;
-    }
-    xmlstr = PyUnicode_AsUTF8AndSize(PyTuple_GET_ITEM(o, 1), NULL);
-    if (!xmlstr) {
-	clixon_err(OE_PLUGIN, 0, "pyclixon_beh:callback: Could convert string "
-		   "return of method system_only to a string.");
-	Py_DECREF(o);
-	return -1;
-    }
-    if (clixon_xml_parse_string(xmlstr, YB_NONE, NULL, &xtop, NULL) < 0) {
-	clixon_err(OE_PLUGIN, 0, "pyclixon_beh:callback: Could not parse "
-		   "returned XML string from system_only.");
-	Py_DECREF(o);
-	return -1;
-    }
+    rv = process_state_return(bp, "system_only", o, xtop);
     Py_DECREF(o);
 
-    return 0;
+    return rv;
 }
 
 static int

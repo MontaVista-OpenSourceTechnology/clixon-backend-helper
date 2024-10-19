@@ -96,14 +96,18 @@ class Handler(tf.Elem:
         return 0
 
     def statedata(self, nsc, xpath):
-        return (0, "<xml data>")
+        if xpath == "/":
+           return (0, ("<xmldata1>", "xmldata2"))
+        else
+           return (0, "<xml data>")
 ```
 
 The statedata method returns a tuple, the first items is an integer
-error, the second is a string holding xml for the state data.  If you
-return an error, the xml value may be empty.  The rest return -1 on
-error an 0 on success.  If they return an error, they should call
-`clixon_err` first to report what went wrong.
+error, the second is either a string holding xml for the state data,
+or a tuple of strings holding multiple XML trees to add.  If you
+return an error, the xml value may be empty, it is ignored.  The rest
+return -1 on error an 0 on success.  If they return an error, they
+should call `clixon_err` first to report what went wrong.
 
 ### Transaction Objects
 

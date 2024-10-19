@@ -704,22 +704,30 @@ class Handler(tf.TopElemHandler, tf.ProgOut):
         return super().commit(t)
 
     def statedata(self, nsc, xpath):
-        rv = super().statedata(nsc, xpath)
+        #print("***Statedata: %s %s" % (xpath, str(nsc)))
+        if xpath == "/":
+            rv1 = super().statedata(nsc, "/interfaces", True)
+            if rv1[0] < 0:
+                return rv1
+            rv2 = super().statedata(nsc, "/interfaces-state", True)
+            if rv2[0] < 0:
+                return rv2
+            rv = (0, (rv1[1], rv2[1]))
+        else:
+            rv = super().statedata(nsc, xpath, True)
         if False:
             print("X: " + str(rv))
             pass
         return rv
 
     def system_only(self, nsc, xpath):
+        #print("***System_only: %s %s" % (xpath, str(nsc)))
         if xpath == "/":
-            rv = super().statedata(nsc, "/interfaces",
-                                   getnonconfig=self.first_state_done)
-            if False:
-                print("Y: " + str(rv))
-                pass
+            xpath = "/interfaces"
             pass
-        else:
-            rv = self.statedata(nsc, xpath, getnonconfig=self.first_state_done)
+        rv = super().statedata(nsc, xpath, False)
+        if False:
+            print("Y: " + str(rv))
             pass
         self.first_state_done = True
         return rv
@@ -728,23 +736,3 @@ class Handler(tf.TopElemHandler, tf.ProgOut):
 
 handler = Handler("ietf-ip", ietfip)
 handler.p = clixon_beh.add_plugin("ietf-ip", IETF_INTERFACES_NAMESPACE, handler)
-
-# I don't think the below is necessary.
-# class AuthStatedata:
-#     def stateonly(self):
-#         rv = children["interfaces-state"].getonevalue()
-#         if rv and len(rv) > 0:
-#             rv = ("<interfaces-state xmlns=\"" +
-#                   IETF_INTERFACES_NAMESPACE + "\">"
-#                   + rv + "</interfaces-state>")
-#             pass
-#         # Uncomment to print the return data
-#         #print("Return: " + str(rv))
-#         return (0, rv)
-
-#     pass
-
-# clixon_beh.add_stateonly("<interfaces-state xmlns=\"" +
-#                          IETF_INTERFACES_NAMESPACE +
-#                          "\"></interfaces-state>",
-#                          AuthStatedata())
