@@ -663,7 +663,8 @@ clixon_beh_statedata(clixon_handle h, cvec *nsc, char *xpath, cxobj *xtop)
     clixon_beh_for_each_plugin(p) {
 	rv = 0;
 	if (p->api && p->api->statedata &&
-		(!p->namespace || clixon_beh_find_namespace(nsc, p->namespace)))
+		(!p->namespace || clixon_beh_find_namespace(nsc, p->namespace)
+		 || strcmp(xpath, "/") == 0))
 	    rv = p->api->statedata(p, nsc, xpath, xtop);
 	if (rv < 0)
 	    break;
@@ -682,7 +683,6 @@ clixon_beh_system_only(clixon_handle h, cvec *nsc, char *xpath, cxobj *xtop)
 	rv = 0;
 	if (p->api && p->api->system_only &&
 		(!p->namespace || clixon_beh_find_namespace(nsc, p->namespace)
-		 /* FIXME - the following is a hack for now. */
 		 || strcmp(xpath, "/") == 0))
 	    rv = p->api->system_only(p, nsc, xpath, xtop);
 	if (rv < 0)
