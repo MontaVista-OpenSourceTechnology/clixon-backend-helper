@@ -234,7 +234,7 @@ process_state_return(struct plugin *bp, const char *name,
     }
     if (PyLong_AsUnsignedLong(PyTuple_GET_ITEM(o, 0)) < 0)
 	goto out_err;
-    if (!PyUnicode_Check(o2)) {
+    if (PyTuple_Check(o2)) {
 	int size = PyTuple_GET_SIZE(o2);
 	for (i = 0; i < size; i++) {
 	    xmlstr = PyUnicode_AsUTF8AndSize(PyTuple_GET_ITEM(o2, i), NULL);

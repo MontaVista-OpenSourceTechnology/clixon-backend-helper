@@ -669,7 +669,6 @@ m.add(tf.YangElem("interfaces-state", tf.YangType.CONTAINER,
 class Handler(tf.TopElemHandler, tf.ProgOut):
     # FIXME - this is a hack for now
     first_call_done = False
-    first_state_done = False
 
     def exit(self):
         self.p = None # Break circular dependency
@@ -703,23 +702,6 @@ class Handler(tf.TopElemHandler, tf.ProgOut):
             return 0
         return super().commit(t)
 
-    def statedata(self, nsc, xpath):
-        #print("***Statedata: %s %s" % (xpath, str(nsc)))
-        if xpath == "/":
-            rv1 = super().statedata(nsc, "/interfaces", True)
-            if rv1[0] < 0:
-                return rv1
-            rv2 = super().statedata(nsc, "/interfaces-state", True)
-            if rv2[0] < 0:
-                return rv2
-            rv = (0, (rv1[1], rv2[1]))
-        else:
-            rv = super().statedata(nsc, xpath, True)
-        if False:
-            print("X: " + str(rv))
-            pass
-        return rv
-
     def system_only(self, nsc, xpath):
         #print("***System_only: %s %s" % (xpath, str(nsc)))
         if xpath == "/":
@@ -729,7 +711,6 @@ class Handler(tf.TopElemHandler, tf.ProgOut):
         if False:
             print("Y: " + str(rv))
             pass
-        self.first_state_done = True
         return rv
 
     pass

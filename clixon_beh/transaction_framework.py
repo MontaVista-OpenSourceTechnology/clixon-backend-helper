@@ -764,17 +764,35 @@ class TopElemHandler:
         return 0
 
     def statedata(self, nsc, xpath, getnonconfig=True):
-        path = xpath.split("/")
-        if len(path) < 2:
-            return(-1, "")
-        path = path[1:] # Get rid of the empty thing before the first /
+        #print("***Statedata: %s %s" % (xpath, str(nsc)))
+        if xpath == "/":
+            # Get statedata for all top-level elements.
+            xmlt = []
+            for name in self.children.mapv:
+                rv = self.statedata(nsc, "/" + name,
+                                    getnonconfig=getnonconfig)
+                if rv[0] < 0:
+                    return rv;
+                if len(rv[1]) > 0:
+                    xmlt.append(rv[1])
+                    pass
+                pass
+            xmlt = tuple(xmlt)
+            pass
+        else:
+            path = xpath.split("/")
+            if len(path) < 2:
+                return(-1, "")
+            path = path[1:] # Get rid of the empty thing before the first /
 
-        # Handle the top-level name.  There can only be one, and it has to
-        # match one of the entries.
-        return (0, self.children.getxml(path, getnonconfig))
+            # Handle the top-level name.  There can only be one, and
+            # it has to match one of the entries.
+            xmlt = self.children.getxml(path, getnonconfig)
+            pass
+        return (0, xmlt)
 
     def system_only(self, nsc, xpath):
-        return ""
+        return (0, "")
 
     pass
 
