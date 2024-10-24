@@ -97,8 +97,14 @@ pyclixon_call_rv(PyObject *cb, const char *method, PyObject *args,
 	    if (err_handler) {
 		PyObject *eargs = PyTuple_New(1);
 		PyObject *exc = PyErr_GetRaisedException();
-		PyObject *o2 = PyErr_GetRaisedException();
+		PyObject *o2;
 
+		/*
+		 * FIXME - the handling of refcounts may be wrong here:
+		 *
+		 * Does PyTuple_SET_ITEM() steal a ref for exc?
+		 * Does PyErr_SetRaisedException steal a ref?
+		 */
 		if (!exc)
 		    goto nohandler;
 		PyErr_Clear();
