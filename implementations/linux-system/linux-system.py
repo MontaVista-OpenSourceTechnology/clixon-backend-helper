@@ -167,7 +167,7 @@ class Hostname(tf.YangElem):
             pass
         return
 
-    def getvalue(self, getnonconfig, vdata=None):
+    def getvalue(self, data, vdata=None):
         with open(hostnamefile, "r") as f:
             data = f.read().rstrip()
             pass
@@ -249,7 +249,7 @@ class TimeZone(tf.YangElem):
             pass
         return
 
-    def getvalue(self, getnonconfig, vdata=None):
+    def getvalue(self, data, vdata=None):
         if not self.is_name:
             return ""
         try:
@@ -460,7 +460,7 @@ class DNSServerName(tf.YangElemValidateOnly):
         ddata.curr_server.name = xml.get_body()
         return
 
-    def getvalue(self, getnonconfig, vdata=None):
+    def getvalue(self, data, vdata=None):
         return vdata["name"]
 
     pass
@@ -472,7 +472,7 @@ class DNSServerAddress(tf.YangElemValidateOnly):
         ddata.curr_server.address = xml.get_body()
         return
 
-    def getvalue(self, getnonconfig, vdata=None):
+    def getvalue(self, data, vdata=None):
         return vdata["address"]
 
     pass
@@ -484,7 +484,7 @@ class DNSServerPort(tf.YangElemValidateOnly):
         ddata.curr_server.port = xml.get_body()
         return
 
-    def getvalue(self, getnonconfig, vdata=None):
+    def getvalue(self, data, vdata=None):
         return vdata["port"]
 
     pass
@@ -499,7 +499,7 @@ class DNSServerCertificate(tf.YangElemValidateOnly):
         ddata.certificate = v
         return
 
-    def getvalue(self, getnonconfig, vdata=None):
+    def getvalue(self, data, vdata=None):
         # Don't actually return any data
         return "x"
 
@@ -537,7 +537,7 @@ class DNSTimeout(tf.YangElemValidateOnly):
         ddata.timeout = xml.get_body()
         return
 
-    def getvalue(self, getnonconfig, vdata=None):
+    def getvalue(self, data, vdata=None):
         return vdata["timeout"]
 
     pass
@@ -549,7 +549,7 @@ class DNSAttempts(tf.YangElemValidateOnly):
         ddata.attempts = xml.get_body()
         return
 
-    def getvalue(self, getnonconfig, vdata=None):
+    def getvalue(self, data, vdata=None):
         return vdata["attempts"]
 
     pass
@@ -561,7 +561,7 @@ class DNSUseVC(tf.YangElemValidateOnly):
         ddata.use_vc = xml.get_body().lower() == "true"
         return
 
-    def getvalue(self, getnonconfig, vdata=None):
+    def getvalue(self, data, vdata=None):
         return vdata["use-vc"]
 
     pass
@@ -671,16 +671,16 @@ class DNSResolver(tf.YangElem):
             return None
         return vdata
 
-    def getxml(self, path, indexname=None, index=None, vdata=None):
+    def getxml(self, data, path, indexname=None, index=None, vdata=None):
         if not do_dns:
             return ""
 
         vdata = self.fetch_resolv_conf()
         if vdata is None:
             return ""
-        return super().getxml(path, indexname, index, vdata=vdata)
+        return super().getxml(data, path, indexname, index, vdata=vdata)
 
-    def getvalue(self, getnonconfig, vdata=None):
+    def getvalue(self, data, vdata=None):
         """We fetch the resolv.conf file and process it here ourselves.  None
         of the children will need to handle it.
 
@@ -691,7 +691,7 @@ class DNSResolver(tf.YangElem):
         vdata = self.fetch_resolv_conf()
         if vdata is None:
             return ""
-        return super().getvalue(getnonconfig, vdata=vdata)
+        return super().getvalue(data, vdata=vdata)
 
     pass
 
@@ -877,7 +877,7 @@ class UserName(tf.YangElemValidateOnly):
                               " not present")
         return
 
-    def getvalue(self, getnonconfig, vdata=None):
+    def getvalue(self, data, vdata=None):
         return vdata[0]
 
 # /system/authentication/user/password
@@ -914,7 +914,7 @@ class UserPassword(tf.YangElemValidateOnly):
             pass
         return
 
-    def getvalue(self, getnonconfig, vdata=None):
+    def getvalue(self, data, vdata=None):
         return "x" # Never return actual password data.
 
 # /system/authentication/user/authorized-key/name
@@ -928,7 +928,7 @@ class UserAuthkeyName(tf.YangElemValidateOnly):
         data.userCurrU.user_curr_key.name = xml.get_body()
         return
 
-    def getvalue(self, getnonconfig, vdata=None):
+    def getvalue(self, data, vdata=None):
         return vdata[2]
 
 # /system/authentication/user/authorized-key/algorithm
@@ -944,7 +944,7 @@ class UserAuthkeyAlgo(tf.YangElemValidateOnly):
             pass
         return
 
-    def getvalue(self, getnonconfig, vdata=None):
+    def getvalue(self, data, vdata=None):
         return vdata[0]
 
 # /system/authentication/user/authorized-key/key-data
@@ -966,7 +966,7 @@ class UserAuthkeyKeyData(tf.YangElemValidateOnly):
             pass
         return
 
-    def getvalue(self, getnonconfig, vdata=None):
+    def getvalue(self, data, vdata=None):
         return "x" # Never return actual key data.
 
 # /system/authentication/user/authorized-key
@@ -1180,7 +1180,7 @@ class NTPEnabled(tf.YangElem):
     def validate(self, data, origxml, newxml):
         return self.validate_add(data, newxml)
 
-    def getvalue(self, getnonconfig, vdata):
+    def getvalue(self, data, vdata):
         # FIXME = do enable/disable?
         return "true"
 
@@ -1199,7 +1199,7 @@ class NTPServerName(tf.YangElem):
     def validate(self, data, origxml, newxml):
         return self.validate_add(data, newxml)
 
-    def getvalue(self, getnonconfig, vdata):
+    def getvalue(self, data, vdata):
         return vdata.name
 
     pass
@@ -1217,7 +1217,7 @@ class NTPServerUDPAddress(tf.YangElem):
     def validate(self, data, origxml, newxml):
         return self.validate_add(data, newxml)
 
-    def getvalue(self, getnonconfig, vdata):
+    def getvalue(self, data, vdata):
         return vdata.address
 
     pass
@@ -1235,7 +1235,7 @@ class NTPServerUDPPort(tf.YangElem):
     def validate(self, data, origxml, newxml):
         return self.validate_add(data, newxml)
 
-    def getvalue(self, getnonconfig, vdata):
+    def getvalue(self, data, vdata):
         return vdata.port
 
     pass
@@ -1253,7 +1253,7 @@ class NTPServerNTSAddress(tf.YangElem):
     def validate(self, data, origxml, newxml):
         return self.validate_add(data, newxml)
 
-    def getvalue(self, getnonconfig, vdata):
+    def getvalue(self, data, vdata):
         return vdata.address
 
     pass
@@ -1271,7 +1271,7 @@ class NTPServerNTSPort(tf.YangElem):
     def validate(self, data, origxml, newxml):
         return self.validate_add(data, newxml)
 
-    def getvalue(self, getnonconfig, vdata):
+    def getvalue(self, data, vdata):
         return vdata.ntsport
 
     pass
@@ -1289,7 +1289,7 @@ class NTPServerNTSCertificate(tf.YangElem):
     def validate(self, data, origxml, newxml):
         return self.validate_add(data, newxml)
 
-    def getvalue(self, getnonconfig, vdata):
+    def getvalue(self, data, vdata):
         return "x"
 
     pass
@@ -1307,7 +1307,7 @@ class NTPServerAsocType(tf.YangElem):
     def validate(self, data, origxml, newxml):
         return self.validate_add(data, newxml)
 
-    def getvalue(self, getnonconfig, vdata):
+    def getvalue(self, data, vdata):
         return vdata.assoc_type
 
     pass
@@ -1326,7 +1326,7 @@ class NTPServerIBurst(tf.YangElem):
     def validate(self, data, origxml, newxml):
         return self.validate_add(data, newxml)
 
-    def getvalue(self, getnonconfig, vdata):
+    def getvalue(self, data, vdata):
         if vdata.iburst:
             return "true"
         return "false"
@@ -1347,7 +1347,7 @@ class NTPServerPrefer(tf.YangElem):
     def validate(self, data, origxml, newxml):
         return self.validate_add(data, newxml)
 
-    def getvalue(self, getnonconfig, vdata):
+    def getvalue(self, data, vdata):
         if vdata.prefer:
             return "true"
         return "false"
@@ -1358,10 +1358,10 @@ class NTPServerPrefer(tf.YangElem):
 class NTPUDPServer(tf.YangElem):
     # is_udp is true by default, use the default validation.
 
-    def getvalue(self, getnonconfig, vdata):
+    def getvalue(self, data, vdata):
         if not vdata.is_udp:
             return ""
-        return super().getvalue(getnonconfig, vdata)
+        return super().getvalue(data, vdata)
 
     pass
 
@@ -1379,10 +1379,10 @@ class NTPNTSServer(tf.YangElem):
         super().validate(data, origxml, newxml)
         return
 
-    def getvalue(self, getnonconfig, vdata):
+    def getvalue(self, data, vdata):
         if vdata.is_udp:
             return ""
-        return super().getvalue(getnonconfig, vdata)
+        return super().getvalue(data, vdata)
 
     pass
 
@@ -1504,16 +1504,16 @@ class NTP(tf.YangElem):
         super().validate(data, origxml, newxml)
         return
 
-    def getvalue(self, getnonconfig, vdata):
+    def getvalue(self, data, vdata):
         if not chrony_ntp:
             return ""
-        return super().getvalue(getnonconfig, vdata)
+        return super().getvalue(data, vdata)
 
     pass
 
 # /system-state/platform/*
 class SystemStatePlatform(tf.YangElemValueOnly):
-    def getvalue(self, getnonconfig, vdata=None):
+    def getvalue(self, data, vdata=None):
         if self.name == "os-name":
             opt = "-s"
         elif self.name == "os-release":
@@ -1530,7 +1530,7 @@ class SystemStatePlatform(tf.YangElemValueOnly):
 
 # /system-state/clock/*
 class SystemStateClock(tf.YangElemValueOnly):
-    def getvalue(self, getnonconfig, vdata=None):
+    def getvalue(self, data, vdata=None):
         date = self.program_output([datecmd, "--rfc-3339=seconds"]).strip()
         date = date.split(" ")
         if len(date) < 2:
@@ -1779,7 +1779,7 @@ class Handler(tf.TopElemHandler, tf.ProgOut):
         if xpath == "/":
             xpath = "/system"
             pass
-        rv = super().statedata(nsc, xpath, False)
+        rv = super().statedata(nsc, xpath, tf.GetData(False))
         if False:
             print("Y: " + str(rv))
             pass
