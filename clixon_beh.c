@@ -1108,7 +1108,7 @@ clixon_plugin_init(clixon_handle h) {
 	clixon_err(OE_CFG, 0, "Out of memory allocation clixon_beh.xml");
 	goto out_err;
     }
-    if ((yspec = yspec_new()) == NULL)
+    if ((yspec = yspec_new(h, "clixon_beh")) == NULL)
         goto out_err;
     if (yang_spec_parse_module(h, yangspec, NULL, yspec) < 0)
         goto out_err;
