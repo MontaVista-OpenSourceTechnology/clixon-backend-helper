@@ -55,7 +55,7 @@ class MapValue(tf.YangElemValueOnly):
         super().__init__(name, tf.YangType.LEAF, isconfig=isconfig)
         return
 
-    def getvalue(self, getnonconfig, vdata=None):
+    def getvalue(self, data, vdata=None):
         if self.keyval in vdata:
             rv = vdata[self.keyval]
             if self.maxint is not None:
@@ -77,7 +77,7 @@ class Map2Value(tf.YangElemValueOnly):
         super().__init__(name, tf.YangType.LEAF, isconfig=isconfig)
         return
 
-    def getvalue(self, getnonconfig, vdata=None):
+    def getvalue(self, data, vdata=None):
         if self.keyval1 in vdata:
             if self.keyval2 in vdata[self.keyval1]:
                 return vdata[self.keyval1][self.keyval2]
@@ -92,7 +92,7 @@ class ErrorValue(tf.YangElemValueOnly):
         super().__init__(name, tf.YangType.LEAF, isconfig=isconfig)
         return
 
-    def getvalue(self, getnonconfig, vdata=None):
+    def getvalue(self, data, vdata=None):
         if self.keyval is not None:
             vdata = vdata[self.keyval]
             pass
@@ -114,16 +114,16 @@ class MapChild(tf.YangElemValueOnly):
                          validate_all=validate_all, isconfig=isconfig)
         return
 
-    def getxml(self, getnonconfig, path, namespace=None, indexname=None,
+    def getxml(self, data, path, namespace=None, indexname=None,
                index=None, vdata=None):
         vdata = vdata[self.mapval]
-        return super().getxml(path, getnonconfig,
+        return super().getxml(data, path,
                               namespace=namespace, indexname=indexname,
                               index=index, vdata=vdata)
 
-    def getvalue(self, getnonconfig, vdata=None):
+    def getvalue(self, data, vdata=None):
         vdata = vdata[self.mapval]
-        return super().getvalue(getnonconfig, vdata=vdata)
+        return super().getvalue(data, vdata=vdata)
 
     pass
 
@@ -134,7 +134,7 @@ class MapChild(tf.YangElemValueOnly):
 class NeighOrigin(tf.YangElemValueOnly):
     """Get the origin value of the address."""
 
-    def getvalue(self, getnonconfig, vdata=None):
+    def getvalue(self, data, vdata=None):
         if "PERMANENT" in vdata["state"]:
             return "static"
         return "dynamic"
@@ -145,7 +145,7 @@ class NeighOrigin(tf.YangElemValueOnly):
 # /interfaces-state/interface/ipv6/neighbor/state
 class IPV6NeighState(tf.YangElemValueOnly):
     """Get the state value of the address."""
-    def getvalue(self, getnonconfig, vdata=None):
+    def getvalue(self, data, vdata=None):
         if "INCOMPLETE" in vdata["state"]:
             return "incomplete"
         if "REACHABLE" in vdata["state"]:
@@ -184,7 +184,7 @@ class IPV6Neigh(tf.YangElemValueOnly):
 # /interfaces-state/interface/ipv6/address/origin
 class IPV6Origin(tf.YangElemValueOnly):
     """Get the origin value of the address."""
-    def getvalue(self, getnonconfig, vdata=None):
+    def getvalue(self, data, vdata=None):
         if "dynamic" in vdata and vdata["dynamic"] == "true":
             return "random"
         if vdata["local"].startswith("fc") or vdata["local"].startswith("fd"):
@@ -197,7 +197,7 @@ class IPV6Origin(tf.YangElemValueOnly):
 # /interfaces-state/interface/ipv6/address/status
 class IPV6Status(tf.YangElemValueOnly):
     """Get the origin value of the address."""
-    def getvalue(self, getnonconfig, vdata=None):
+    def getvalue(self, data, vdata=None):
         if "dadfailed" in vdata and vdata["datafailed"] == "true":
             return "duplicate"
         if "optimistic" in vdata and vdata["optimistic"] == "true":
@@ -236,7 +236,7 @@ class IPV6Address(tf.YangElemValueOnly):
 # /interfaces-state/interface/ipv4/address/origin
 class IPV4Origin(tf.YangElemValueOnly):
     """Get the origin value of the address."""
-    def getvalue(self, getnonconfig, vdata=None):
+    def getvalue(self, data, vdata=None):
         if "dynamic" in vdata and vdata["dynamic"] == "true":
             return "dhcp"
         if vdata["local"].startswith("169.254."):
@@ -306,7 +306,7 @@ class InterfaceType(tf.YangElem):
         raise tf.RPCError("application", "invalid-value", "error",
                           "Setting interface type not allowed")
 
-    def getvalue(self, getnonconfig, vdata=None):
+    def getvalue(self, data, vdata=None):
         v = vdata["link_type"]
         ns = "urn:ietf:params:xml:ns:yang:iana-if-type"
         if v == "none":
@@ -326,7 +326,7 @@ class InterfaceType(tf.YangElem):
 # /interfaces/interface/admin-status
 class InterfaceAdminStatus(tf.YangElemValueOnly):
     """Get the admin-status value of the interface."""
-    def getvalue(self, getnonconfig, vdata=None):
+    def getvalue(self, data, vdata=None):
         if not is_if_mib:
             return ""
         if "UP" in vdata["flags"]:
@@ -339,7 +339,7 @@ class InterfaceAdminStatus(tf.YangElemValueOnly):
 # /interfaces-state/interface/oper-status
 class InterfaceOperStatus(tf.YangElemValueOnly):
     """Get the oper-status value of the interface."""
-    def getvalue(self, getnonconfig, vdata=None):
+    def getvalue(self, data, vdata=None):
         # FIXME - "operstate" doesn't seem to always be correct.  Just use
         # flags.
         if "UP" in vdata["flags"]:
@@ -435,7 +435,7 @@ m.add(IPV4Neigh("neighbor", tf.YangType.LIST,
 
 class DiscontinuityTime(tf.YangElemValueOnly):
     # FIXME - This just returns boot time, not sure what else to do.
-    def getvalue(self, getnonconfig, vdata=None):
+    def getvalue(self, data, vdata=None):
         date = self.program_output(["/bin/date", "--rfc-3339=seconds"]).strip()
         date = date.split(" ")
         if len(date) < 2:
@@ -502,7 +502,7 @@ m.add(Interface("interface", tf.YangType.LIST,
 # /interfaces-state/interface/type
 class InterfaceStateType(tf.YangElemValueOnly):
     """Get the iana-if-type value of the link_type."""
-    def getvalue(self, getnonconfig, vdata=None):
+    def getvalue(self, data, vdata=None):
         v = vdata["link_type"]
         ns = "urn:ietf:params:xml:ns:yang:iana-if-type"
         if v == "none":
@@ -523,7 +523,7 @@ class InterfaceStateType(tf.YangElemValueOnly):
 # /interfaces-state/interface/admin-status
 class InterfaceStateAdminStatus(tf.YangElemValueOnly):
     """Get the admin-status value of the interface."""
-    def getvalue(self, getnonconfig, vdata=None):
+    def getvalue(self, data, vdata=None):
         if "UP" in vdata["flags"]:
             return "up"
         # FIXME - do we need to add anything else?
@@ -707,7 +707,7 @@ class Handler(tf.TopElemHandler, tf.ProgOut):
         if xpath == "/":
             xpath = "/interfaces"
             pass
-        rv = super().statedata(nsc, xpath, False)
+        rv = super().statedata(nsc, xpath, tf.GetData(False))
         if False:
             print("Y: " + str(rv))
             pass
