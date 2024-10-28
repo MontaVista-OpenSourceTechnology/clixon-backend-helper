@@ -344,7 +344,7 @@ class Hostname(tf.YangElem):
         data.add_op(self, None, value)
 
     def commit(self, op):
-        op.oldvalue = self.getvalue()
+        op.oldvalue = self.getvalue(None)
         self.do_priv(op)
 
     def revert(self, op):
@@ -370,7 +370,7 @@ class Hostname(tf.YangElem):
         finally:
             f.close()
 
-    def getvalue(self, dasta, vdata=None):
+    def getvalue(self, data, vdata=None):
         return self.program_output(["/bin/hostname"]).strip()
 
 sysinfo = tf.YangElemMap(None, "/")
@@ -530,13 +530,13 @@ values have already been discussed.  It has two more options:
   If `namespace` is not None, then it should be a string and the
   `xmlns` value is set in this elements XML tag.
 
-* `getonevalue(self, vdata=None)` - Called to fetch an individual
+* `getonevalue(self, data, vdata=None)` - Called to fetch an individual
   value.  For non-lists, this is basically the same as
   getvalue().  For lists, this is for getting data from the list
   element (from the item returned by `fetch_index` or iterated from
   the list returned by `fetch_full_index`.
 
-* `getvalue(self, vdata=None)` - Return the string for this value.  By
+* `getvalue(self, data, vdata=None)` - Return the string for this value.  By
   default this goes through the children of the class and calls
   `getvalue` on them, wrapping it with the child's XML name.  Leaf
   children, or children that are handling the final assembly of the

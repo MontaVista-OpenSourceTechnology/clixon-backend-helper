@@ -138,7 +138,7 @@ class Hostname(tf.YangElem):
         return
 
     def commit(self, op):
-        op.oldvalue = self.getvalue()
+        op.oldvalue = self.getvalue(None)
         self.do_priv(op)
         return
 
@@ -169,9 +169,9 @@ class Hostname(tf.YangElem):
 
     def getvalue(self, data, vdata=None):
         with open(hostnamefile, "r") as f:
-            data = f.read().rstrip()
+            hostname = f.read().rstrip()
             pass
-        return data
+        return hostname
 
 # /system/clock/timezone-*
 class TimeZone(tf.YangElem):
@@ -209,7 +209,7 @@ class TimeZone(tf.YangElem):
                 oldlocaltime = lt[1].strip()
         except:
             pass
-        op.oldvalue = [oldlocaltime, self.getvalue(False)]
+        op.oldvalue = [oldlocaltime, self.getvalue(None)]
         self.do_priv(op)
         return
 
@@ -445,7 +445,7 @@ class DNSSearch(tf.YangElemValidateOnly):
             pass
         return None
 
-    def getonevalue(self, vdata):
+    def getonevalue(self, data, vdata):
         return vdata
 
     def fetch_full_index(self, vdata):
