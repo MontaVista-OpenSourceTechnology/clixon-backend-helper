@@ -490,7 +490,7 @@ class YangElem(PrivOp, ProgOut):
         if self.indexed:
             for i in self.fetch_full_index(vdata):
                 if self.xmlgvprocvalue:
-                    s = xmlescape(self.getonevalue(vdata=i))
+                    s = xmlescape(self.getonevalue(data, vdata=i))
                 else:
                     s = str(self.getonevalue(data, vdata=i))
                     pass
