@@ -832,14 +832,23 @@ class RPCError(Exception):
 
     pass
 
-def handle_err(exc):
-    traceback.print_exception(exc)
-    if exc.__class__ == RPCError:
+def handle_err(exc, value, tb):
+    if exc == RPCError:
+        # Pre-python 3.12, value and traceback should be set.
+        traceback.print_exception(exc, value, tb)
+        clixon_beh.rpc_err(value.ns, value.rtype, value.tag, value.info,
+                           value.severity, value.message)
+    elif exc.__class__ == RPCError:
+        traceback.print_exception(exc)
         clixon_beh.rpc_err(exc.ns, exc.rtype, exc.tag, exc.info, exc.severity,
                            exc.message)
     else:
         f = io.StringIO()
-        traceback.print_exception(exc, file=f)
+        if exc.__class__ == type:
+            traceback.print_exception(exc, value, tb, file=f)
+        else:
+            traceback.print_exception(exc, file=f)
+            pass
         clixon_beh.err(clixon_beh.OE_PLUGIN, 0, f.getvalue())
         pass
     return

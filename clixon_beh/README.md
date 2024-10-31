@@ -225,6 +225,30 @@ then your `xmlstr` would be something like:
 </event>
 ```
 
+#### Error Handling
+
+If an exception occurs and is returned into the clixon interface, an
+error and traceback will be printed by default.  If you want to catch
+the error yourself, you can call:
+```
+def handler(exc, value, traceback):
+    if exc.__class__ == type:
+        traceback.print_exception(exc, value, traceback)
+    else:
+        traceback.print_exception(exc)
+
+clixon_beh.set_err_handler(handler)
+```
+
+The interface here is unfortunate, but due to changes in the python
+API in version 3.12.  Older python C APIs returned three values, type,
+value and traceback, when getting the exception.  That is now
+deprecated and the new function returns a single exception object.
+
+So in the handler, if `exc.__class__` is `type`, then it's the old
+interface and the `value` and `traceback` should be valid.  Otherwise
+it's the new interface and only the `exc` value is valid.
+
 ### Other Stuff
 
 In addition to the main interface, this has some interfaces to some
@@ -1016,3 +1040,9 @@ Note that the value of vdata, both here and what's returned from
 `fetch_index` and `fetch_full_index` need not be the full data.  They
 could just be indexes into a database, or filenames, or whatever.  But
 whatever is passed in is given to the children for their use.
+
+### Error Handling
+
+The transaction framework sets an error handler.  If you raise an
+RPCError() type, then it will automatically create an rpc error return
+based on the values.  Otherwise it handles a generic exception.
