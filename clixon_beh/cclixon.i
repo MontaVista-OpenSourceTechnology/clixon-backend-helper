@@ -82,6 +82,15 @@ struct plugin {
 
 static PyObject *err_handler;
 
+#if PY_VERSION_HEX < 0x030a0000
+static PyObject *
+Py_NewRef(PyObject *o)
+{
+    Py_INCREF(o);
+    return o;
+}
+#endif
+
 static int
 pyclixon_call_rv(PyObject *cb, const char *method, PyObject *args,
 		 bool optional, PyObject **rv)
@@ -95,29 +104,34 @@ pyclixon_call_rv(PyObject *cb, const char *method, PyObject *args,
 	Py_DECREF(p);
 	if (PyErr_Occurred()) {
 	    if (err_handler) {
-		PyObject *eargs = PyTuple_New(1);
+		PyObject *eargs = PyTuple_New(3);
+		PyObject *oret;
+#if PY_VERSION_HEX >= 0x030c0000
 		PyObject *exc = PyErr_GetRaisedException();
-		PyObject *o2;
 
-		/*
-		 * FIXME - the handling of refcounts may be wrong here:
-		 *
-		 * Does PyTuple_SET_ITEM() steal a ref for exc?
-		 * Does PyErr_SetRaisedException steal a ref?
-		 */
-		if (!exc)
-		    goto nohandler;
-		PyErr_Clear();
 		PyTuple_SET_ITEM(eargs, 0, exc);
-		o2 = PyObject_CallObject(err_handler, eargs);
-		if (o2)
-		    Py_DECREF(o2);
-		if (PyErr_Occurred()) {
-		    PyErr_SetRaisedException(exc);
-		    goto nohandler;
-		}
+		PyTuple_SET_ITEM(eargs, 1, Py_NewRef(Py_None));
+		PyTuple_SET_ITEM(eargs, 2, Py_NewRef(Py_None));
+#else
+		PyObject *type, *value, *traceback;
+
+		PyErr_Fetch(&type, &value, &traceback);
+		if (value == NULL)
+		    value = Py_NewRef(Py_None);
+		if (traceback == NULL)
+		    traceback = Py_NewRef(Py_None);
+		PyTuple_SET_ITEM(eargs, 0, type);
+		PyTuple_SET_ITEM(eargs, 1, value);
+		PyTuple_SET_ITEM(eargs, 2, traceback);
+#endif
+		PyErr_Clear();
+		oret = PyObject_CallObject(err_handler, eargs);
+		if (oret)
+		    Py_DECREF(oret);
+		/* Freeing eargs will decrememnt the refcount of all entries. */
 		Py_DECREF(eargs);
-		Py_DECREF(exc);
+		if (PyErr_Occurred())
+		    goto nohandler;
 	    } else {
 	    nohandler:
 		PyErr_Print();
