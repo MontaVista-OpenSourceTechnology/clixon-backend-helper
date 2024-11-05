@@ -977,6 +977,7 @@ clixon_beh_load_plugins(struct clixon_beh *beh,
     int i;
     int dlflags;
     char *plugin_file = NULL, *suffix;
+    bool dir_initialized = false;
 
     if ((ndp = clicon_file_dirent(plugin_dir, &dp, "\\.(so|py)$", S_IFREG)) < 0)
 	return -1;
@@ -1000,6 +1001,11 @@ clixon_beh_load_plugins(struct clixon_beh *beh,
 		goto out_err;
 	} else if (strcmp(suffix, ".py") == 0) {
 	    if (!python_initialized) {
+		Py_Initialize();
+		PyRun_SimpleString("import sys");
+		python_initialized = true;
+	    }
+	    if (!dir_initialized) {
 		char *pathcmd;
 
 		if (clixon_beh_asprintf(&pathcmd, "sys.path.append(\"%s\")",
@@ -1008,10 +1014,8 @@ clixon_beh_load_plugins(struct clixon_beh *beh,
 		    goto out_err;
 		}
 
-		Py_Initialize();
-		PyRun_SimpleString("import sys");
 		PyRun_SimpleString(pathcmd);
-		python_initialized = true;
+		dir_initialized = true;
 		free(pathcmd);
 	    }
 	    if (clixon_beh_plugin_load_one_py(beh, dp[i].d_name,
