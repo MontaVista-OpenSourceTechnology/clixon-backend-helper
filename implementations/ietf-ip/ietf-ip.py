@@ -32,12 +32,21 @@
 # This is an implemetation of ietf-ip (on top of ietf-interfaces).
 
 import os
+import os.path
 import shlex
 import json
 import clixon_beh
 import clixon_beh.transaction_framework as tf
 
-ipcmd = "/usr/bin/ip"
+ipcmds = ("/usr/bin/ip", "/usr/sbin/ip")
+ipcmd = None
+for i in ipcmds:
+    if os.path.exists(i):
+        ipcmd = i
+        break
+    pass
+if ipcmd is None:
+    raise Exception("ip command is not present")
 
 is_if_mib = clixon_beh.is_feature_set("ietf-interfaces", "if-mib")
 
@@ -310,9 +319,11 @@ class InterfaceType(tf.YangElem):
         v = vdata["link_type"]
         ns = "urn:ietf:params:xml:ns:yang:iana-if-type"
         if v == "none":
+            v = "other"
             # It might be a tunnel.
             if vdata["ifname"].startswith("tun"):
                 v = "tunnel"
+                pass
             pass
         elif v in link_types:
             v = link_types[v]
@@ -506,9 +517,11 @@ class InterfaceStateType(tf.YangElemValueOnly):
         v = vdata["link_type"]
         ns = "urn:ietf:params:xml:ns:yang:iana-if-type"
         if v == "none":
+            v = "other"
             # It might be a tunnel.
             if vdata["ifname"].startswith("tun"):
                 v = "tunnel"
+                pass
             pass
         elif v in link_types:
             v = link_types[v]
