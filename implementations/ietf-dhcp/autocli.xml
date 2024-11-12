@@ -1,0 +1,10 @@
+<clixon-config xmlns="http://clicon.org/config">
+  <autocli>
+    <module-default>false</module-default>
+     <rule>
+        <name>include ietf-dhcp yang</name>
+        <operation>enable</operation>
+        <module-name>ietf-dhcp*</module-name>
+     </rule>
+  </autocli>
+</clixon-config>
