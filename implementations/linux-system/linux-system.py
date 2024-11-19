@@ -1721,9 +1721,6 @@ m.add(tf.YangElem("system-state", tf.YangType.CONTAINER,
                   isconfig=False))
 
 class Handler(tf.TopElemHandler, tf.ProgOut):
-    # FIXME - this is a hack for now
-    first_call_done = False
-
     def exit(self):
         self.p = None # Break circular dependency
         return 0;
@@ -1738,19 +1735,6 @@ class Handler(tf.TopElemHandler, tf.ProgOut):
         data.oldpwfile = False # Are the old pw/shadow files set
         data.userNTP = None # Replaced by NTP operations
         return 0
-
-    # FIXME - this is a hack for now
-    def validate(self, t):
-        if not self.first_call_done:
-            return 0
-        return super().validate(t)
-
-    # FIXME - this is a hack for now
-    def commit(self, t):
-        if not self.first_call_done:
-            self.first_call_done = True
-            return 0
-        return super().commit(t)
 
     # The password file is saved if a user modification is done.  This is
     # done once for all users, so we have to wait until the very end to

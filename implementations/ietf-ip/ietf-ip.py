@@ -680,9 +680,6 @@ m.add(tf.YangElem("interfaces-state", tf.YangType.CONTAINER,
                   isconfig=False))
 
 class Handler(tf.TopElemHandler, tf.ProgOut):
-    # FIXME - this is a hack for now
-    first_call_done = False
-
     def exit(self):
         self.p = None # Break circular dependency
         return 0
@@ -701,19 +698,6 @@ class Handler(tf.TopElemHandler, tf.ProgOut):
     def abort(self, t):
         data = t.get_userdata()
         return 0
-
-    # FIXME - this is a hack for now
-    def validate(self, t):
-        if not self.first_call_done:
-            return 0
-        return super().validate(t)
-
-    # FIXME - this is a hack for now
-    def commit(self, t):
-        if not self.first_call_done:
-            self.first_call_done = True
-            return 0
-        return super().commit(t)
 
     def system_only(self, nsc, xpath):
         #print("***System_only: %s %s" % (xpath, str(nsc)))
