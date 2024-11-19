@@ -358,7 +358,10 @@ class YangElem(PrivOp, ProgOut):
         """Validate add of an element list.  Leaf elements should override
         this."""
         for i in range(0, xml.nr_children_type(clixon_beh.XMLOBJ_TYPE_ELEMENT)):
-            self.children.validate_add(data, xml.child_i(i))
+            x = xml.child_i(i)
+            if x.get_type() != clixon_beh.XMLOBJ_TYPE_ELEMENT:
+                continue
+            self.children.validate_add(data, x)
             pass
         return
 
@@ -366,7 +369,10 @@ class YangElem(PrivOp, ProgOut):
         """Validate delete of an element list.  Leaf elements should override
         this."""
         for i in range(0, xml.nr_children_type(clixon_beh.XMLOBJ_TYPE_ELEMENT)):
-            self.children.validate_del(data, xml.child_i(i))
+            x = xml.child_i(i)
+            if x.get_type() != clixon_beh.XMLOBJ_TYPE_ELEMENT:
+                continue
+            self.children.validate_del(data, x)
             pass
         return
 
