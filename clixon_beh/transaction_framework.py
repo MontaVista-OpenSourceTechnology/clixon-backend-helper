@@ -475,7 +475,10 @@ class YangElem(PrivOp, ProgOut):
                             " which doesn't support indexes")
 
         if len(path) == 0:
-            xml = self.children.getonevalue(data, vdata=vdata)
+            if self.children is None:
+                xml = self.getvalue(data, vdata=vdata)
+            else:
+                xml = self.children.getonevalue(data, vdata=vdata)
         else:
             xml = self.children.getxml(data, path, vdata=vdata)
             pass
