@@ -747,7 +747,9 @@ class TopElemHandler:
     # You should provide methods for these if you need them.
 
     def begin(self, t):
-        t.set_userdata(Data())
+        d = Data()
+        d.tf_username = clixon_beh.username_get()
+        t.set_userdata(d)
         return 0
 
     def validate(self, t):

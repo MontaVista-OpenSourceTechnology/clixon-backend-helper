@@ -249,6 +249,16 @@ So in the handler, if `exc.__class__` is `type`, then it's the old
 interface and the `value` and `traceback` should be valid.  Otherwise
 it's the new interface and only the `exc` value is valid.
 
+### User Name
+
+clixon will extract the user name from a number of sources depending
+on the access method.  For NETCONF and CLI, it's the user doing the
+operation.  For RESTCONF, it's the common name in the certificate.
+
+This is available via the `username_get()` function.  This can be used
+to restrict some operations to specific users.  Note that this may
+return `None` if the username is not set, like during initialization.
+
 ### Other Stuff
 
 In addition to the main interface, this has some interfaces to some
@@ -466,6 +476,17 @@ named `revert`, if it is true then a revert is in process.  It also
 contains an `oldvalue` element which is set by default to None.  The
 user can save the old value in the commit call at the beginning so the
 it can set it back to the original value if a `revert` happens.
+
+### userdata
+
+The `userdata` field in the transaction is created by the transaction
+framework as an object of class Data.  This is used by the transaction
+framework for storing information, and it's passed into all the
+methods.  The user can add their own items; they should prefix the
+name with "user" if they do.
+
+The transaction framework adds the username performing the operation
+(see "User Name" above) as the `tf_username` field.
 
 ### YangElem and Children
 

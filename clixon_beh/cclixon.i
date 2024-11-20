@@ -1026,6 +1026,15 @@ stream_notifyt(char *name, char *xmlstr)
 		     "Error notifying stream for %s", name);
 }
 
+char *
+username_get(void)
+{
+    struct clixon_beh *beh = clixon_beh_get_global_beh();
+    struct clixon_handle *h = clixon_beh_get_handle(beh);
+
+    return clicon_username_get(h);
+}
+
 /*
  * FIXME - there should probably be a clicon_option_feature() added to
  * clixon for this to use.
