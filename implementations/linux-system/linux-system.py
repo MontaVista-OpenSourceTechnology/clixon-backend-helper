@@ -253,9 +253,16 @@ class TimeZone(tf.YangElem):
         if not self.is_name:
             return ""
         try:
-            s = self.program_output([catcmd, timezonefile]).strip()
+            s = self.program_output(["/bin/timedatectl", "-p", "Timezone",
+                                     "show"])
+            s = s.split("=")[1]
+            s = s.split()[0]
         except:
-            s = "GMT"
+            try:
+                s = self.program_output([catcmd, timezonefile]).strip()
+            except:
+                s = "GMT"
+                pass
             pass
         return s
 
