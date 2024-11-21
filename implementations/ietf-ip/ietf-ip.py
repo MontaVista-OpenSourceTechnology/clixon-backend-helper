@@ -150,6 +150,30 @@ class NeighOrigin(tf.YangElemValueOnly):
 
     pass
 
+# /interfaces/interface/ipv6/enabled
+class InterfaceIPv6Enabled(tf.YangElemValueOnly):
+    """Get if the interface is enabled or not."""
+    def getvalue(self, data, vdata=None):
+        # If it's there it's enabled.
+        return "true"
+    pass
+
+# /interfaces/interface/ipv6/forwarding
+class InterfaceIPv6Forwarding(tf.YangElemValueOnly):
+    """Get if the interface has forwarding enabled."""
+    def getvalue(self, data, vdata=None):
+        # FIXME - find out how to get this.
+        return "false"
+    pass
+
+# /interfaces/interface/ipv6/dup-addr-detect-transmits
+class InterfaceIPv6DADT(tf.YangElemValueOnly):
+    """Get if the interface detect duplicate addresses."""
+    def getvalue(self, data, vdata=None):
+        # FIXME - find out how to get this.
+        return "1"
+    pass
+
 # /interfaces/interface/ipv6/neighbor/state
 # /interfaces-state/interface/ipv6/neighbor/state
 class IPV6NeighState(tf.YangElemValueOnly):
@@ -239,6 +263,30 @@ class IPV6Address(tf.YangElemValueOnly):
             pass
         return rv
 
+    pass
+
+# /interfaces/interface/ipv6/autoconf/create-glboal-addresses
+class InterfaceIPv6AutoconfCGA(tf.YangElemValueOnly):
+    """Get if the interface creates a global IPV6 address."""
+    def getvalue(self, data, vdata=None):
+        # FIXME - how to get this?
+        return "true"
+    pass
+
+# /interfaces/interface/ipv4/enabled
+class InterfaceIPv4Enabled(tf.YangElemValueOnly):
+    """Get if the interface is enabled or not."""
+    def getvalue(self, data, vdata=None):
+        # If it's there it's enabled.
+        return "true"
+    pass
+
+# /interfaces/interface/ipv4/forwarding
+class InterfaceIPv4Forwarding(tf.YangElemValueOnly):
+    """Get if the interface has forwarding enabled."""
+    def getvalue(self, data, vdata=None):
+        # FIXME - find out how to get this.
+        return "false"
     pass
 
 # /interfaces/interface/ipv4/address/origin
@@ -359,6 +407,15 @@ class InterfaceOperStatus(tf.YangElemValueOnly):
         return "down"
     pass
 
+# /interfaces/interface/enabled
+class InterfaceEnabled(tf.YangElemValueOnly):
+    """Get if the interface is enabled or not."""
+    def getvalue(self, data, vdata=None):
+        if "UP" in vdata["flags"]:
+            return "true"
+        return "false"
+    pass
+
 # /interfaces/interface
 class Interface(tf.YangElemValueOnly):
     def getinterfaces(self):
@@ -403,6 +460,12 @@ interfaces_interface_ipv6_children = tf.YangElemMap(
 interfaces_interface_ipv6_neighbor = tf.YangElemMap(
     interfaces_interface_ipv6,
     "/interfaces/interface/ipv6/neighbor")
+interfaces_interface_ipv6_autoconf = tf.YangElemMap(
+    interfaces_interface_ipv6,
+    "/interfaces/interface/ipv6/autoconf")
+
+m = interfaces_interface_ipv6_autoconf
+m.add(InterfaceIPv6AutoconfCGA("create-global-addresses", tf.YangType.LEAF))
 
 m = interfaces_interface_ipv6_neighbor
 m.add(MapValue("ip", "dst"))
@@ -418,12 +481,16 @@ m.add(IPV6Origin("origin", tf.YangType.LEAF, isconfig=False))
 m.add(IPV6Status("status", tf.YangType.LEAF, isconfig=False))
 
 m = interfaces_interface_ipv6
-# forwarding
+m.add(InterfaceIPv6Enabled("enabled", tf.YangType.LEAF))
+m.add(InterfaceIPv6Forwarding("forwarding", tf.YangType.LEAF))
 m.add(MapValue("mtu", "mtu", maxint=65535))
 m.add(IPV6Address("address", tf.YangType.LIST,
                   interfaces_interface_ipv6_children))
 m.add(IPV6Neigh("neighbor", tf.YangType.LIST,
                 interfaces_interface_ipv6_neighbor))
+m.add(InterfaceIPv6DADT("dup-addr-detect-transmits", tf.YangType.LEAF))
+m.add(tf.YangElem("autoconf", tf.YangType.CONTAINER,
+                  interfaces_interface_ipv6_autoconf))
 
 m = interfaces_interface_ipv4_children
 m.add(MapValue("ip", "local"))
@@ -436,8 +503,8 @@ m.add(MapValue("link-layer-address", "lladdr"))
 m.add(NeighOrigin("origin", tf.YangType.LEAF, isconfig=False))
 
 m = interfaces_interface_ipv4
-# enabled
-# forwarding
+m.add(InterfaceIPv4Enabled("enabled", tf.YangType.LEAF))
+m.add(InterfaceIPv4Forwarding("forwarding", tf.YangType.LEAF))
 m.add(MapValue("mtu", "mtu", maxint=65535))
 m.add(IPV4Address("address", tf.YangType.LIST,
                   interfaces_interface_ipv4_children))
@@ -499,6 +566,7 @@ m.add(MapValue("phys-address", "address", isconfig=False))
 m.add(MapChild("statistics", "stats64",
                interfaces_interface_statistics,
                isconfig=False))
+m.add(InterfaceEnabled("enabled", tf.YangType.LEAF))
 m.add(tf.YangElem("ipv4", tf.YangType.CONTAINER,
                   interfaces_interface_ipv4,
                   namespace=IETF_IP_NAMESPACE))
