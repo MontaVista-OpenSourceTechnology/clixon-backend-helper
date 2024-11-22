@@ -256,7 +256,6 @@ class TimeZone(tf.YangElem):
             s = self.program_output(["/bin/timedatectl", "-p", "Timezone",
                                      "show"])
             s = s.split("=")[1]
-            s = s.split()[0]
         except:
             try:
                 s = self.program_output([catcmd, timezonefile]).strip()
@@ -264,6 +263,7 @@ class TimeZone(tf.YangElem):
                 s = "GMT"
                 pass
             pass
+        s = s.split()[0] # Remove the trailing newline if there is one.
         return s
 
 # DNS is configured through features in the linux-system yang file.
@@ -716,11 +716,14 @@ def getpwentry(name):
         pass
     if found:
         if len(p) != 7:
-            raise Exception("Password entry doesn't have 6 values")
+            raise tf.RPCError("application", "invalid-value", "error",
+                              ("Password entry for " + name +
+                               " doesn't have 6 values"))
         # Put sysbase into the home directory
         p[5] = sysbase + p[5]
         return p
-    raise Exception("Password entry not found")
+    raise tf.RPCError("application", "invalid-value", "error",
+                      "User " + name + " not present")
 
 def getpwentryall():
     plist = []
