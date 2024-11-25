@@ -692,7 +692,7 @@ pyclixon_rpc_callback(clixon_handle h,
 
     xml = xmlobj_new(NULL, xe);
     if (!xml) {
-	clixon_err(OE_PLUGIN, 0, "pyclixon_beh:rpc: Could create xmlobj.");
+	clixon_err(OE_PLUGIN, 0, "pyclixon_beh:rpc: Could not create xmlobj.");
 	return -1;
     }
     arg = SWIG_NewPointerObj(SWIG_as_voidptr(xml),
@@ -724,13 +724,13 @@ pyclixon_rpc_callback(clixon_handle h,
     }
     xmlstr = PyUnicode_AsUTF8AndSize(PyTuple_GET_ITEM(o, 1), NULL);
     if (!xmlstr) {
-	clixon_err(OE_PLUGIN, 0, "pyclixon_beh:rpc: Could convert string "
+	clixon_err(OE_PLUGIN, 0, "pyclixon_beh:rpc: Could not convert string "
 		   "return of rpc callback to a string.");
 	Py_DECREF(o);
 	return -1;
     }
     if (cbuf_append_str(cbret, (char *) xmlstr) < 0) {
-	clixon_err(OE_PLUGIN, 0, "pyclixon_beh:rpc: Could append return "
+	clixon_err(OE_PLUGIN, 0, "pyclixon_beh:rpc: Could not append return "
 		   "string.");
 	Py_DECREF(o);
 	return -1;
@@ -758,7 +758,8 @@ pyclixon_action_callback(clixon_handle h,
 
     xml = xmlobj_new(NULL, xe);
     if (!xml) {
-	clixon_err(OE_PLUGIN, 0, "pyclixon_beh:action: Could create xmlobj.");
+	clixon_err(OE_PLUGIN, 0,
+		   "pyclixon_beh:action: Could not create xmlobj.");
 	return -1;
     }
     arg = SWIG_NewPointerObj(SWIG_as_voidptr(xml),
@@ -790,13 +791,14 @@ pyclixon_action_callback(clixon_handle h,
     }
     xmlstr = PyUnicode_AsUTF8AndSize(PyTuple_GET_ITEM(o, 1), NULL);
     if (!xmlstr) {
-	clixon_err(OE_PLUGIN, 0, "pyclixon_beh:action: Could convert string "
+	clixon_err(OE_PLUGIN, 0,
+		   "pyclixon_beh:action: Could not convert string "
 		   "return of action callback to a string.");
 	Py_DECREF(o);
 	return -1;
     }
     if (cbuf_append_str(cbret, (char *) xmlstr) < 0) {
-	clixon_err(OE_PLUGIN, 0, "pyclixon_beh:action: Could append return "
+	clixon_err(OE_PLUGIN, 0, "pyclixon_beh:action: Could not append return "
 		   "string.");
 	Py_DECREF(o);
 	return -1;
