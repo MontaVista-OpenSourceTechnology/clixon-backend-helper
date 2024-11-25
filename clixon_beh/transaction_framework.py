@@ -200,7 +200,8 @@ class ProgOut:
         (out, err) = p.communicate(timeout)
         rc = p.wait()
         if rc != 0:
-            raise Exception(args[0] + " error(" + str(rc) + "): " + err.decode("utf-8"))
+            raise RPCError("application", "operation-failed", "error",
+                           args[0] + " error(" + str(rc) + "): " + err.decode("utf-8"))
         return decoder(out)
 
     pass
