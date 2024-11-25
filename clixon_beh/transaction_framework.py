@@ -400,7 +400,7 @@ class YangElem(PrivOp, ProgOut):
                 nxmlf = nxml.get_flags(clixon_beh.XMLOBJ_FLAG_FULL_MASK)
                 pass
             if oxmlf & clixon_beh.XMLOBJ_FLAG_DEL:
-                self.children.validate_del(data, nxml)
+                self.children.validate_del(data, oxml)
                 oi += 1
                 oxml = origxml.child_i(oi)
             elif nxmlf & clixon_beh.XMLOBJ_FLAG_ADD:
