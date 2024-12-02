@@ -861,7 +861,29 @@ def handle_err(exc, value, tb):
         else:
             traceback.print_exception(exc, file=f)
             pass
-        clixon_beh.err(clixon_beh.OE_PLUGIN, 0, f.getvalue())
+
+        # Flip the order of the traceback, the most important info is
+        # last, but it will get truncated so put the most important
+        # info first.
+        v = []
+        for l in f.getvalue().split("\n"):
+            if len(l) == 0:
+                pass
+            elif l.startswith("Traceback"):
+                # Remove "Traceback (most recent call last):"
+                pass
+            elif l.startswith("    "):
+                # Lines starting with four spaces are code lines and go
+                # after the line location.
+                v.insert(1, l)
+            else:
+                v.insert(0, l)
+                pass
+            pass
+        v.insert(1, "Traceback (most recent call first):")
+        v.append("")
+        v.insert(0, "")
+        clixon_beh.err(clixon_beh.OE_PLUGIN, 0, "\n".join(v))
         pass
     return
 
