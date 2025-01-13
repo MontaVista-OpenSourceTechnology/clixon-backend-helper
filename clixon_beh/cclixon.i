@@ -824,7 +824,7 @@ void plugin_rpc_errt(char *ns, char *type, char *tag, char *info,
     struct clixon_beh *beh = clixon_beh_get_global_beh();
     struct clixon_handle *h = clixon_beh_get_handle(beh);
 
-    plugin_rpc_err(h, ns, type, tag, info, severity, message);
+    clixon_plugin_rpc_err(h, ns, type, tag, info, severity, "%s", message);
 }
 %}
 
