@@ -15,7 +15,7 @@ A clixon backend that provides helpful functions for a backend.  These are:
 Build and install clixon first, or install it from your distro if
 available.  Then run:
 ```
-    meson build
+    meson setup build
     meson compile -C build
     meson install -C build
 ```
@@ -25,6 +25,26 @@ install a python `_clixon_beh.so` and `clixon_beh.py` file into the proper
 place for python to pick it up.  And it will install `clixon_beh.h` in
 the include directory.  It will install a `clixon-beh-config` yang file
 into clixon's yang directory.  And that should be all you need.
+
+Note that if you are installing clixon in `/usr/local`, it will
+install the python files there, too.  Unfortunately, python doesn't
+work consistently there, it will generally install in
+`/usr/local/lib/python3/...`, but python will look in the specific
+directory for the python version, like `/usr/local/lib/python3.12/...`
+so you will need to override the python installation directories.
+First you need to find them, run:
+```
+python -m sysconfig | less
+```
+and look for `platlib` and `purelib`.  Then for setup, run:
+```
+meson setup build -Dpython.platlibdir=... -Dpython.purelibdir=...
+```
+making the obvious substitutions for `...`.  Then you can compile and
+install.
+
+Note that if you install in `/usr` python will look in
+`/usr/lib/python3` so everything works fine in that case.
 
 ## Examples
 

@@ -5,6 +5,11 @@ walk" or "as we go".  It's used for explainations that walk a user
 through something.  Since this is a a fairly complex item, we will
 walk through a basic things.
 
+You will need to already have `clixon` and `clixon-backend-helper`
+installed.  If these are installed in `/usr/local` (or anyplace but
+`/usr`) see the notes in README.md in the main directory for
+instructions.
+
 We pick a relatively simple example here, we will configure the server
 side of chronyd.  That's a program that provides a time
 synchronization server and client.  The client side is already handled
@@ -54,17 +59,19 @@ created to show how to tie in the the `clixon_beh` code.  It has some
 YANG code for this, and some other files for installation, and a
 python file.
 
-In that directory, you can run `meson build`, `meson compile -c build`,
-then `sudo meson install -c build`.  This assumes you have already installed
+In that directory, you can run `meson build`, `meson compile -C build`,
+then `sudo meson install -C build`.  This assumes you have already installed
 clixon and clixon_beh in /usr/local, it should install in /usr/local, too.
 
 Then you can start clixon with:
 ```
-sudo LINUX_SYSTEM_SYSBASE=/home/cminyard/tmp/clixon \
+sudo CHRONYD_SERVER_SYSBASE=/home/cminyard/tmp/clixon \
   clixon_backend -f /usr/local/etc/clixon/chronyd-server.xml -s startup -F -l e
 ```
-This will start with the startup database, which is fine.  You will notice
-that it tries to fetch some system\_only data, we will talk about that later.
+This will start with the startup database, which is fine. The
+`CHRONYD_SERVER_SYSBASE` will be explained later.  You will notice
+that it tries to fetch some system\_only data, we will talk about that
+later, too.
 
 Now lets set the port through RESTCONF:
 ```
