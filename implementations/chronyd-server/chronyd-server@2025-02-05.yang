@@ -1,0 +1,117 @@
+module chronyd-server {
+    namespace "http://mvista.com/chronyd";
+    prefix "chrd";
+
+    import ietf-yang-types {
+	prefix yang;
+    }
+
+    import ietf-inet-types {
+	prefix inet;
+    }
+
+    import clixon-lib {
+        prefix cl;
+    }
+
+    organization
+	"MontaVista Software";
+
+    contact
+	"http://mvista.com
+         Corey Minyard - cminyard@mvista.com";
+
+    description
+	"This module configure the server side of chronyd.  It stores the
+         configuration in /etc/chrony/conf.d/server.conf
+
+         Copyright (C) 2025 MontaVista Software, LLC <source@mvista.com>
+
+         Licensed under the Apache License, Version 2.0 (the \"License\");
+         you may not use this file except in compliance with the License.
+         You may obtain a copy of the License at
+
+            http://www.apache.org/licenses/LICENSE-2.0
+
+         Unless required by applicable law or agreed to in writing, software
+         distributed under the License is distributed on an \"AS IS\" BASIS,
+         WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or
+         implied.
+         See the License for the specific language governing permissions and
+         limitations under the License.";
+
+    revision 2025-02-05 {
+	description
+	    "Initial revision.";
+    }
+
+    typedef ntp-stratum {
+	type uint8 {
+	    range "1..16";
+	}
+	description
+	    "The stratum level the server is operating at.";
+    }
+
+    container server {
+	leaf-list allows {
+	    type inet:ip-prefix;
+	    description
+		"A list of subnets that are allowed to use the NTP server.
+                 You must have at least one of these for the server to be
+                 enabled.";
+	}
+	leaf-list denys {
+	    type inet:ip-prefix;
+	    description
+		"A list of subnets that are allowed to use the NTP server.
+                 This lets the allows list to have pieces removed that are
+                 not served.";
+	}
+	leaf port {
+	    type inet:port-number;
+	    default 123;
+	    description
+		"The port to listen for NTP requests on.";
+	}
+	leaf ntsport {
+	    type inet:port-number;
+	    default 4460;
+	    description
+		"The port to listen for NTS requests on.";
+	}
+	leaf serverkey {
+	    type string;
+	    description
+		"The key for NTS requests.";
+	    cl:system-only-config {
+		description
+		    "Keys and certificates are system-only.";
+	    }
+	}
+	leaf servercert {
+	    type string;
+	    description
+		"The certificate to go along with the key";
+	    cl:system-only-config {
+		description
+		    "Keys and certificates are system-only.";
+	    }
+	}
+    }
+
+    container statistics {
+	config false;
+	leaf stratum {
+	    type ntp-stratum;
+	    description
+		"The association stratum value";
+	}
+
+	leaf time {
+	    type yang:date-and-time;
+	    description
+		"The current reference time (UTC).";
+	}
+    }
+}

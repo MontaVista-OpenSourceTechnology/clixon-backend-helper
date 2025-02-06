@@ -1771,6 +1771,7 @@ class Handler(tf.TopElemHandler, tf.ProgOut):
     def system_only(self, nsc, xpath):
         #print("***System_only: %s %s" % (xpath, str(nsc)))
         if xpath == "/":
+            # There is no state data in /system-state, so no need to fetch it.
             xpath = "/system"
             pass
         rv = super().statedata(nsc, xpath, tf.GetData(False))

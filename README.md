@@ -62,5 +62,6 @@ Not yet implemented.
 
 ## The Python Interface
 
-See the README.md in the clixon_beh directory for information about the
-Python interface.
+See the README.md in the `clixon_beh` directory for information about
+the Python interface.  For a starter overview, see VADE\_MECUM.md in
+the `clixon_beh` directory.

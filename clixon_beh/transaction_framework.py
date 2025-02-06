@@ -641,7 +641,12 @@ class YangElemValueOnly(YangElem):
     pass
 
 class YangElemMap:
-    """
+    """This is for a non-leaf that contains other elements.  You can
+    use this directly if you do not need to do any processing, or you
+    can descend from this class if yu need your own handling.  You
+    will create one of these for any container, list, etc. that has
+    other nodes in it.  Then you will call the add method to add those
+    nodes into this object.
 
     """
 

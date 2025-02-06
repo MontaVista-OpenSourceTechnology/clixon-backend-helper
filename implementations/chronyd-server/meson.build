@@ -29,38 +29,40 @@
 # ***** END LICENSE BLOCK *****
 #
 
-project('clixon-backend-helper', 'c')
+appname = 'chronyd-server'
 
-prefix = get_option('prefix')
-if get_option('prefix') == '/usr'
-   my_sysconfdir = get_option('sysconfdir')
-else
-   my_sysconfdir = prefix + '/' + get_option('sysconfdir')
-endif
-my_localstatedir = get_option('localstatedir')
-my_libexecdir = prefix + '/' + get_option('libexecdir')
-my_datadir = prefix + '/' + get_option('datadir')
-my_libdir = prefix + '/' + get_option('libdir')
+conf_data = configuration_data()
+conf_data.set('SYSCONFDIR', my_sysconfdir)
+conf_data.set('DATADIR', my_datadir)
+conf_data.set('LOCALSTATEDIR', my_localstatedir)
+conf_data.set('SBINDIR', prefix + '/' + get_option('sbindir'))
+conf_data.set('LIBEXECDIR', my_libexecdir)
+conf_data.set('CLICON_GROUP', get_option('clicon_group'))
+conf_data.set('CLICON_USER', get_option('clicon_user'))
+conf_data.set('APPNAME', appname)
 
-py3 = import('python').find_installation('python3')
-pyinc = py3.get_variable('INCLUDEPY').split()
-pylib = py3.get_variable('BLDLIBRARY').split()
+configure_file(input : appname + '.xml.in',
+               output : appname + '.xml',
+               configuration : conf_data,
+	       install_dir: my_sysconfdir + '/clixon')
 
-shared_library('clixon_beh', 'clixon_beh.c',
-               name_prefix: '',
-               override_options: 'b_lundef=false',
-	       include_directories: pyinc,
-	       link_args: pylib,
-	       install: true,
-	       install_dir: my_libexecdir + '/clixon_beh')
+configure_file(input : 'clixon_beh.xml.in',
+               output : 'clixon_beh.xml',
+               configuration : conf_data,
+	       install_dir: my_sysconfdir + '/clixon/' + appname + '/clixon_beh')
 
-install_data('clixon-beh-config@2024-06-05.yang',
-             install_dir: my_datadir + '/clixon')
+install_data('autocli.xml',
+             install_dir: my_sysconfdir + '/clixon/' + appname)
 
-install_headers('clixon_beh.h')
+install_data(appname + '_cli.cli',
+             install_dir: my_sysconfdir + '/clixon/' + appname + '/clispec')
 
-subdir('clixon_beh')
+install_data(['chronyd-server@2025-02-05.yang'],
+             install_dir: my_datadir + '/clixon/' + appname)
 
-subdir('implementations/linux-system')
-subdir('implementations/ietf-ip')
-subdir('implementations/chronyd-server')
+install_data('startup_db',
+             install_dir: my_localstatedir + '/' + appname)
+
+install_data('chronyd-server.py',
+	     install_dir: my_libexecdir + '/' + appname)
+

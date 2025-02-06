@@ -4,6 +4,10 @@ This directory contains a basic Python 3 interface to clixon and a
 transaction framework module that simplifies the handling of
 transactions coming from clixon.
 
+This is more of an explaination of everything.  If you want something
+that leads you through the creation of your own code, see
+VADE\_MECUM.md in this directory.
+
 ## A Python interface to clixon
 
 The python interface is a semi-thin veneer over the C interface of
@@ -35,6 +39,9 @@ class ClixonHelloHandler:
         return 0
 
     def statedata(self, nsc, xpath):
+        return (0, "<xml data>")
+
+	def system_only(self, nsc, xpath):
         return (0, "<xml data>")
 
 handler = ClixonHelloHandler()
@@ -100,6 +107,9 @@ class Handler(tf.Elem:
            return (0, ("<xmldata1>", "xmldata2"))
         else
            return (0, "<xml data>")
+		   
+	def system_only(self, nsc, xpath):
+		return (0, "<xml data>")
 ```
 
 The statedata method returns a tuple, the first items is an integer
@@ -108,6 +118,11 @@ or a tuple of strings holding multiple XML trees to add.  If you
 return an error, the xml value may be empty, it is ignored.  The rest
 return -1 on error an 0 on success.  If they return an error, they
 should call `clixon_err` first to report what went wrong.
+
+The system_only part is used if you have data that is always
+represented by the system.  See
+https://clixon-docs.readthedocs.io/en/latest/datastore.html#system-only-config
+for detail on that.
 
 ### Transaction Objects
 
