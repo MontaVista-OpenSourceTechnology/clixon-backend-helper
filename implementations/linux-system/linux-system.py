@@ -44,7 +44,10 @@ IETF_SYSTEM_NAMESPACE = "urn:ietf:params:xml:ns:yang:ietf-system"
 # system data.
 sysbase = os.getenv("LINUX_SYSTEM_SYSBASE")
 if sysbase is None:
-    sysbase = ""
+    sysbase = os.getenv("CLIXON_BEH_SERVER_SYSBASE")
+    if sysbase is None:
+        sysbase = ""
+        pass
     pass
 
 # Enable various password operations
@@ -1034,10 +1037,9 @@ class UserAuthkey(tf.YangElem):
 # /system/authentication/user
 class User(tf.YangElem):
     def start(self, data, op):
-        v = UserData("user", data)
-        new_op = data.add_op(v, "user", v)
-        data.userCurrU = new_op.value
+        data.userCurrU = UserData("user", data)
         data.userCurrU.user_op = op
+        data.add_op(data.userCurrU, "user", data.userCurrU, priv=True)
         return
 
     def validate_add(self, data, xml):
@@ -1289,6 +1291,8 @@ class NTPServerNTSPort(tf.YangElem):
 # /system/ntp/server/tcp/certificate
 class NTPServerNTSCertificate(tf.YangElem):
     def validate_add(self, data, xml):
+        if v == "x":
+            return
         data.userNTP.curr_server.certificate = xml.get_body()
         return
 

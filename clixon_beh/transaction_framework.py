@@ -52,7 +52,7 @@ to describe what they should do at commit time.  At commit time, each
 operation's handler is then called to actually do the operation.  If a
 commit fails for some reason, the revert calls for the operations will
 be done in reverse order.
-
+v
 The escaping of XML body data is important.  If your getvalue() call
 returns text for a body, you need to escape it properly for XML.  If
 you set xmlprocvalue to true on your Op, then it will do this for you
@@ -72,7 +72,27 @@ def xmlescape(xmlstr):
     xmlstr = xmlstr.replace("'", "&apos;")
     return xmlstr
 
-class Op:
+class PrivOp:
+    def do_priv(self, op):
+        """Perform an operation at the initial privilege level."""
+        euid = clixon_beh.geteuid()
+        if clixon_beh.restore_priv() < 0:
+            raise Exception(self.name + ": Can't restore privileges.")
+        try:
+            self.priv(op)
+        finally:
+            if clixon_beh.drop_priv_temp(euid) < 0:
+                raise Exception(self.name + ": Can't drop privileges.")
+            pass
+        return
+
+    def priv(self, op):
+        """Subclasses must override this function for privileged operations."""
+        return
+
+    pass
+
+class Op(PrivOp):
     """This is an operation.  Generally you add this in the validate calls
     when you discover things that need to be done.  and the handler's
     commit function get's called in the commit and revert calls.
@@ -86,10 +106,13 @@ class Op:
     begin with "user".
 
     """
-    def __init__(self, handler, opname, value):
+    def __init__(self, handler, opname, value, priv=False):
         """The handler's commit and revert methods will be called during the
         commit and revert operations.  opname is a convenience name,
         and value may be anything the user desires.
+
+        If priv is True, then all the operation will be done with
+        privileges raised.
 
         """
 
@@ -97,27 +120,53 @@ class Op:
         self.opname = opname
         self.value = value
         self.revert = False
+        self.finish = False
         self.done = False
+        self.end = False
         self.oldvalue = None
+        self.priveleged = priv
         return
+
+    def priv(self, op):
+        if self.end:
+            self.handler.end(self)
+        elif self.revert:
+            self.handler.revert(self)
+        elif self.done:
+            self.handler.commit_done(self)
+        elif self.finish:
+            self.handler.commit(self)
+            pass
+        pass
 
     def commit(self):
         """Commit the operation, basically apply it to the system.  If you
         handle revert, you should store the data to revert in the
-        oldvalue member of this object.
+        oldvalue member of this object.  This sets the "finish" member
+        of this object to "True".
 
         """
-        self.handler.commit(self)
+        self.finish = True
+        if self.priveleged:
+            self.do_priv(self)
+        else:
+            self.handler.commit(self)
+            pass
         return
 
     def commit_done(self):
-        """Commit the operation, basically apply it to the system.  If you
-        handle revert, you should store the data to revert in the
-        oldvalue member of this object.
+        """Commit the operation, basically apply it to the system.  If
+        you handle revert, you should store the data to revert in the
+        oldvalue member of this object.  This sets the "done" member
+        of this object to "True".
 
         """
         self.done = True
-        self.handler.commit_done(self)
+        if self.priveleged:
+            self.do_priv(self)
+        else:
+            self.handler.commit_done(self)
+            pass
         return
 
     def do_revert(self):
@@ -126,7 +175,24 @@ class Op:
 
         """
         self.revert = True
-        self.handler.revert(self)
+        if self.priveleged:
+            self.do_priv(self)
+        else:
+            self.handler.revert(self)
+            pass
+        return
+
+    def do_end(self):
+        """End the operation.  Useful for cleanup.  This sets the
+        "end" member of this operation to True.
+
+        """
+        self.end = True
+        if self.priveleged:
+            self.do_priv(self)
+        else:
+            self.handler.end(self)
+            pass
         return
 
     pass
@@ -142,11 +208,11 @@ class Data:
         self.ops = []
         return
 
-    def add_op(self, handler, opname, value):
+    def add_op(self, handler, opname, value, priv=False):
         """Add an operation to the operation queue.  These will be done
         in the commit and revert phases.  Returns the Op object that
         was created, the user can add to it if they like."""
-        opdata = Op(handler, opname, value)
+        opdata = Op(handler, opname, value, priv=priv)
         self.ops.append(opdata)
         return opdata
 
@@ -168,24 +234,10 @@ class Data:
             pass
         return
 
-    pass
-
-class PrivOp:
-    def do_priv(self, op):
-        """Perform an operation at the initial privilege level."""
-        euid = clixon_beh.geteuid()
-        if clixon_beh.restore_priv() < 0:
-            raise Exception(self.name + ": Can't restore privileges.")
-        try:
-            self.priv(op)
-        finally:
-            if clixon_beh.drop_priv_temp(euid) < 0:
-                raise Exception(self.name + ": Can't drop privileges.")
+    def end(self):
+        for op in self.ops:
+            op.do_end()
             pass
-        return
-
-    def priv(self, op):
-        """Subclasses must override this function for privileged operations."""
         return
 
     pass
@@ -433,6 +485,9 @@ class YangElem(PrivOp, ProgOut):
         return
 
     def revert(self, op):
+        return
+
+    def end(self, op):
         return
 
     def fetch_index(self, indexname, index, vdata):
@@ -751,7 +806,6 @@ class TopElemHandler:
     # def lockdb(self, db, lock, id):
     # def exit(self):
     # def complete(self, t):
-    # def end(self, t):
     # def abort(self, t):
     # You should provide methods for these if you need them.
 
@@ -794,6 +848,11 @@ class TopElemHandler:
     def revert(self, t):
         data = t.get_userdata()
         data.revert()
+        return 0
+
+    def end(self, t):
+        data = t.get_userdata()
+        data.end()
         return 0
 
     def statedata(self, nsc, xpath, data = None):

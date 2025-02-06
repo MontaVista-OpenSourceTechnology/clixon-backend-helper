@@ -166,4 +166,131 @@ parsing and such and just calls the functions you need.
 
 ## The Transaction Framework
 
-## Source of Truth
+So lets go to the next stage, n the `examples/chronyd-server-2`
+directory.  This adds the setting of `sysbase`, some basic
+infrastructure that we will need later, and notice that `Handler` now
+derives from some other types and is created a little differently.
+
+The `sysbase` things lets us override where configuration files are.
+That way it's easier to test the program without screwing up our
+system.
+
+This will do basically the same thing as our previous plugin, but is a
+step in the direction we need.  Let's start it with the "running"
+database instead of startup, so it will have the data we saved earlier:
+```
+sudo CHRONYD_SERVER_SYSBASE=/home/cminyard/tmp/clixon \
+  clixon_backend -f /usr/local/etc/clixon/chronyd-server.xml -s running -F -l e
+```
+You can query that; not much has changed.
+
+So lets go ahead and fill in everything.  Look in
+`implementations/chronyd-server` for a full implementation.  You will
+notice that the Handler has been mostly remove, all of the handling
+is default.
+
+We have created a `ServerFile` class that can read in and write out
+the server file and key and certificate.  This is the central class
+for reading and updating information.
+
+Next we have a `Server` class that represents the top level server
+YANG element.  We do all the commit processing here, so we add ourself
+as an operation in the validate method so the commit operation will
+happen on this class.  You can see the `commit`, `revert`, and `end`
+methods below.  These will be called with raised privileges (root)
+because `priv=True` is set when we add the op.
+
+There is also a getxml() function.  This is used for fetching
+configuration data.  This reads in the server data file and passes the
+information to lower function, eventually all the other things under
+server are called with this data.
+
+Next are all the children of the `server` node, the allow list, the
+deny list, the port, ntsport, and key/certs.  The non-list ones are
+pretty straightforward; we have already fetch the data in the Server
+class, so we just return the data we fetch, and we set the data as
+necessary.  The `allow` and `deny` lists are more complicated because
+they are lists.  Read the comments in the Allow class for details.
+
+We then create our top-level element map.  An element map holds the
+children and the child processing for a non-leaf node.  You create one
+of these and then add children to it.  Next you can see that we create
+a `server` with `chronydserver` as the parent.  We put the `xpath` in
+it, too, mostly as documentation for now.  Then we add all the
+children of the `server` node.
+
+We have a similar sort of thing for the `statistics` node.
+
+Then at the end we add the server and statistics nodes to the
+top-level node.  Notice that the namespace is set on both of these.
+At this level, you must set the namespace.  Also, if you have
+something else that is in a different namespace (like an augment or
+deviation) you must put the proper namespace on that node.  For
+instance, the "certificate" filed in the DNS namespace is an augment
+done in linux-system.py, it is in the namespace of linux-system, not
+ietf-system, so it's namespace is set.
+
+Then we come to our handler.
+
+## Exceptions
+
+Note that if you raise an exception anywhere when using the
+transaction framework, the transaction framework handles returning a
+response with the error information.  It has a special exception,
+`RPCError`, that let's you put your own data.  In some cases the YANG
+files will say to return a specific error and it's good for this, but
+you can also return specific information about things the user has
+done wrong.  Here's an example:
+```
+raise tf.RPCError("application", "invalid-value", "error",
+                  "systemd DNS update not supported here")
+```
+
+## System Only and Source of Truth
+
+`clixon` has a concept called "system only" defined in
+https://clixon-docs.readthedocs.io/en/latest/datastore.html#system-only-config
+that lets use handle a few things special.
+
+In general, clixon considers its database the "source of truth".  This
+means that when clixon comes up, it will take its database and apply
+it to the system.  This is fairly normal with NETCONF/RESTCONF, but
+has a few problems:
+
+* Some things are managed by the system.  For instance, linux-system can
+  manage the password file.  But you can add an RPM package and have the
+  password file change, too, and clixon won't see that.  Other things of
+  this nature can happen, too.
+  
+* `clixon` would then hold all the keys and certificates that are
+  configured in the system.  This is, of course, bad.  Generally those
+  are stored in secure places, like a TPM or a secure partition, and
+  the clixon database is not a secure place.
+  
+To solve this problem, you can mark a YANG node as "system only" by adding
+the following:
+```
+import clixon-lib {
+    prefix cl;
+}
+...
+container/leaf/... name {
+    cl:system-only-config {
+	description
+	    "Keys and certificates are system-only.";
+    }
+    ...
+}
+```
+
+When clixon needs to operate on something, it will fetch the system
+only data from the system using the `system_only` callback.  So, for
+instance, if it adds a user to the password file, it will first fetch
+the data, do the operation, commit it, then purge the system only data
+from its database.
+
+For secure data, you don't want to return the data to clixon.  You may
+not be able to.  So instead, just return a dummy value, generally "x".
+Something that won't be a valid key/certificate/hash.  You should then
+ignore that value if it happens to be sent to you to validate.  That
+*shouldn't* happens, but just to be safe...
