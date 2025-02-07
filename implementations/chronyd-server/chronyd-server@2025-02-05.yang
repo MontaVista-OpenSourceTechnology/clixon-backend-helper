@@ -47,10 +47,11 @@ module chronyd-server {
 
     typedef ntp-stratum {
 	type uint8 {
-	    range "1..16";
+	    range "0..16";
 	}
 	description
-	    "The stratum level the server is operating at.";
+	    "The stratum level the server is operating at.  Note that 0
+             means unsynchronized.";
     }
 
     container server {
