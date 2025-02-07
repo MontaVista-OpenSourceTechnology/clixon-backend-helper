@@ -307,6 +307,21 @@ class GetData:
 
     pass
 
+def xml_full_index(o, data, vdata):
+    xml = ""
+    for i in o.fetch_full_index(vdata):
+        if o.xmlgvprocvalue:
+            s = xmlescape(o.getonevalue(data, vdata=i))
+        else:
+            s = str(o.getonevalue(data, vdata=i))
+            pass
+        if o.wrapgvxml:
+            s = o.xmlwrap(s)
+            pass
+        xml += s
+        pass
+    return xml
+
 class YangElem(PrivOp, ProgOut):
     """The base class for operation handler (what goes into an "Op" class
     handler) and an element handler (what gets called from the clixon
@@ -521,7 +536,8 @@ class YangElem(PrivOp, ProgOut):
             return ""
         if self.indexed:
             if index is None:
-                raise Exception("No index is set for " + self.name)
+                # Return the whole list.
+                return xml_full_index(self, data, vdata)
             vdata = self.fetch_index(indexname, index, vdata)
             if vdata is None:
                 return ""
@@ -551,20 +567,8 @@ class YangElem(PrivOp, ProgOut):
         this and return the value."""
         if not data and not self.isconfig:
             return ""
-        xml = ""
         if self.indexed:
-            for i in self.fetch_full_index(vdata):
-                if self.xmlgvprocvalue:
-                    s = xmlescape(self.getonevalue(data, vdata=i))
-                else:
-                    s = str(self.getonevalue(data, vdata=i))
-                    pass
-                if self.wrapgvxml:
-                    s = self.xmlwrap(s)
-                    pass
-                xml += s
-                pass
-            pass
+            xml = xml_full_index(self, data, vdata)
         else:
             xml = str(self.getonevalue(data, vdata=vdata))
             if self.wrapgvxml:
@@ -653,7 +657,7 @@ class YangElemValidateOnly(YangElem):
         return super().validate_del(data, xml)
 
     def validate(self, data, origxml, newxml):
-        if self.etype == YangType.LEAF:
+        if self.etype == YangType.LEAF or self.etype == YangType.LEAFLIST:
             # Again, assuming a full rebuild of the data, so a validate
             # is the same as an add.  Override if not so.
             self.validate_add(data, newxml)
@@ -665,6 +669,68 @@ class YangElemValidateOnly(YangElem):
 
     def revert(self, xml):
         raise Exception("abort")
+
+    pass
+
+class YangElemValidateOnlyLeafList(YangElemValidateOnly):
+    """This is like ValidateOnly, but has helper functions for leaf
+    lists.  Leaf lists should generally use this.
+
+    This code assumes that the data items in the list from
+    fetch_full_index() and validate_fetch_full_index() are simply the
+    string items in the leaf list.  That's going to be the most common
+    case.  If that's not the case, these methods can be overridden.
+
+    """
+    def validate_add(self, data, xml):
+        """We fetch the full list and add the string if it's not
+        already there.
+
+        """
+        v = xml.get_body()
+        l = self.validate_fetch_full_index(data)
+        if v not in l:
+            l.append(v)
+            pass
+        return
+
+    def validate_del(self, data, xml):
+        """We fetch the full list and delete the string if it's there.
+
+        """
+        v = xml.get_body()
+        l = self.validate_fetch_full_index(data)
+        if v in l:
+            l.remove(v)
+            pass
+        return
+
+    # In parent class, validate() calls validate_add() on a leaf list,
+    # which is what we want.
+
+    # Since this is a list (leaf-list), we don't use getvalue()
+    # because we have to deal with indexes.  Instead, we have three
+    # functions, on to fetch the value of a specific index (if it
+    # exists), on to return the value from a single index (which is
+    # simple, because it's just a value) and one to fetch all values
+    # in the index.
+
+    def fetch_index(self, indexname, index, vdata):
+        l = self.fetch_full_index(vdata)
+        if index in l:
+            return index
+        return None
+
+    def getonevalue(self, data, vdata):
+        return vdata
+
+    def validate_fetch_full_index(self, data):
+        """Fetch all values for this list, in the validate case.  You
+        must override this method to use this class.  This must return
+        a mutable tuple.
+
+        """
+        raise Exception("No validate full index function for " + self.name)
 
     pass
 

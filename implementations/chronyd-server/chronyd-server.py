@@ -77,20 +77,28 @@ default_port = 123
 default_ntsport = 4460
 
 class ServerFile:
+    """This class is used to read in, modify, and write out the
+    contents of a chronyd server.conf file.
+
+    """
     def __init__(self, fname = chronyd_server_file,
                  keyfname = ntsserverkey, certfname = ntsservercert):
-        self.fname = fname
-        self.keyfname = keyfname
-        self.certfname = certfname
+        # Public members, these are the contents of the file.
         self.allows = []
         self.denies = []
         self.port = default_port
         self.ntsport = default_ntsport
         self.serverkey = None
         self.servercert = None
+
+        # Internal data, don't mess with this.
+        self.fname = fname
+        self.keyfname = keyfname
+        self.certfname = certfname
         self.oldserverfile = False
         self.oldserverkey = False
         self.oldservercert = False
+
         self.read()
         return
 
@@ -196,8 +204,20 @@ class ServerFile:
     pass
 
 class Server(tf.YangElem):
-    # When a transaction starts on this part, save a backup copy of the
-    # server file.
+    """This is a top-level class for the chronyd server node.  It has
+    three functions:
+
+    It intercepts the main validate call so it can add our vdata (the
+    contents of the server file) to the data item.
+
+    It intercepts getxml() so it can add our own vdata to all the
+    calls to get data from the file.
+
+    It registers as a commit operation to handle the write of the
+    server file with commit/revert/end.
+
+    """
+
     def validate(self, data, origxml, newxml):
         # Get the current file data for processing.
         data.uservdata = ServerFile()
@@ -226,79 +246,22 @@ class Server(tf.YangElem):
 
     pass
 
-class Allow(tf.YangElemValidateOnly):
-    def validate_add(self, data, xml):
-        # Add it to the list if it's not already there.
-        v = xml.get_body()
-        if v not in data.uservdata.allows:
-            data.uservdata.allows.append(v)
-            pass
-        return
+class Allow(tf.YangElemValidateOnlyLeafList):
+    # Leaf lists have a helper class that does most of the work, since
+    # we just have a tuple of strings.  We just need to return the
+    # proper tuple.
 
-    def validate_del(self, data, xml):
-        # Delete it from the list if it's there.
-        v = xml.get_body()
-        if v in data.uservdata.allows:
-            data.uservdata.allows.remove(v)
-            pass
-        return
-
-    def validate(self, data, origxml, newxml):
-        # Really shouldn't happen, as you can only add and delete from
-        # leaf-lists, but just add it if it does.
-        self.validate_add(data, newxml)
-        return
-
-    # Since this is a list (leaf-list), we don't use getvalue()
-    # because we have to deal with indexes.  Instead, we have three
-    # functions, on to fetch the value of a specific index (if it
-    # exists), on to return the value from a single index (which is
-    # simple, because it's just a value) and one to fetch all values
-    # in the index.
-
-    def fetch_index(self, indexname, index, vdata):
-        if index in v.allows:
-            return index
-        return None
-
-    def getonevalue(self, data, vdata):
-        return vdata
+    def validate_fetch_full_index(self, data):
+        return data.uservdata.allows
 
     def fetch_full_index(self, vdata):
         return vdata.allows
 
     pass
         
-class Deny(tf.YangElemValidateOnly):
-    def validate_add(self, data, xml):
-        # Add it to the list if it's not already there.
-        v = xml.get_body()
-        if v not in data.uservdata.denies:
-            data.uservdata.denies.append(v)
-            pass
-        return
-
-    def validate_del(self, data, xml):
-        # Delete it from the list if it's there.
-        v = xml.get_body()
-        if v in data.uservdata.denies:
-            data.uservdata.denies.remove(v)
-            pass
-        return
-
-    def validate(self, data, origxml, newxml):
-        # Really shouldn't happen, as you can only add and delete from
-        # leaf-lists, but just add it if it does.
-        self.validate_add(data, newxml)
-        return
-
-    def fetch_index(self, indexname, index, vdata):
-        if index in v.denies:
-            return index
-        return None
-
-    def getonevalue(self, data, vdata):
-        return vdata
+class Deny(tf.YangElemValidateOnlyLeafList):
+    def validate_fetch_full_index(self, data):
+        return data.uservdata.denies
 
     def fetch_full_index(self, vdata):
         return vdata.denies
@@ -315,10 +278,7 @@ class Port(tf.YangElemValidateOnly):
         data.uservdata.port = default_port
         return
 
-    def validate(self, data, origxml, newxml):
-        # Same as add
-        self.validate_add(data, newxml)
-        return
+    # For a leaf validate() call validate_add() by default.
 
     def getvalue(self, data, vdata):
         return str(vdata.port)
@@ -333,11 +293,6 @@ class NTSPort(tf.YangElemValidateOnly):
     def validate_del(self, data, xml):
         # Go back to the default.
         data.uservdata.ntsport = default_ntsport
-        return
-
-    def validate(self, data, origxml, newxml):
-        # Same as add
-        self.validate_add(data, newxml)
         return
 
     def getvalue(self, data, vdata):
@@ -357,11 +312,6 @@ class ServerKey(tf.YangElemValidateOnly):
         raise tf.RPCError("application", "invalid-value", "error",
                           "Delete of server key not allowed")
 
-    def validate(self, data, origxml, newxml):
-        # Same as add
-        self.validate_add(data, newxml)
-        return
-
     def getvalue(self, data, vdata):
         # Don't return security-sensitive data
         return "x"
@@ -379,11 +329,6 @@ class ServerCert(tf.YangElemValidateOnly):
     def validate_del(self, data, xml):
         raise tf.RPCError("application", "invalid-value", "error",
                           "Delete of server certificate not allowed")
-
-    def validate(self, data, origxml, newxml):
-        # Same as add
-        self.validate_add(data, newxml)
-        return
 
     def getvalue(self, data, vdata):
         # Don't return security-sensitive data
@@ -403,6 +348,11 @@ m.add(Port("port", tf.YangType.LEAF))
 m.add(NTSPort("ntsport", tf.YangType.LEAF))
 m.add(ServerKey("serverkey", tf.YangType.LEAF))
 m.add(ServerCert("servercert", tf.YangType.LEAF))
+
+# Both of these classes for statistics call chronyc.  You could create
+# a class for the statistics node instead of directly using YangElem
+# that fetch the data for tracking and passed it in vdata.  If you add
+# more of these; that's probably a good idea.
 
 class Stratum(tf.YangElemValueOnly):
     def getvalue(self, data, vdata):

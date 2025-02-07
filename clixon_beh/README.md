@@ -634,10 +634,12 @@ parent of those use `YangElemValidateOnly` as the class but override
 `getvalue` to get all the values together, and have the commit set all
 the values together from what was set in the data value.
 
-`YangElemValueOnly` is `YangElem` with all validation and
-commit operations raising exception.  The only thing this can be used
-for is fetching the value.  This is useful for "config false" items in
-the YANG.
+`YangElemValidateOnlyLeafList` is like `YangElemValidateOnly`, but
+does most of the work for leaf lists.  It assumes that the
+`fetch_full_index()` method returns a tuple of strings that are the
+same as the string values in the leaf list.  And it adds a method
+`validate_fetch_full_index()` that the user class must override that
+returns a mutable tuple of strings for add/delete operations.
 
 ### Containers
 
