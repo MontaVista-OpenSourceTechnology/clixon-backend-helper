@@ -12,6 +12,10 @@ A clixon backend that provides helpful functions for a backend.  These are:
 
 ## Compile and run
 
+NOTE: This requires a version of clixon after 7.3.0.  As of writing,
+that is the latest version, so you will need to pull the end of the
+clixon git tree at the moment.
+
 Build and install clixon first, or install it from your distro if
 available.  Then run:
 ```
