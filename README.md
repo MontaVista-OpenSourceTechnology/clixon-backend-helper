@@ -9,6 +9,10 @@ A clixon backend that provides helpful functions for a backend.  These are:
   if you need to perform certain operation at privilege you need an external
   program to do this.  (Not yet implmented.)
 * python plugins.
+* A python framework, called the transaction framework, that does most
+  of the XML parsing and generation for you.  With it, you basically
+  describe the tree structure that comes from YAML and put in the
+  operations you need, like validation and applying the changes.
 
 ## Compile and run
 
@@ -38,7 +42,7 @@ directory for the python version, like `/usr/local/lib/python3.12/...`
 so you will need to override the python installation directories.
 First you need to find them, run:
 ```
-python -m sysconfig | less
+python3 -m sysconfig | less
 ```
 and look for `platlib` and `purelib`.  Then for setup, run:
 ```
@@ -47,8 +51,17 @@ meson setup build -Dpython.platlibdir=... -Dpython.purelibdir=...
 making the obvious substitutions for `...`.  Then you can compile and
 install.
 
+This may still not work.  In some cases `platlib` and `purelib`
+reported by python are wrong.  Then try:
+```
+python3 -c 'import sys; print(str(sys.path))'
+```
+The `platlibdir` and `purelibdir` must be one of those directories.
+
 Note that if you install in `/usr` python will look in
-`/usr/lib/python3` so everything works fine in that case.
+`/usr/lib/python3` so everything should work fine in that case.
+However, maybe not, and you have the tools above to help you in that
+case.
 
 ## Examples
 
