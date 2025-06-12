@@ -423,12 +423,11 @@ class Hostname(tf.YangElem):
         return self.program_output(["/bin/hostname"]).strip()
 
 sysinfo = tf.YangElemMap(None, "/")
+s = sysinfo # shorthand
 
-system = tf.YangElemMap(sysinfo, "/system")
-system.add(Hostname("hostname", tf.YangType.LEAF))
-
-sysinfo.add(tf.YangElem("system", tf.YangType.CONTAINER, system,
-                        namespace=MY_NAMESPACE))
+s.add_map("/", tf.YangElem("system", tf.YangType.CONTAINER,
+                           namespace=MY_NAMESPACE))
+s.add_leaf("/system", Hostname("hostname", tf.YangType.LEAF))
 
 handler = tf.TopElemHandler("sysinfo", sysinfo)
 handler.p = clixon_beh.add_plugin("sysinfo", MY_NAMESPACE, handler)
@@ -448,7 +447,8 @@ the top XML element's name.  If it matches something added to the
 registered `YangElemMap`, it will recurse down to that element's
 handler.
 
-The top-level children must set the namespace for all the elements.
+The top-level children (with "/" as the starting path) must set the
+namespace for all the elements.
 
 The `begin` call in `TopElemHandler` will create an item of the class
 `Data` that you can use to store data about the transaction as you
@@ -706,19 +706,27 @@ class SystemStateClock(tf.YangElemValueOnly):
     pass
 
 sysinfo = tf.YangElemMap(None, "/")
+s = sysinfo #shorthand
 
-system = tf.YangElemMap(sysinfo, "/system")
-
-systemhostinfo = tf.YangElemMap(system, "/system/hostinfo")
-systemhostinfo.add(Hostname("hostname", tf.YangType.LEAF))
-systemhostinfo.add(SystemStateClock("boot-datetime", tf.YangType.LEAF))
-systemhostinfo.add(SystemStateClock("current-datetime", tf.YangType.LEAF))
-
-system.add(tf.YangElem("hostinfo", tf.YangType.CONTAINER, systemhostinfo))
-
-sysinfo.add(tf.YangElem("system", tf.YangType.CONTAINER, system,
-                        namespace=MY_NAMESPACE))
+s.add_map("/", tf.YangElem("system", tf.YangType.CONTAINER,
+                           namespace=MY_NAMESPACE))
+s.add_map("/system", tf.YangElem("hostinfo", tf.YangType.CONTAINER))
+s.add_leaf("/system/hostinfo",
+           Hostname("hostname", tf.YangType.LEAF))
+s.add_leaf("/system/hostinfo",
+           SystemStateClock("boot-datetime", tf.YangType.LEAF))
+s.add_leaf("/system/hostinfo",
+           SystemStateClock("current-datetime", tf.YangType.LEAF))
+del s
 ```
+
+We haven't discussed this before, but the `add_map` and `add_leaf` are
+used to add elements to a the structure map.  The first parameter,
+path, is obviously the YANG path to the element being added.  Then you
+allocate the proper element for the second parameter.  `add_map` can
+only be used on containers and lists; these are things that have
+sub-elements (in a data structure called a map).  Leafs do not have
+sub-elements.
 
 Notice that you can re-use classes with some sort of differentiator.
 If there are containers in containers in containers, you can continue
@@ -790,7 +798,7 @@ class Hostname(tf.YangElem):
     def getonevalue(self, vdata):
         return vdata
 
-system.add(Hostname("hostname", tf.YangType.LIST))
+s.add_leaf("/system/hostname", Hostname("hostname", tf.YangType.LEAFLIST))
 ```
 
 You see a number of new things here.  First of all, there is a
@@ -868,9 +876,9 @@ class HostInfo(tf.YangElem):
         # Returns a list of HostData items.
         return get_all_hostinfo_in_a_list()
 
-system.add(HostInfo("hostinfo", tf.YangType.LIST,
-                    system_hostinfo_children,
-                    validate_all = True))
+s.add_map("/system", HostInfo("hostinfo", tf.YangType.LIST,
+                              validate_all = True))
+# Add children here with add_map and add_leaf
 ```
 
 This is something like a leaf list, but instead, the
@@ -949,7 +957,7 @@ class Handler(tf.TopElemHandler, tf.ProgOut):
 
     pass
 
-handler = Handler("itef-system", children)
+handler = Handler("ietf-system", children)
 handler.p = clixon_beh.add_plugin(handler.name, handler.namespace, handler)
 ```
 
@@ -987,13 +995,10 @@ class DNSResolver(tf.YangElem):
             return ""
         return super().getvalue(vdata=vdata)
 
-system_dnsresolver = tf.YangElemMap(system, "/system/dns-resolver")
-system_dnsresolver_options = tf.YangElemMap(system_dnsresolver,
-                                            "/system/dns-resolver/options")
-
-system.add(DNSResolver("dns-resolver", tf.YangType.CONTAINER,
-                       children = system_dnsresolver,
-                       validate_all = True),
+s.add_map("/system", tf.YangElem("dns-resolver", tf.YangType.CONTAINER,
+                                 validate_all = True))
+s.add_map("/system/dns-resolver",
+          tf.YangElem("options", tf.YangType.CONTAINER))
 ```
 
 We have `validate_all` set to true; this will cause the framework to
@@ -1007,14 +1012,12 @@ vdata value, all the data from resolv.conf, and pass it to super().
 Now for the children:
 
 ```
-system_dns_resolver.add(DNSSearch("search", tf.YangType.LEAFLIST,
-                                  validate_all=True))
-system_dns_resolver.add(DNSServer("server", tf.YangType.LIST,
-                                   children=system_dns_server_children,
-                                   validate_all=True))
-system_dns_resolver.add(tf.YangElem("options", tf.YangType.CONTAINER,
-                                    children=system_dns_options_children,
-                                    validate_all=True))
+s.add_leaf("/system/dns-resolver",
+           DNSSearch("search", tf.YangType.LEAFLIST, validate_all=True))
+s.add_map("/system/dns-resolver",
+           DNSServer("server", tf.YangType.LIST, validate_all=True))
+s.add_map("/system/dns-resolver",
+          tf.YangElem("options", tf.YangType.CONTAINER, validate_all=True))
 ```
 
 These children will all get `vdata` as the full data read from
@@ -1058,11 +1061,13 @@ class DNSUseVC(tf.YangElemValidateOnly):
 
     pass
 
-m = system_dnsresolver_options
-m.add(DNSTimeout("timeout", tf.YangType.LEAF))
-m.add(DNSAttempts("attempts", tf.YangType.LEAF))
-m.add(DNSUseVC("use-vc", tf.YangType.LEAF,
-               wrapxml=False, xmlprocvalue=False))
+s.add_leaf("/system/dns-resolver/options",
+           DNSTimeout("timeout", tf.YangType.LEAF))
+s.add_leaf("/system/dns-resolver/options",
+           DNSAttempts("attempts", tf.YangType.LEAF))
+s.add_leaf("/system/dns-resolver/options",
+            DNSUseVC("use-vc", tf.YangType.LEAF,
+                     wrapxml=False, xmlprocvalue=False))
 ```
 
 Note that what is passed into the super() calls is passed into the

@@ -338,16 +338,17 @@ class ServerCert(tf.YangElemValidateOnly):
 
 # Top-level entry
 chronydserver = tf.YangElemMap(None, "/")
+s = chronydserver # shorthand
 
-server = tf.YangElemMap(chronydserver, "/server")
+s.add_map("/", Server("server", tf.YangType.CONTAINER,
+                      namespace=MY_NAMESPACE))
 
-m = server
-m.add(Allow("allows", tf.YangType.LEAFLIST))
-m.add(Deny("denys", tf.YangType.LEAFLIST))
-m.add(Port("port", tf.YangType.LEAF))
-m.add(NTSPort("ntsport", tf.YangType.LEAF))
-m.add(ServerKey("serverkey", tf.YangType.LEAF))
-m.add(ServerCert("servercert", tf.YangType.LEAF))
+s.add_leaf("/server", Allow("allows", tf.YangType.LEAFLIST))
+s.add_leaf("/server", Deny("denys", tf.YangType.LEAFLIST))
+s.add_leaf("/server", Port("port", tf.YangType.LEAF))
+s.add_leaf("/server", NTSPort("ntsport", tf.YangType.LEAF))
+s.add_leaf("/server", ServerKey("serverkey", tf.YangType.LEAF))
+s.add_leaf("/server", ServerCert("servercert", tf.YangType.LEAF))
 
 # Both of these classes for statistics call chronyc.  You could create
 # a class for the statistics node instead of directly using YangElem
@@ -397,20 +398,13 @@ class Time(tf.YangElemValueOnly):
 
     pass
 
-statistics = tf.YangElemMap(chronydserver, "/statistics")
+s.add_map("/", tf.YangElem("statistics", tf.YangType.CONTAINER,
+                           namespace=MY_NAMESPACE,
+                           isconfig=False))
 
-m = statistics
-m.add(Stratum("stratum", tf.YangType.LEAF))
-m.add(Time("time", tf.YangType.LEAF))
-
-m = chronydserver
-# We have to add the namespace to the ones at the top level so the
-# namespace is set in the query responses.  Don't forget to do this.
-m.add(Server("server", tf.YangType.CONTAINER, server,
-             namespace=MY_NAMESPACE))
-m.add(tf.YangElem("statistics", tf.YangType.CONTAINER, statistics,
-                  namespace=MY_NAMESPACE,
-                  isconfig=False))
+s.add_leaf("/statistics", Stratum("stratum", tf.YangType.LEAF))
+s.add_leaf("/statistics", Time("time", tf.YangType.LEAF))
+del s
 
 class Handler(tf.TopElemHandler, tf.ProgOut):
     def exit(self):

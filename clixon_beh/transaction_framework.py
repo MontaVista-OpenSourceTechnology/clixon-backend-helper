@@ -781,6 +781,59 @@ class YangElemMap:
         self.mapv[elem.name] = elem
         return
 
+    def lookup_elem(self, path):
+        """Return the YangElemMap object for the given path.  Returns
+        a tuple with two element, the first is an error (None if no error)
+        and the second if the map object (None if an error).
+        """
+
+        if path == "/":
+            spath = []
+        else:
+            spath = path.split("/")
+            if spath[0] != "":
+                return ("Path " + path + " does not begin with '/'", None)
+            pass
+        m = self
+        for p in spath[1:]:
+            if p in m.mapv:
+                m = m.mapv[p].children
+                if not m:
+                    return ("Element " + p + " in path " + path +
+                            " is a leaf", None)
+                pass
+            else:
+                return ("Element " + p + " not set in path " + path, None)
+            pass
+        return (None, m)
+
+    def add_elem(self, path, elem):
+        """Add an element for the full path, adding intermediate elements
+        as necessary.  Return the last map where the element was added.
+        """
+        (err, m) = self.lookup_elem(path)
+        if err is not None:
+            raise Exception(err)
+        if elem.name in m.mapv:
+            raise Exception("Duplicate element " + elem.name + " in " + path)
+        m.mapv[elem.name] = elem
+        return m
+
+    def add_map(self, path, elem):
+        if elem.etype != YangType.CONTAINER and elem.etype != YangType.LIST:
+            raise Exception("Added map element " + elem.name +
+                            " is not container or list")
+        m = self.add_elem(path, elem)
+        elem.children = YangElemMap(m, path + "/" + elem.name)
+        return
+
+    def add_leaf(self, path, elem):
+        if elem.etype != YangType.LEAF and elem.etype != YangType.LEAFLIST:
+            raise Exception("Added leaf element " + elem.name +
+                            " is not a leaf")
+        self.add_elem(path, elem)
+        return
+
     def validate_add(self, data, xml):
         name = xml.get_name()
         if name not in self.mapv:

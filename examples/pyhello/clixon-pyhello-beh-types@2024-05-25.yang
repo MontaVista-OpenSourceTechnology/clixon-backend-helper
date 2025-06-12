@@ -1,0 +1,53 @@
+module clixon-pyhello-beh-types {
+    yang-version 1.1;
+    namespace "urn:example:pyhello_beh_types";
+    prefix bt;
+    revision 2024-05-25 {
+	description
+	    "Clixon backend helper hello world types
+
+             Copyright (C) 2024 MontaVista Software, LLC <source@mvista.com>
+
+             Licensed under the Apache License, Version 2.0 (the "License");
+             you may not use this file except in compliance with the License.
+             You may obtain a copy of the License at
+
+                http://www.apache.org/licenses/LICENSE-2.0
+
+             Unless required by applicable law or agreed to in writing, software
+             distributed under the License is distributed on an "AS IS" BASIS,
+             WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or
+             implied.
+             See the License for the specific language governing permissions and
+             limitations under the License.";
+    }
+    typedef hello-location {
+        type enumeration {
+	    enum city;
+	    enum state;
+	    enum country;
+	    enum world;
+	}
+	description "Location that can send or receive a hello";
+    }
+    grouping to-hello {
+	leaf to {
+	    type hello-location;
+	    description "To whom are we saying hello?";
+	}
+    }
+    grouping from-hello {
+	container from {
+	    leaf location {
+	        type hello-location;
+	        description "Who is saying hello?";
+	    }
+	}
+    }
+    container tester {
+        leaf asdf {
+	    type boolean;
+	    default "true";
+	}
+    }
+}
