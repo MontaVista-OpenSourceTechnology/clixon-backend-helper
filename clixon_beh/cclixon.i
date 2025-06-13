@@ -43,6 +43,12 @@
 #include <clixon/clixon_xml_io.h>
 
 struct xmlobj {
+    /*
+     * orig_ref points to the top level of the whole XML tree, and
+     * refcount counts the number of references to it.  This way we
+     * can track all the users of the tree and free the entire thing
+     * when we are done.
+     */
     unsigned int refcount;
     struct xmlobj *orig_ref;
     cxobj *xml;
@@ -70,9 +76,48 @@ free_xmlobj(struct xmlobj *x)
     x->orig_ref->refcount--;
     if (x->orig_ref->refcount == 0) {
 	xml_free(x->orig_ref->xml);
+	if (x != x->orig_ref)
 	    free(x->orig_ref);
+	free(x);
+    } else {
+	if (x != x->orig_ref)
+	    free(x);
     }
-    free(x);
+}
+
+struct yangobj {
+    struct yang_stmt *yang;
+};
+
+static struct yangobj *
+yangobj_new(yang_stmt *yang)
+{
+    struct yangobj *rv;
+
+    if (!yang)
+	return NULL;
+    rv = calloc(1, sizeof(*rv));
+    rv->yang = yang;
+    return rv;
+}
+
+static void
+free_yangobj(struct yangobj *y)
+{
+    free(y);
+}
+
+struct yangobj *
+get_yang_base()
+{
+    struct clixon_beh *beh = clixon_beh_get_global_beh();
+    struct clixon_handle *h = clixon_beh_get_handle(beh);
+    yang_stmt *yang;
+
+    yang = clixon_yang_mounts_get(h);
+    if (!yang)
+	return NULL;
+    return yangobj_new(yang);
 }
 
 struct plugin {
@@ -361,6 +406,28 @@ pyclixon_beh_exit(struct clixon_beh_plugin *p)
     pyclixon_call_rv_int(bp->handler, "exit", NULL, true);
     Py_DECREF(bp->handler);
     return 0;
+}
+
+static int
+pyclixon_beh_start(struct clixon_beh_plugin *p)
+{
+    struct plugin *bp = clixon_beh_plugin_get_cb_data(p);
+
+    return pyclixon_call_rv_int(bp->handler, "start", NULL, true);
+}
+
+static int
+pyclixon_beh_yang_patch(struct clixon_beh_plugin *p, yang_stmt *yang)
+{
+    struct plugin *bp = clixon_beh_plugin_get_cb_data(p);
+    PyObject *args = PyTuple_New(1);
+    struct yangobj *y;
+
+    y = yangobj_new(yang);
+    PyTuple_SET_ITEM(args, 0, SWIG_NewPointerObj(SWIG_as_voidptr(y),
+						 SWIGTYPE_p_yangobj,
+						 SWIG_POINTER_OWN));
+    return pyclixon_call_rv_int(bp->handler, "yang_patch", args, true);
 }
 
 static int
@@ -662,6 +729,8 @@ struct clixon_beh_api pyclixon_beh_api_strxml = {
     .system_only = pyclixon_beh_system_only,
     .lockdb = pyclixon_beh_lockdb,
     .exit = pyclixon_beh_exit,
+    .start = pyclixon_beh_start,
+    .yang_patch = pyclixon_beh_yang_patch,
     .begin = pyclixon_beh_begin,
     .validate = pyclixon_beh_validate,
     .complete = pyclixon_beh_complete,
@@ -1207,6 +1276,69 @@ struct xmlobj { };
     }
 }
 
+%nodefaultctor yangobj;
+struct yangobj { };
+
+%extend yangobj {
+    ~yangobj()
+    {
+	free_yangobj(self);
+    }
+
+    PyObject *to_str(int marginal = 0, bool pretty = false)
+    {
+	cbuf *cb = NULL;
+	PyObject *rv = NULL;
+
+	cb = cbuf_new();
+	if (!cb) {
+	    clixon_err(OE_XML, 0, "Unable to allocate cbuf");
+	    goto out_err;
+	}
+	if (yang_print_cbuf(cb, self->yang, marginal, pretty) < 0) {
+	    clixon_err(OE_XML, 0, "Unable to convert yang to cbuf");
+	    goto out_err;
+	}
+
+	rv = PyUnicode_FromString(cbuf_get(cb));
+    out_err:
+	if (cb)
+	    cbuf_free(cb);
+	return rv;
+    }
+
+    int nr_children()
+    {
+	return yang_len_get(self->yang);
+    }
+
+    struct yangobj *child_i(int i)
+    {
+	return yangobj_new(yang_child_i(self->yang, i));
+    }
+
+    char *find_mynamespace()
+    {
+	return yang_find_mynamespace(self->yang);
+    }
+
+    char *find_myprefix()
+    {
+	return yang_find_myprefix(self->yang);
+    }
+
+    char *keyword_get()
+    {
+	return yang_key2str(yang_keyword_get(self->yang));
+    }
+
+    char *argument_get()
+    {
+	return yang_argument_get(self->yang);
+    }
+}
+
+struct yangobj *get_yang_base();
 %nodefaultctor plugin;
 struct transaction { };
 

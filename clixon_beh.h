@@ -64,6 +64,8 @@ typedef int (*clixon_beh_exit_cb)(struct clixon_beh_plugin *p);
 typedef int (*clixon_beh_reset_cb)(struct clixon_beh_plugin *p, const char *cb);
 typedef int (*clixon_beh_lockdb_cb)(struct clixon_beh_plugin *p,
 				    const char *db, int lock, int id);
+typedef int (*clixon_beh_yang_patch_cb)(struct clixon_beh_plugin *p,
+					yang_stmt *yang);
 typedef int (*clixon_beh_transaction_cb)(struct clixon_beh_plugin *p,
 					 struct clixon_beh_trans *t);
 typedef int (*clixon_beh_statedata_cb)(struct clixon_beh_plugin *p,
@@ -80,6 +82,8 @@ struct clixon_beh_api {
     clixon_beh_statedata_cb   system_only;    /* Provide state data XML from the system */
     clixon_beh_lockdb_cb      lockdb;         /* Database lock changed state */
     clixon_beh_exit_cb        exit;
+    clixon_beh_daemon_cb      start;
+    clixon_beh_yang_patch_cb  yang_patch;
     clixon_beh_transaction_cb begin;    /* Transaction start */
     clixon_beh_transaction_cb validate; /* Transaction validation */
     clixon_beh_transaction_cb complete; /* Transaction validation complete */

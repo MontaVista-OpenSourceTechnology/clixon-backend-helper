@@ -757,6 +757,38 @@ clixon_beh_pre_daemon(clixon_handle h)
 }
 
 static int
+clixon_beh_start(clixon_handle h)
+{
+    int rv = 0;
+    struct clixon_beh_plugin *p;
+
+    clixon_beh_for_each_plugin(p) {
+	if (p->api && p->api->start)
+	    rv = p->api->start(p);
+	if (rv < 0)
+	    break;
+    }
+
+    return rv;
+}
+
+static int
+clixon_beh_yang_patch(clixon_handle h, yang_stmt *yang)
+{
+    int rv = 0;
+    struct clixon_beh_plugin *p;
+
+    clixon_beh_for_each_plugin(p) {
+	if (p->api && p->api->yang_patch)
+	    rv = p->api->yang_patch(p, yang);
+	if (rv < 0)
+	    break;
+    }
+
+    return rv;
+}
+
+static int
 clixon_beh_daemon(clixon_handle h)
 {
     int rv = 0;
@@ -808,6 +840,8 @@ static clixon_plugin_api api = {
     .ca_name = "clixon_beh backend",
     .ca_init = clixon_plugin_init,
     .ca_exit = clixon_beh_exit,
+    .ca_start = clixon_beh_start,
+    .ca_yang_patch = clixon_beh_yang_patch,
     .ca_pre_daemon = clixon_beh_pre_daemon,
     .ca_daemon = clixon_beh_daemon,
     .ca_reset = clixon_beh_reset,
