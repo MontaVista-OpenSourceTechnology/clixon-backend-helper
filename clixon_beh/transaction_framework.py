@@ -265,6 +265,7 @@ class YangType(Enum):
     LEAF = 2
     LIST = 3
     LEAFLIST = 4
+    CHOICE = 5
 
     pass
 
@@ -337,7 +338,7 @@ class YangElem(PrivOp, ProgOut):
     """
     def __init__(self, name, etype, children = None, validate_all = False,
                  xmlprocvalue = None, wrapxml = None, namespace = None,
-                 isconfig = True):
+                 isconfig = True, parent = None):
         """name should be the xml tag name for this operations.  children, if
         set, should be a map of the xml elements that can occur in
         this xml element, and their handlers.  If validate_all is set,
@@ -371,8 +372,9 @@ class YangElem(PrivOp, ProgOut):
         self.wrapgvxml = True
         self.xmlgvprocvalue = False
         self.namespace = namespace
+        self.parent = parent
         self.isconfig = isconfig
-        if etype == YangType.CONTAINER:
+        if etype == YangType.CONTAINER or etype == YangType.CHOICE:
             self.indexed = False
             self.xmlprocvalue = False
             self.wrapxml = False
@@ -563,8 +565,10 @@ class YangElem(PrivOp, ProgOut):
         return self.children.getonevalue(data, vdata=vdata)
 
     def getvalue(self, data, vdata=None):
-        """Return the xml strings for this node.  Leaf nodes should override
-        this and return the value."""
+        """Return the xml strings for this node.  Leaf nodes should
+        override this and return the value.
+
+        """
         if not data and not self.isconfig:
             return ""
         if self.indexed:
@@ -576,6 +580,58 @@ class YangElem(PrivOp, ProgOut):
             pass
         return xml
 
+    def find_path(self):
+        """Return the full path for the element by getting the parents
+        path and appending our name.
+
+        """
+        if not self.parent:
+            return ""
+        return self.parent.find_path() + "/" + self.name
+
+    def find_namespace(self):
+        """Return the namespace for the element.  If this element's
+        namespace isn't set, return the parent's.
+
+        """
+        e = self
+        while e.namespace is None:
+            if e.parent is None:
+                break;
+            e = e.parent
+            pass
+        return e.namespace
+
+    def get_etype_str(self):
+        """"Return a string name for the etype.  Matches the names
+        that clixon gives for the YANG statements.
+
+        """
+        if self.etype == YangType.CONTAINER:
+            return "container"
+        elif self.etype == YangType.LEAF:
+            return "leaf"
+        elif self.etype == YangType.LIST:
+            return "list"
+        elif self.etype == YangType.LEAFLIST:
+            return "leaf-list"
+        elif self.etype == YangType.CHOICE:
+            return "choice"
+        return None # Shouldn't be possible
+
+    pass
+
+class YangElemChoice(YangElem):
+    """This is for "choice" elements, which are kind of invisible in
+    the XML.
+
+    """
+
+    def __init__(self, name, children = None, parent = None):
+        super().__init__(name, YangType.CHOICE, children = children,
+                         parent = parent)
+        return
+
     pass
 
 class YangElemConfigOnly(YangElem):
@@ -584,8 +640,8 @@ class YangElemConfigOnly(YangElem):
 
     """
 
-    def __init__(self, name):
-        super().__init__(name, YangType.LEAF)
+    def __init__(self, name, etype = YangType.LEAF):
+        super().__init__(name, etype)
         return
 
     def validate_add(self, data, xml):
@@ -761,6 +817,15 @@ class YangElemValueOnly(YangElem):
 
     pass
 
+class YangElemValueOnlyUnimpl(YangElem):
+    """This is a value only that always returns an empty string.  This
+    can be used for optional things that aren't implemented.
+
+    """
+
+    def getvalue(self, data, vdata=None):
+        return ""
+
 class YangElemMap:
     """This is for a non-leaf that contains other elements.  You can
     use this directly if you do not need to do any processing, or you
@@ -783,8 +848,11 @@ class YangElemMap:
 
     def lookup_elem(self, path):
         """Return the YangElemMap object for the given path.  Returns
-        a tuple with two element, the first is an error (None if no error)
-        and the second if the map object (None if an error).
+        a tuple with three elements, the first is an error (None if no
+        error) and the second if the map object (None if an
+        error). and the third is the element (None if a error or if the
+        path is "/".
+
         """
 
         if path == "/":
@@ -795,9 +863,11 @@ class YangElemMap:
                 return ("Path " + path + " does not begin with '/'", None)
             pass
         m = self
+        e = None
         for p in spath[1:]:
             if p in m.mapv:
-                m = m.mapv[p].children
+                e = m.mapv[p]
+                m = e.children
                 if not m:
                     return ("Element " + p + " in path " + path +
                             " is a leaf", None)
@@ -805,22 +875,25 @@ class YangElemMap:
             else:
                 return ("Element " + p + " not set in path " + path, None)
             pass
-        return (None, m)
+        return (None, m, e)
 
     def add_elem(self, path, elem):
         """Add an element for the full path, adding intermediate elements
         as necessary.  Return the last map where the element was added.
         """
-        (err, m) = self.lookup_elem(path)
+        (err, m, e) = self.lookup_elem(path)
         if err is not None:
             raise Exception(err)
         if elem.name in m.mapv:
             raise Exception("Duplicate element " + elem.name + " in " + path)
         m.mapv[elem.name] = elem
+        elem.parent = e
         return m
 
     def add_map(self, path, elem):
-        if elem.etype != YangType.CONTAINER and elem.etype != YangType.LIST:
+        if (elem.etype != YangType.CONTAINER and
+            elem.etype != YangType.LIST and
+            elem.etype != YangType.CHOICE):
             raise Exception("Added map element " + elem.name +
                             " is not container or list")
         m = self.add_elem(path, elem)
@@ -834,20 +907,34 @@ class YangElemMap:
         self.add_elem(path, elem)
         return
 
+    def find_child_in_map(self, name):
+        if name in self.mapv:
+            return self.mapv[name]
+        # Choice elements have special handling, we just skip them.
+        for c in self.mapv:
+            if c.etype == YangType.CHOICE:
+                if c.children and name in c.children.mapv:
+                    return c.children.mapv[name]
+                pass
+            pass
+        return None
+
     def validate_add(self, data, xml):
         name = xml.get_name()
-        if name not in self.mapv:
+        c = self.find_child_in_map(name)
+        if c is None:
             raise RPCError("application", "invalid-value", "error",
                            "No element %s in %s " % (name, self.path))
-        self.mapv[name].validate_add(data, xml)
+        c.validate_add(data, xml)
         return
 
     def validate_del(self, data, xml):
         name = xml.get_name()
-        if name not in self.mapv:
+        c = self.find_child_in_map(name)
+        if c is None:
             raise RPCError("application", "invalid-value", "error",
                            "No element %s in %s " % (name, self.path))
-        self.mapv[name].validate_del(data, xml)
+        c.validate_del(data, xml)
         return
 
     def validate(self, data, origxml, newxml):
@@ -855,15 +942,17 @@ class YangElemMap:
             name = origxml.get_name()
         else:
             name = newxml.get_name()
-        if name not in self.mapv:
+        c = self.find_child_in_map(name)
+        if c is None:
             raise RPCError("application", "invalid-value", "error",
                            "No element %s in %s " % (name, self.path))
-        self.mapv[name].validate(data, origxml, newxml)
+        c.validate(data, origxml, newxml)
         return
 
     def getxml(self, data, path, vdata=None):
         (name, indexname, index) = parsepathentry(path[0])
-        if name not in self.mapv:
+        c = self.find_child_in_map(name)
+        if c is None:
             raise RPCError("application", "invalid-value", "error",
                            "No element %s in %s " % (name, self.path))
         x = self.mapv[name]
@@ -881,18 +970,22 @@ class YangElemMap:
     def getonevalue(self, data, vdata=None):
         xml = ""
         for name in self.mapv:
-            x = self.mapv[name]
-            if data.getnonconfig or x.isconfig:
-                s = str(x.getvalue(data, vdata=vdata))
-                if x.xmlprocvalue:
-                    s = xmlescape(s)
-                    pass
-                if x.wrapxml:
-                    s = x.xmlwrap(s)
-                    pass
-                pass
+            if self.mapv[name].etype == YangType.CHOICE:
+                s = self.mapv[name].children.getonevalue(data, vdata)
             else:
-                s = ""
+                x = self.mapv[name]
+                if data.getnonconfig or x.isconfig:
+                    s = str(x.getvalue(data, vdata=vdata))
+                    if x.xmlprocvalue:
+                        s = xmlescape(s)
+                        pass
+                    if x.wrapxml:
+                        s = x.xmlwrap(s)
+                        pass
+                    pass
+                else:
+                    s = ""
+                    pass
                 pass
             xml += s
             pass
@@ -1071,3 +1164,134 @@ def handle_err(exc, value, tb):
     return
 
 clixon_beh.set_err_handler(handle_err)
+
+#
+# The code below is for validating the build tree against the YANG specification
+# it should implement.
+#
+
+def lookup_yang_mount(mount):
+    y = clixon_beh.get_yang_base()
+    y = y.child_i(0)
+    for i in range(0, y.nr_children()):
+        c = y.child_i(i)
+        if c.keyword_get() == "yang-specification" and c.argument_get() == mount:
+            return c
+        pass
+    return None
+
+def lookup_yang_module(mount, module):
+    y = lookup_yang_mount(mount)
+    if y is None:
+        return None
+    for i in range(0, y.nr_children()):
+        c = y.child_i(i)
+        if c.keyword_get() == "module" and c.argument_get() == module:
+            return c
+        pass
+    return None
+
+yang_valid_children = [
+    "container",
+    "list",
+    "leaf",
+    "leaf-list",
+    "choice",
+    ]
+def yang_valid_child(y):
+    """Validate if the child is valid.  First make sure it is actually
+    enabled if there is a if-feature statement.
+
+    """
+    for i in range(0, y.nr_children()):
+        c = y.child_i(i)
+        if not c.keyword_get() == "feature":
+            continue
+        if not c.cv_get_feature_enabled():
+            return False
+        pass
+    key = y.keyword_get()
+    return key in yang_valid_children
+
+def check_elem_against_yang(mount, path, e, y):
+    rv = True
+    ykey = y.keyword_get()
+    ekey = e.get_etype_str()
+    if ykey != ekey:
+        clixon_beh.log(clixon_beh.LOG_TYPE_ERR,
+                       "yangcheck %s:%s: type mismatch, yang is %s elem is %s"
+                       % (mount, path, ykey, ekey))
+        rv = False
+        pass
+    ens = e.find_namespace()
+    yns = y.find_mynamespace()
+    if yns != ens:
+        clixon_beh.log(clixon_beh.LOG_TYPE_ERR,
+                       "yangcheck %s:%s: namespace mismatch, yang is %s elem is %s"
+                       % (mount, path, yns, ens))
+        rv = False
+        pass
+    if not yang_check_children(mount, path, e.children, y):
+        rv = False
+        pass
+    return rv
+
+def yang_add_children(ychildren, y):
+    for i in range(0, y.nr_children()):
+        c = y.child_i(i)
+        key = c.keyword_get()
+        if key == "case":
+            # We just pass through case elements.
+            yang_add_children(ychildren, c)
+        elif yang_valid_child(c):
+            ychildren[c.argument_get()] = c
+            pass
+        pass
+    return ychildren
+
+def yang_check_children(mount, path, m, y):
+    rv = True
+    if m is None:
+        m = {}
+    else:
+        m = m.mapv
+        pass
+    ychildren = {}
+    yang_add_children(ychildren, y)
+    for i in m:
+        if i not in ychildren:
+            clixon_beh.log(clixon_beh.LOG_TYPE_ERR,
+                           "yangcheck %s:%s: %s in elem, not in yang"
+                           % (mount, path, i))
+            rv = False
+        else:
+            if not check_elem_against_yang(mount, path + "/" + i,
+                                           m[i], ychildren[i]):
+                rv = False
+                pass
+            del ychildren[i]
+            pass
+        pass
+    for i in ychildren:
+        clixon_beh.log(clixon_beh.LOG_TYPE_ERR,
+                       "yangcheck %s:%s: %s in yang, not in elem"
+                       % (mount, path, i))
+        rv = False
+        pass
+    return rv
+
+def check_topmap_against_yang(tophandler, mount):
+    """This is the main function, call it with the top-level handler
+    for your implementation, the mount (usually "data") and the
+    top-level name of the specification you are implementing.
+
+    """
+
+    y = lookup_yang_module(mount, tophandler.name)
+    if y is None:
+        clixon_beh.log(clixon_beh.LOG_TYPE_ERR,
+                       "yangcheck %s:%s: Unable to find module" %
+                       (mount, tophandler.name))
+        return False
+    return yang_check_children(mount, "/" + tophandler.name,
+                               tophandler.children, y)

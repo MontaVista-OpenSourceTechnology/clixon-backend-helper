@@ -418,6 +418,11 @@ class Handler(tf.TopElemHandler, tf.ProgOut):
             pass
         return self.statedata(nsc, xpath, data = tf.GetData(False))
 
+    def start(self):
+        if not tf.check_topmap_against_yang(self, "data"):
+            return -1
+        return 0
+
     pass
 
 handler = Handler("chronyd-server", chronydserver)

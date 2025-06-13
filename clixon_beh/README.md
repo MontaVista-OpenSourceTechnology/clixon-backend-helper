@@ -929,6 +929,17 @@ parent handles the commit here, too.  The ```YangElemValidateOnly```
 is for this case, the commit and revert are errored out there if they
 ever get called.
 
+### Unimplemented Items
+
+You may have optional things in the YANG spec that you don't
+implement.  If you want YANG validation to succeed, you will need to
+add those to your implementation as unimplemented items.
+
+The easiest way to do this is add the item as a
+`YangElemValueOnlyUnimpl`.  This will just return an empty string for
+the result, doing nothing.  But that way it shows up in the tree so
+the YANG validation will succeed for those items.
+
 ### Higher Level Containers Handling Data For Lower Level Items
 
 It is often better to fetch all the data for an operation at once.
@@ -1089,6 +1100,29 @@ Note that the value of vdata, both here and what's returned from
 `fetch_index` and `fetch_full_index` need not be the full data.  They
 could just be indexes into a database, or filenames, or whatever.  But
 whatever is passed in is given to the children for their use.
+
+### Checking your implementation against the YANG
+
+You are basically implementing a tree structure in your code that
+should match the YANG implementation.  The transaction framework
+provides a tool to tell if your implementation matches the YANG.  Just
+add the following to your top-level handler, the thing that implements
+`tf.TopElemHandler`:
+```
+    def start(self):
+        if not tf.check_topmap_against_yang(self, "data"):
+            return -1
+        return 0
+```
+
+This will look up the YANG code for what you are implementing and
+compare it to the tree you have created.  It will issue clixon error
+logs for things that don't match so you can fix them.  This way if
+things change and there's a bug, like if someone enables a feature but
+it's not implemented, clixon will fail at startup.
+
+The "data" parameter is the mount, that's the default place where YANG
+specifications are mounted.
 
 ### Error Handling
 

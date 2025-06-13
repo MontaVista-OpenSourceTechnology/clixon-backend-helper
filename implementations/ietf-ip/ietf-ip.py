@@ -159,10 +159,17 @@ class InterfaceIPv6Enabled(tf.YangElemValueOnly):
     pass
 
 # /interfaces/interface/ipv6/forwarding
+# /interfaces-state/interface/ipv6/forwarding
 class InterfaceIPv6Forwarding(tf.YangElemValueOnly):
     """Get if the interface has forwarding enabled."""
     def getvalue(self, data, vdata=None):
-        # FIXME - find out how to get this.
+        fname = "/proc/sys/net/ipv6/conf/" + vdata["ifname"] + "/forwarding"
+        v = ""
+        with open(fname, "r") as f:
+            v = f.read().strip()
+            pass
+        if v == "1":
+            return "true"
         return "false"
     pass
 
@@ -190,6 +197,18 @@ class IPV6NeighState(tf.YangElemValueOnly):
         if "PROBE" in vdata["state"]:
             return "probe"
         return "stale" # FIXME - is there a better default?
+
+    pass
+
+# /interfaces/interface/ipv6/neighbor/is-router
+# /interfaces-state/interface/ipv6/neighbor/is-router
+class IPV6NeighRouter(tf.YangElemValueOnly):
+    """Get the state value of the address.  This returns raw XML,
+    set wrapxml and xmlprocvalue to false"""
+    def getvalue(self, data, vdata=None):
+        if "router" in vdata:
+            return "<is-router/>"
+        return ""
 
     pass
 
@@ -282,10 +301,16 @@ class InterfaceIPv4Enabled(tf.YangElemValueOnly):
     pass
 
 # /interfaces/interface/ipv4/forwarding
+# /interfaces-state/interface/ipv4/forwarding
 class InterfaceIPv4Forwarding(tf.YangElemValueOnly):
     """Get if the interface has forwarding enabled."""
     def getvalue(self, data, vdata=None):
-        # FIXME - find out how to get this.
+        v = ""
+        with open("/proc/sys/net/ipv4/ip_forward", "r") as f:
+            v = f.read().strip()
+            pass
+        if v == "1":
+            return "true"
         return "false"
     pass
 
@@ -386,8 +411,6 @@ class InterfaceType(tf.YangElem):
 class InterfaceAdminStatus(tf.YangElemValueOnly):
     """Get the admin-status value of the interface."""
     def getvalue(self, data, vdata=None):
-        if not is_if_mib:
-            return ""
         if "UP" in vdata["flags"]:
             return "up"
         # FIXME - do we need to add anything else?
@@ -507,7 +530,9 @@ s.add_map("/interfaces/interface/ipv4",
           IPV4Address("address", tf.YangType.LIST))
 s.add_leaf("/interfaces/interface/ipv4/address",
            MapValue("ip", "local"))
-s.add_leaf("/interfaces/interface/ipv4/address",
+s.add_map("/interfaces/interface/ipv4/address",
+           tf.YangElemChoice("subnet"))
+s.add_leaf("/interfaces/interface/ipv4/address/subnet",
            MapValue("prefix-length", "prefixlen"))
 s.add_leaf("/interfaces/interface/ipv4/address",
            IPV4Origin("origin", tf.YangType.LEAF, isconfig=False))
@@ -551,7 +576,10 @@ s.add_leaf("/interfaces/interface/ipv6/neighbor",
            MapValue("link-layer-address", "lladdr"))
 s.add_leaf("/interfaces/interface/ipv6/neighbor",
            NeighOrigin("origin", tf.YangType.LEAF, isconfig=False))
-# is-router
+s.add_leaf("/interfaces/interface/ipv6/neighbor",
+           IPV6NeighRouter("is-router",
+                           tf.YangType.LEAF, isconfig=False,
+                           wrapxml = False, xmlprocvalue = False))
 s.add_leaf("/interfaces/interface/ipv6/neighbor",
            IPV6NeighState("state", tf.YangType.LEAF, isconfig=False))
 
@@ -593,19 +621,22 @@ s.add_leaf("/interfaces/interface/statistics",
            Map2Value("in-octets", "rx", "bytes"))
 s.add_leaf("/interfaces/interface/statistics",
            Map2Value("in-unicast-pkts", "rx", "bytes"))
-# in-broadcast-pkts
+s.add_leaf("/interfaces/interface/statistics",
+           tf.YangElemValueOnlyUnimpl("in-broadcast-pkts", tf.YangType.LEAF))
 s.add_leaf("/interfaces/interface/statistics",
            Map2Value("in-multicast-pkts", "rx", "multicast"))
 s.add_leaf("/interfaces/interface/statistics",
            Map2Value("in-discards", "rx", "dropped"))
 s.add_leaf("/interfaces/interface/statistics",
            ErrorValue("in-errors", keyval = "rx"))
-# in-unknown-protos
+s.add_leaf("/interfaces/interface/statistics",
+           tf.YangElemValueOnlyUnimpl("in-unknown-protos", tf.YangType.LEAF))
 s.add_leaf("/interfaces/interface/statistics",
            Map2Value("out-octets", "tx", "bytes"))
 s.add_leaf("/interfaces/interface/statistics",
            Map2Value("out-unicast-pkts", "tx", "bytes"))
-# out-broadcast-pkts
+s.add_leaf("/interfaces/interface/statistics",
+           tf.YangElemValueOnlyUnimpl("out-broadcast-pkts", tf.YangType.LEAF))
 s.add_leaf("/interfaces/interface/statistics",
            Map2Value("out-multicast-pkts", "tx", "multicast"))
 s.add_leaf("/interfaces/interface/statistics",
@@ -620,17 +651,29 @@ s.add_leaf("/interfaces/interface",
 s.add_leaf("/interfaces/interface",
            InterfaceType("type", tf.YangType.LEAF,
                          xmlprocvalue=False, wrapxml=False))
-s.add_leaf("/interfaces/interface",
-           InterfaceAdminStatus("admin-status", tf.YangType.LEAF))
+if is_if_mib:
+    s.add_leaf("/interfaces/interface",
+               InterfaceAdminStatus("admin-status", tf.YangType.LEAF))
+    pass
 s.add_leaf("/interfaces/interface",
            InterfaceOperStatus("oper-status", tf.YangType.LEAF,
                                isconfig=False))
-s.add_leaf("/interfaces/interface",
-           MapValue("if-index", "ifindex", isconfig=False))
+if is_if_mib:
+    s.add_leaf("/interfaces/interface",
+               MapValue("if-index", "ifindex", isconfig=False))
 s.add_leaf("/interfaces/interface",
            MapValue("phys-address", "address", isconfig=False))
 # FIXME - how to get speed?
+s.add_leaf("/interfaces/interface",
+           tf.YangElemValueOnlyUnimpl("speed", tf.YangType.LEAF))
 # Also missing: last-change, higher-layer-if, lower-layer-if.
+s.add_leaf("/interfaces/interface",
+           tf.YangElemValueOnlyUnimpl("last-change", tf.YangType.LEAF))
+s.add_leaf("/interfaces/interface",
+           tf.YangElemValueOnlyUnimpl("higher-layer-if", tf.YangType.LEAFLIST))
+s.add_leaf("/interfaces/interface",
+           tf.YangElemValueOnlyUnimpl("lower-layer-if", tf.YangType.LEAFLIST))
+
 s.add_leaf("/interfaces/interface",
            InterfaceEnabled("enabled", tf.YangType.LEAF))
 
@@ -649,21 +692,32 @@ s.add_leaf("/interfaces-state/interface",
 s.add_leaf("/interfaces-state/interface",
            InterfaceStateType("type", tf.YangType.LEAF,
                               xmlprocvalue=False, wrapxml=False))
-s.add_leaf("/interfaces-state/interface",
-           InterfaceStateAdminStatus("admin-status", tf.YangType.LEAF))
+if is_if_mib:
+    s.add_leaf("/interfaces-state/interface",
+               InterfaceStateAdminStatus("admin-status", tf.YangType.LEAF))
 s.add_leaf("/interfaces-state/interface",
            InterfaceOperStatus("oper-status", tf.YangType.LEAF))
-s.add_leaf("/interfaces-state/interface",
-           MapValue("if-index", "ifindex"))
+if is_if_mib:
+    s.add_leaf("/interfaces-state/interface",
+               MapValue("if-index", "ifindex"))
 s.add_leaf("/interfaces-state/interface",
            MapValue("phys-address", "address"))
 # FIXME - how to get speed?
+s.add_leaf("/interfaces-state/interface",
+           tf.YangElemValueOnlyUnimpl("speed", tf.YangType.LEAF))
 # Also missing: last-change, higher-layer-if, lower-layer-if.
+s.add_leaf("/interfaces-state/interface",
+           tf.YangElemValueOnlyUnimpl("last-change", tf.YangType.LEAF))
+s.add_leaf("/interfaces-state/interface",
+           tf.YangElemValueOnlyUnimpl("higher-layer-if", tf.YangType.LEAFLIST))
+s.add_leaf("/interfaces-state/interface",
+           tf.YangElemValueOnlyUnimpl("lower-layer-if", tf.YangType.LEAFLIST))
 
 s.add_map("/interfaces-state/interface",
           tf.YangElemValueOnly("ipv4", tf.YangType.CONTAINER,
                                namespace=IETF_IP_NAMESPACE))
-# forwarding
+s.add_leaf("/interfaces-state/interface/ipv4",
+           InterfaceIPv4Forwarding("forwarding", tf.YangType.LEAF))
 s.add_leaf("/interfaces-state/interface/ipv4",
            MapValue("mtu", "mtu", maxint=65535))
 s.add_map("/interfaces-state/interface/ipv4",
@@ -678,7 +732,9 @@ s.add_map("/interfaces-state/interface/ipv4",
           IPV4Address("address", tf.YangType.LIST))
 s.add_leaf("/interfaces-state/interface/ipv4/address",
            MapValue("ip", "local"))
-s.add_leaf("/interfaces-state/interface/ipv4/address",
+s.add_map("/interfaces-state/interface/ipv4/address",
+           tf.YangElemChoice("subnet"))
+s.add_leaf("/interfaces-state/interface/ipv4/address/subnet",
            MapValue("prefix-length", "prefixlen"))
 s.add_leaf("/interfaces-state/interface/ipv4/address",
            IPV4Origin("origin", tf.YangType.LEAF))
@@ -686,7 +742,8 @@ s.add_leaf("/interfaces-state/interface/ipv4/address",
 s.add_map("/interfaces-state/interface",
           tf.YangElemValueOnly("ipv6", tf.YangType.CONTAINER,
                                namespace=IETF_IP_NAMESPACE))
-# forwarding
+s.add_leaf("/interfaces-state/interface/ipv6",
+           InterfaceIPv6Forwarding("forwarding", tf.YangType.LEAF))
 s.add_leaf("/interfaces-state/interface/ipv6",
            MapValue("mtu", "mtu", maxint=65535))
 s.add_map("/interfaces-state/interface/ipv6",
@@ -697,7 +754,9 @@ s.add_leaf("/interfaces-state/interface/ipv6/neighbor",
            MapValue("link-layer-address", "lladdr"))
 s.add_leaf("/interfaces-state/interface/ipv6/neighbor",
            NeighOrigin("origin", tf.YangType.LEAF))
-# is-router
+s.add_leaf("/interfaces-state/interface/ipv6/neighbor",
+           IPV6NeighRouter("is-router", tf.YangType.LEAF,
+                           wrapxml = False, xmlprocvalue = False))
 s.add_leaf("/interfaces-state/interface/ipv6/neighbor",
            IPV6NeighState("state", tf.YangType.LEAF))
 s.add_map("/interfaces-state/interface/ipv6",
@@ -719,19 +778,22 @@ s.add_leaf("/interfaces-state/interface/statistics",
            Map2Value("in-octets", "rx", "bytes"))
 s.add_leaf("/interfaces-state/interface/statistics",
            Map2Value("in-unicast-pkts", "rx", "bytes"))
-# in-broadcast-pkts
+s.add_leaf("/interfaces-state/interface/statistics",
+           tf.YangElemValueOnlyUnimpl("in-broadcast-pkts", tf.YangType.LEAF))
 s.add_leaf("/interfaces-state/interface/statistics",
            Map2Value("in-multicast-pkts", "rx", "multicast"))
 s.add_leaf("/interfaces-state/interface/statistics",
            Map2Value("in-discards", "rx", "dropped"))
 s.add_leaf("/interfaces-state/interface/statistics",
            ErrorValue("in-errors", keyval = "rx"))
-# in-unknown-protos
+s.add_leaf("/interfaces-state/interface/statistics",
+           tf.YangElemValueOnlyUnimpl("in-unknown-protos", tf.YangType.LEAF))
 s.add_leaf("/interfaces-state/interface/statistics",
            Map2Value("out-octets", "tx", "bytes"))
 s.add_leaf("/interfaces-state/interface/statistics",
            Map2Value("out-unicast-pkts", "tx", "bytes"))
-# out-broadcast-pkts
+s.add_leaf("/interfaces-state/interface/statistics",
+           tf.YangElemValueOnlyUnimpl("out-broadcast-pkts", tf.YangType.LEAF))
 s.add_leaf("/interfaces-state/interface/statistics",
            Map2Value("out-multicast-pkts", "tx", "multicast"))
 s.add_leaf("/interfaces-state/interface/statistics",
@@ -770,7 +832,12 @@ class Handler(tf.TopElemHandler, tf.ProgOut):
             pass
         return rv
 
+    def start(self):
+        if not tf.check_topmap_against_yang(self, "data"):
+            return -1
+        return 0
+
     pass
 
-handler = Handler("ietf-ip", ietfip)
+handler = Handler("ietf-interfaces", ietfip)
 handler.p = clixon_beh.add_plugin("ietf-ip", IETF_INTERFACES_NAMESPACE, handler)

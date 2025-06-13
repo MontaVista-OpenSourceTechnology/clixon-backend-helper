@@ -1596,27 +1596,30 @@ s.add_leaf("/system/ntp/server",
            NTPServerPrefer("prefer", tf.YangType.LEAF))
 
 s.add_map("/system/ntp/server",
+          tf.YangElemChoice("transport"))
+s.add_map("/system/ntp/server/transport",
           NTPNTSServer("nts", tf.YangType.CONTAINER,
                        validate_all = True, namespace = MY_NAMESPACE))
-s.add_leaf("/system/ntp/server/nts",
+s.add_leaf("/system/ntp/server/transport/nts",
            NTPServerNTSAddress("address", tf.YangType.LEAF))
-s.add_leaf("/system/ntp/server/nts",
+s.add_leaf("/system/ntp/server/transport/nts",
            NTPServerUDPPort("port", tf.YangType.LEAF))
-s.add_leaf("/system/ntp/server/nts",
+s.add_leaf("/system/ntp/server/transport/nts",
            NTPServerNTSPort("ntsport", tf.YangType.LEAF))
-s.add_leaf("/system/ntp/server/nts",
+s.add_leaf("/system/ntp/server/transport/nts",
            NTPServerNTSCertificate("certificate", tf.YangType.LEAF))
 
-s.add_map("/system/ntp/server",
+s.add_map("/system/ntp/server/transport",
           NTPUDPServer("udp", tf.YangType.CONTAINER, validate_all = True))
-s.add_leaf("/system/ntp/server/udp",
+s.add_leaf("/system/ntp/server/transport/udp",
            NTPServerUDPAddress("address", tf.YangType.LEAF))
-s.add_leaf("/system/ntp/server/udp",
+s.add_leaf("/system/ntp/server/transport/udp",
            NTPServerUDPPort("port", tf.YangType.LEAF))
 
 s.add_map("/system", tf.YangElem("authentication", tf.YangType.CONTAINER))
 s.add_leaf("/system/authentication",
-           tf.YangElemConfigOnly("user-authentication-order"))
+           tf.YangElemConfigOnly("user-authentication-order",
+                                 etype = tf.YangType.LEAFLIST))
 s.add_map("/system/authentication",
           User("user", tf.YangType.LIST, validate_all=True))
 s.add_leaf("/system/authentication/user",
@@ -1655,17 +1658,23 @@ s.add_map("/system/dns-resolver",
 s.add_leaf("/system/dns-resolver/server",
            DNSServerName("name", tf.YangType.LEAF))
 s.add_map("/system/dns-resolver/server",
+          tf.YangElemChoice("transport"))
+s.add_map("/system/dns-resolver/server/transport",
           tf.YangElemValidateOnly("udp-and-tcp", tf.YangType.CONTAINER,
                                   validate_all=True))
-s.add_leaf("/system/dns-resolver/server/udp-and-tcp",
+s.add_leaf("/system/dns-resolver/server/transport/udp-and-tcp",
            DNSServerAddress("address", tf.YangType.LEAF))
-s.add_leaf("/system/dns-resolver/server/udp-and-tcp",
+s.add_leaf("/system/dns-resolver/server/transport/udp-and-tcp",
            DNSServerPort("port", tf.YangType.LEAF))
 
 s.add_map("/system",
           tf.YangElem("clock", tf.YangType.CONTAINER))
-s.add_leaf("/system/clock", TimeZone("timezone-name", is_name=True))
-s.add_leaf("/system/clock", TimeZone("timezone-utc-offset", is_name=False))
+s.add_map("/system/clock",
+          tf.YangElemChoice("timezone"))
+s.add_leaf("/system/clock/timezone",
+           TimeZone("timezone-name", is_name=True))
+s.add_leaf("/system/clock/timezone",
+           TimeZone("timezone-utc-offset", is_name=False))
 
 # FIXME - Possibly add DNSSEC.
 
@@ -1738,9 +1747,14 @@ class Handler(tf.TopElemHandler, tf.ProgOut):
             pass
         return rv
 
+    def start(self):
+        if not tf.check_topmap_against_yang(self, "data"):
+            return -1
+        return 0
+
     pass
 
-handler = Handler("linux-system", ietfsystem)
+handler = Handler("ietf-system", ietfsystem)
 handler.p = clixon_beh.add_plugin(handler.name, IETF_SYSTEM_NAMESPACE, handler)
 
 class SetTimeHandler(tf.RPC):

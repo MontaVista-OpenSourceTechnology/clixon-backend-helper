@@ -1336,6 +1336,20 @@ struct yangobj { };
     {
 	return yang_argument_get(self->yang);
     }
+
+    // This is primarily for fetching the value feature yang
+    // statements.  If the feature is enabled, return true, else
+    // return false.
+    bool cv_get_feature_enabled()
+    {
+	cg_var *cv = yang_cv_get(self->yang);
+
+	if (!cv)
+	    return true;
+	if (cv_type_get(cv) != CGV_BOOL)
+	    return true;
+	return cv_bool_get(cv);
+    }
 }
 
 struct yangobj *get_yang_base();
