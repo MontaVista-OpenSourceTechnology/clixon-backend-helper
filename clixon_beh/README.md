@@ -78,6 +78,12 @@ class Handler(tf.Elem:
     def exit(self):
         return 0
 
+    def start(self):
+        return 0
+
+    def yang_patch(self):
+        return 0
+
     def begin(self, t):
         return 0
 
