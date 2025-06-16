@@ -817,7 +817,7 @@ class YangElemValueOnly(YangElem):
 
     pass
 
-class YangElemValueOnlyUnimpl(YangElem):
+class YangElemValueOnlyUnimpl(YangElemValueOnly):
     """This is a value only that always returns an empty string.  This
     can be used for optional things that aren't implemented.
 
