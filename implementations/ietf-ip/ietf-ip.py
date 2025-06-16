@@ -58,9 +58,11 @@ ietfip = tf.YangElemMap(None, "/")
 
 class MapValue(tf.YangElemValueOnly):
     """Pull the given keyval from the value mapping."""
-    def __init__(self, name, keyval, isconfig=True, maxint=None):
+    def __init__(self, name, keyval, isconfig=True, maxint=None,
+                 default = None):
         self.keyval = keyval
         self.maxint = maxint
+        self.default = default
         super().__init__(name, tf.YangType.LEAF, isconfig=isconfig)
         return
 
@@ -75,12 +77,15 @@ class MapValue(tf.YangElemValueOnly):
                 rv = str(rv)
                 pass
             return rv
+        if self.default is not None:
+            return self.default
         return ""
     pass
 
 class Map2Value(tf.YangElemValueOnly):
     """Pull the given keyval from the value mapping."""
-    def __init__(self, name, keyval1, keyval2, isconfig=True):
+    def __init__(self, name, keyval1, keyval2, isconfig=True,
+                 default = None):
         self.keyval1 = keyval1
         self.keyval2 = keyval2
         super().__init__(name, tf.YangType.LEAF, isconfig=isconfig)
@@ -91,6 +96,8 @@ class Map2Value(tf.YangElemValueOnly):
             if self.keyval2 in vdata[self.keyval1]:
                 return vdata[self.keyval1][self.keyval2]
             pass
+        if self.default is not None:
+            return self.default
         return ""
     pass
 
@@ -196,6 +203,9 @@ class IPV6NeighState(tf.YangElemValueOnly):
             return "delay"
         if "PROBE" in vdata["state"]:
             return "probe"
+        # FIXME - there is no good map for failed.
+        if "FAILED" in vdata["state"]:
+            return "stale"
         return "stale" # FIXME - is there a better default?
 
     pass
@@ -539,11 +549,12 @@ s.add_leaf("/interfaces/interface/ipv4/address",
 s.add_map("/interfaces/interface/ipv4",
           IPV4Neigh("neighbor", tf.YangType.LIST))
 s.add_leaf("/interfaces/interface/ipv4/neighbor",
-          MapValue("ip", "dst"))
+           MapValue("ip", "dst"))
 s.add_leaf("/interfaces/interface/ipv4/neighbor",
-          MapValue("link-layer-address", "lladdr"))
+           MapValue("link-layer-address", "lladdr",
+                    default="00:00:00:00:00:00"))
 s.add_leaf("/interfaces/interface/ipv4/neighbor",
-          NeighOrigin("origin", tf.YangType.LEAF, isconfig=False))
+           NeighOrigin("origin", tf.YangType.LEAF, isconfig=False))
 
 s.add_map("/interfaces/interface",
           tf.YangElem("ipv6", tf.YangType.CONTAINER,
@@ -573,7 +584,8 @@ s.add_map("/interfaces/interface/ipv6",
 s.add_leaf("/interfaces/interface/ipv6/neighbor",
            MapValue("ip", "dst"))
 s.add_leaf("/interfaces/interface/ipv6/neighbor",
-           MapValue("link-layer-address", "lladdr"))
+           MapValue("link-layer-address", "lladdr",
+                    default="00:00:00:00:00:00"))
 s.add_leaf("/interfaces/interface/ipv6/neighbor",
            NeighOrigin("origin", tf.YangType.LEAF, isconfig=False))
 s.add_leaf("/interfaces/interface/ipv6/neighbor",
@@ -725,7 +737,8 @@ s.add_map("/interfaces-state/interface/ipv4",
 s.add_leaf("/interfaces-state/interface/ipv4/neighbor",
            MapValue("ip", "dst"))
 s.add_leaf("/interfaces-state/interface/ipv4/neighbor",
-           MapValue("link-layer-address", "lladdr"))
+           MapValue("link-layer-address", "lladdr",
+                    default="00:00:00:00:00:00"))
 s.add_leaf("/interfaces-state/interface/ipv4/neighbor",
            NeighOrigin("origin", tf.YangType.LEAF))
 s.add_map("/interfaces-state/interface/ipv4",
@@ -751,7 +764,8 @@ s.add_map("/interfaces-state/interface/ipv6",
 s.add_leaf("/interfaces-state/interface/ipv6/neighbor",
            MapValue("ip", "dst"))
 s.add_leaf("/interfaces-state/interface/ipv6/neighbor",
-           MapValue("link-layer-address", "lladdr"))
+           MapValue("link-layer-address", "lladdr",
+                    default="00:00:00:00:00:00"))
 s.add_leaf("/interfaces-state/interface/ipv6/neighbor",
            NeighOrigin("origin", tf.YangType.LEAF))
 s.add_leaf("/interfaces-state/interface/ipv6/neighbor",
